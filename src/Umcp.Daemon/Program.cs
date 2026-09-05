@@ -1,0 +1,156 @@
+using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Umcp.Daemon;
+using Umcp.Daemon.Agent;
+using Umcp.Daemon.Generated;
+using Umcp.Daemon.Mcp;
+using Umcp.Daemon.Security;
+using Umcp.Daemon.Tray;
+
+// umcpd — the daemon.
+//
+// Long-lived, started at login or on first use, never owned by a Unity process. Killing Unity does
+// not kill it; that is the entire design. The durable state — the request queue, the catalog, the
+// retry logic — lives on this side of the boundary, because everything on the Unity side dies on
+// every recompile.
+
+Paths.EnsureCreated();
+var options = DaemonOptions.Parse(args);
+var tokens = new TokenStore(options.Token ?? Environment.GetEnvironmentVariable("UMCP_TOKEN"));
+
+if (args.Contains("--help") || args.Contains("-h"))
+{
+    Console.WriteLine("""
+        umcpd — Unity MCP Tool daemon
+
+          --port <n>                HTTP/MCP port          (default 8730, loopback only)
+          --agent-port <n>          Unity agent channel    (default 8731, loopback only)
+          --stdio                   also serve MCP on this process's stdio
+          --tray                    show the Windows tray UI
+          --token <s>               use this bearer token instead of minting one
+          --max-response-bytes <n>  response cap           (default 32768)
+
+        The token is written to %LOCALAPPDATA%/UnityMCP/token.
+        """);
+    return 0;
+}
+
+if (options.Stdio)
+{
+    // stdout is the MCP transport in this mode: every log line must go to stderr.
+    var stdio = Host.CreateApplicationBuilder(args);
+    stdio.Logging.ClearProviders();
+    stdio.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
+    AddCore(stdio.Services, options);
+    stdio.Services.AddMcpServer(o => o.ServerInfo = new() { Name = "unity-mcp-tool", Version = "0.1.0" })
+        .WithStdioServerTransport()
+        .WithTools<UnityMcpTools>();
+    await stdio.Build().RunAsync();
+    return 0;
+}
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Logging.ClearProviders();
+builder.Logging.AddSimpleConsole(o => { o.SingleLine = true; o.TimestampFormat = "HH:mm:ss "; });
+
+// Loopback, explicitly, always. Never listen(port) with no host — the implementation being
+// replaced bound 0.0.0.0 with no auth while exposing script creation and arbitrary C#.
+builder.WebHost.ConfigureKestrel(k =>
+{
+    k.Listen(System.Net.IPAddress.Loopback, options.HttpPort, l => l.Protocols = HttpProtocols.Http1AndHttp2);
+});
+
+AddCore(builder.Services, options);
+builder.Services.AddSingleton(tokens);
+builder.Services.AddMcpServer(o => o.ServerInfo = new() { Name = "unity-mcp-tool", Version = "0.1.0" })
+    .WithHttpTransport()
+    .WithTools<UnityMcpTools>();
+
+var app = builder.Build();
+
+// Token auth on everything except /health. Loopback binding alone is not enough: any local
+// process, and any page that resolves a name to 127.0.0.1, can reach a loopback listener.
+app.Use(async (ctx, next) =>
+{
+    if (ctx.Request.Path.StartsWithSegments("/health"))
+    {
+        await next();
+        return;
+    }
+
+    var header = ctx.Request.Headers.Authorization.ToString();
+    var presented = header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+        ? header[7..].Trim()
+        : ctx.Request.Query["token"].ToString();
+
+    if (!CryptographicEquals(presented, tokens.Token))
+    {
+        ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        await ctx.Response.WriteAsync("unauthorized");
+        return;
+    }
+    await next();
+});
+
+app.MapMcp("/mcp");
+
+// Health is the last completed round trip, never "the socket is open".
+app.MapGet("/health", async (EditorRegistry registry, DaemonOptions opts) =>
+{
+    var editors = new JsonArray();
+    foreach (var s in registry.Sessions)
+    {
+        var o = s.StatusJson();
+        var probe = await s.ProbeControlAsync();
+        var tickAge = (long?)probe?["msSinceTick"];
+        o["msSinceTick"] = tickAge;
+        o["health"] = tickAge is null
+            ? (s.MsSinceLastResponse < 5000 ? "ok" : "unknown")
+            : tickAge >= opts.BlockedTickAge.TotalMilliseconds ? "blocked"
+            : tickAge >= 5000 ? "degraded" : "ok";
+        editors.Add(o);
+    }
+
+    return Results.Json(new JsonObject
+    {
+        ["ok"] = true,
+        ["daemon"] = new JsonObject
+        {
+            ["pid"] = Environment.ProcessId,
+            ["version"] = "0.1.0",
+            ["uptimeSec"] = (long)(DateTime.UtcNow - DaemonInfo.StartedUtc).TotalSeconds,
+            ["httpPort"] = opts.HttpPort,
+            ["agentPort"] = opts.AgentPort,
+            ["tools"] = ToolCatalog.All.Length
+        },
+        ["editors"] = editors
+    });
+});
+
+if (options.Tray && OperatingSystem.IsWindows())
+    TrayHost.Start(app.Services, options, tokens);
+
+Console.Error.WriteLine($"[umcpd] http 127.0.0.1:{options.HttpPort}/mcp · agents 127.0.0.1:{options.AgentPort} · " +
+                        $"{ToolCatalog.All.Length} tools · token in {Paths.TokenFile}");
+
+await app.RunAsync();
+return 0;
+
+static void AddCore(IServiceCollection services, DaemonOptions options)
+{
+    services.AddSingleton(options);
+    services.AddSingleton<EditorRegistry>();
+    services.AddSingleton<AuditLog>();
+    services.AddSingleton<Dispatcher>();
+    services.AddSingleton<UnityMcpTools>();
+    services.AddHostedService<AgentServer>();
+    services.AddSingleton<DaemonState>();
+}
+
+static bool CryptographicEquals(string a, string b)
+{
+    if (a.Length != b.Length) return false;
+    var diff = 0;
+    for (var i = 0; i < a.Length; i++) diff |= a[i] ^ b[i];
+    return diff == 0;
+}

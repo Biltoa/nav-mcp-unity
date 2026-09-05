@@ -1,0 +1,109 @@
+{
+  "when": "2026-09-05T20:39:18.6502267\u002B03:00",
+  "focus": "unfocused",
+  "results": [
+    {
+      "tools": 6,
+      "bytes": 2643,
+      "approxTokens": 660,
+      "target": "\u003C1000 tokens",
+      "pass": true,
+      "name": "toolsurface",
+      "harnessMs": 12,
+      "focus": "unfocused"
+    },
+    {
+      "ops": 16,
+      "msPerOp": 98.8,
+      "p50": 100,
+      "min": 88,
+      "max": 100,
+      "name": "ping-sequential",
+      "harnessMs": 1629,
+      "focus": "unfocused"
+    },
+    {
+      "ops": 32,
+      "burstMs": 100,
+      "msPerOp": 3.12,
+      "ok": 32,
+      "name": "ping-concurrent-32",
+      "harnessMs": 194,
+      "focus": "unfocused"
+    },
+    {
+      "ops": 32,
+      "batchMs": 125,
+      "msPerOp": 3.91,
+      "created": 32,
+      "responseBytes": 442,
+      "target": "\u003C=150ms",
+      "pass": true,
+      "name": "batch-32",
+      "harnessMs": 223,
+      "focus": "unfocused"
+    },
+    {
+      "ops": 4,
+      "batchMs": 131,
+      "ok": true,
+      "count": 4,
+      "error": null,
+      "name": "batch-dependent",
+      "harnessMs": 131,
+      "focus": "unfocused"
+    },
+    {
+      "sceneInfoBytes": 1076,
+      "find500Bytes": 10539,
+      "objectsInScene": 119,
+      "cap": 32768,
+      "pass": true,
+      "name": "payload-scene-info",
+      "harnessMs": 149,
+      "focus": "unfocused"
+    },
+    {
+      "opsDuringReload": 16,
+      "visibleErrors": 0,
+      "heldOps": 6,
+      "replayedOps": 0,
+      "sequenceMs": 7733,
+      "errors": [],
+      "pass": true,
+      "name": "reload-hold-replay",
+      "harnessMs": 7734,
+      "focus": "unfocused"
+    },
+    {
+      "controlChannel": "ok",
+      "msSinceTick": 21,
+      "health": "ok",
+      "lastRoundTripMs": 1458,
+      "pass": true,
+      "name": "blocked-detection",
+      "harnessMs": 4,
+      "focus": "unfocused"
+    },
+    {
+      "code": "E_EDITOR_BLOCKED",
+      "detectMs": 7027,
+      "message": "No main-thread tick for 8.5 s while 1 operation(s) are queued.",
+      "recoveredMs": 3049,
+      "target": "E_EDITOR_BLOCKED within 15000ms",
+      "pass": true,
+      "name": "blocked-under-stall",
+      "harnessMs": 12080,
+      "focus": "unfocused"
+    },
+    {
+      "found": 41,
+      "deleted": 41,
+      "remaining": 0,
+      "pass": true,
+      "name": "cleanup",
+      "harnessMs": 174,
+      "focus": "unfocused"
+    }
+  ]
+}

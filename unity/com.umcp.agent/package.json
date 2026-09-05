@@ -1,0 +1,11 @@
+{
+  "name": "com.umcp.agent",
+  "version": "0.1.0",
+  "displayName": "Unity MCP Tool Agent",
+  "description": "Thin in-editor agent for the Unity MCP Tool daemon (umcpd). Connects out to the daemon over loopback TCP, pumps operations on the main thread, and reports lifecycle. No modal dialogs, ever.",
+  "unity": "6000.0",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  },
+  "author": { "name": "Unity MCP Tool" }
+}

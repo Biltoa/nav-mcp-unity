@@ -11,22 +11,21 @@ publish/
 .vs/
 .idea/
 
-# ---- Unity (package dev) ----
-Library/
-Temp/
-Obj/
-Build/
-Builds/
-Logs/
-UserSettings/
-MemoryCaptures/
-*.csproj
+# ---- Unity (package dev; scoped to unity/ so it cannot eat our .csproj/.sln) ----
+unity/**/Library/
+unity/**/Temp/
+unity/**/Obj/
+unity/**/Build/
+unity/**/Builds/
+unity/**/Logs/
+unity/**/UserSettings/
+unity/**/MemoryCaptures/
+unity/**/*.csproj
+unity/**/*.sln
 *.unityproj
-*.sln
 *.pidb
 *.booproj
 *.svd
-*.pdb.meta
 *.apk
 *.aab
 *.unitypackage
@@ -37,13 +36,13 @@ sysinfo.txt
 # but keep these guards in case a run is misconfigured.
 *.log
 logs/
-token
+/token
 *.token
 local.settings.json
 .env
 
 # ---- Benchmarks / scratch ----
-bench-results/
+# bench-results/ IS committed: the measurements are the evidence for every claim in PROGRESS.md.
 scratch/
 *.tmp
 

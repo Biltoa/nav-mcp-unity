@@ -1,0 +1,458 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
+
+// umcp-bench — the measurement harness.
+//
+// Every headline claim in this project has to be a measurement, not an assertion, and every
+// measurement has to state the Editor's focus state: window focus alone was worth 3.3× on the
+// implementation being replaced (107.3 → 33.0 ms/op), so a benchmark that does not record it is
+// not comparable to anything.
+//
+// Usage:  umcp-bench [--port 8730] [--only name] [--json out.json]
+
+var port = ArgInt("--port", 8730);
+var only = Arg("--only");
+var jsonOut = Arg("--json");
+var token = Arg("--token") ?? Environment.GetEnvironmentVariable("UMCP_TOKEN") ?? ReadTokenFile();
+
+var transport = new HttpClientTransport(new HttpClientTransportOptions
+{
+    Endpoint = new Uri($"http://127.0.0.1:{port}/mcp"),
+    AdditionalHeaders = token is null ? null : new Dictionary<string, string> { ["Authorization"] = "Bearer " + token }
+});
+
+await using var client = await McpClient.CreateAsync(transport);
+var bench = new Bench(client);
+
+var results = new JsonArray();
+var focus = await bench.FocusStateAsync();
+
+Console.WriteLine($"umcp-bench — Editor focus state: {focus}");
+Console.WriteLine(new string('-', 78));
+
+var all = new (string name, Func<Task<JsonObject>> run)[]
+{
+    ("toolsurface", bench.ToolSurfaceAsync),
+    ("ping-sequential", () => bench.SequentialAsync(16)),
+    ("ping-concurrent-32", () => bench.ConcurrentAsync(32)),
+    ("batch-32", () => bench.Batch32Async()),
+    ("batch-dependent", bench.BatchDependentAsync),
+    ("payload-scene-info", bench.PayloadAsync),
+    ("reload-hold-replay", bench.ReloadAsync),
+    ("blocked-detection", bench.BlockedProbeAsync),
+    ("blocked-under-stall", bench.BlockedUnderStallAsync),
+    ("cleanup", bench.CleanupAsync)
+};
+
+foreach (var (name, run) in all)
+{
+    if (only is not null && !name.Contains(only, StringComparison.OrdinalIgnoreCase)) continue;
+    Console.Write($"{name,-22} ");
+    var sw = Stopwatch.StartNew();
+    JsonObject row;
+    try { row = await run(); }
+    catch (Exception e) { row = new JsonObject { ["error"] = e.Message }; }
+    row["name"] = name;
+    // Never clobber a measurement the test itself made: the harness clock includes warm-up.
+    row["harnessMs"] = sw.ElapsedMilliseconds;
+    row["focus"] = focus;
+    results.Add(row);
+    Console.WriteLine(Summarise(row));
+}
+
+Console.WriteLine(new string('-', 78));
+if (jsonOut is not null)
+{
+    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(jsonOut))!);
+    await File.WriteAllTextAsync(jsonOut, new JsonObject
+    {
+        ["when"] = DateTimeOffset.Now.ToString("O"),
+        ["focus"] = focus,
+        ["results"] = results
+    }.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    Console.WriteLine($"wrote {jsonOut}");
+}
+return 0;
+
+static string Summarise(JsonObject row)
+{
+    if (row["error"] is not null) return "ERROR: " + row["error"];
+    var parts = new List<string>();
+    foreach (var (k, v) in row)
+    {
+        if (k is "name" or "focus") continue;
+        parts.Add($"{k}={v?.ToJsonString().Trim('"')}");
+    }
+    return string.Join("  ", parts);
+}
+
+static string? Arg(string name)
+{
+    var a = Environment.GetCommandLineArgs();
+    for (var i = 0; i < a.Length - 1; i++) if (a[i] == name) return a[i + 1];
+    return null;
+}
+
+static int ArgInt(string name, int dflt) => int.TryParse(Arg(name), out var v) ? v : dflt;
+
+static string? ReadTokenFile()
+{
+    var p = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UnityMCP", "token");
+    return File.Exists(p) ? File.ReadAllText(p).Trim() : null;
+}
+
+sealed class Bench(McpClient client)
+{
+    const string Prefix = "__UMCP_BENCH_";
+
+    public async Task<string> FocusStateAsync()
+    {
+        var status = await CallAsync("unity_status", new());
+        var pid = (int?)status["data"]?["editors"]?[0]?["pid"] ?? 0;
+        if (pid == 0) return "no-editor";
+        if (!OperatingSystem.IsWindows()) return "unknown";
+
+        var fg = GetForegroundWindow();
+        if (fg == IntPtr.Zero) return "unfocused";
+        GetWindowThreadProcessId(fg, out var fgPid);
+        return fgPid == pid ? "FOCUSED" : "unfocused";
+    }
+
+    /// <summary>
+    /// The baseline cost of simply having this server attached: name + description + inputSchema
+    /// for every exposed tool. Measured at 227,065 B (~56,800 tokens) for the 356-tool
+    /// implementation being replaced.
+    /// </summary>
+    public async Task<JsonObject> ToolSurfaceAsync()
+    {
+        var tools = await client.ListToolsAsync();
+        var bytes = 0;
+        foreach (var t in tools)
+        {
+            bytes += Encoding.UTF8.GetByteCount(t.Name);
+            bytes += Encoding.UTF8.GetByteCount(t.Description ?? "");
+            bytes += Encoding.UTF8.GetByteCount(t.JsonSchema.ToString());
+        }
+        return new JsonObject
+        {
+            ["tools"] = tools.Count,
+            ["bytes"] = bytes,
+            ["approxTokens"] = bytes / 4,
+            ["target"] = "<1000 tokens",
+            ["pass"] = bytes / 4 < 1000
+        };
+    }
+
+    /// <summary>N sequential round trips: the shape that costs ~100 ms per op.</summary>
+    public async Task<JsonObject> SequentialAsync(int n)
+    {
+        await CallAsync("unity_run", new() { ["tool"] = "editor.ping" });   // warm
+
+        var times = new List<long>();
+        for (var i = 0; i < n; i++)
+        {
+            var sw = Stopwatch.StartNew();
+            await CallAsync("unity_run", new() { ["tool"] = "editor.ping" });
+            times.Add(sw.ElapsedMilliseconds);
+        }
+        times.Sort();
+        return new JsonObject
+        {
+            ["ops"] = n,
+            ["msPerOp"] = Math.Round(times.Average(), 1),
+            ["p50"] = times[n / 2],
+            ["min"] = times[0],
+            ["max"] = times[^1]
+        };
+    }
+
+    /// <summary>N concurrent round trips: the Editor drains its whole queue in one tick.</summary>
+    public async Task<JsonObject> ConcurrentAsync(int n)
+    {
+        await CallAsync("unity_run", new() { ["tool"] = "editor.ping" });   // warm
+
+        var sw = Stopwatch.StartNew();
+        var tasks = Enumerable.Range(0, n)
+            .Select(_ => CallAsync("unity_run", new() { ["tool"] = "editor.ping" }))
+            .ToArray();
+        var all = await Task.WhenAll(tasks);
+        var wall = sw.ElapsedMilliseconds;
+
+        return new JsonObject
+        {
+            ["ops"] = n,
+            ["burstMs"] = wall,
+            ["msPerOp"] = Math.Round((double)wall / n, 2),
+            ["ok"] = all.Count(r => (bool?)r["ok"] == true)
+        };
+    }
+
+    /// <summary>The headline number: 32 operations in one Editor tick. Target ≤150 ms.</summary>
+    public async Task<JsonObject> Batch32Async()
+    {
+        await CallAsync("unity_run", new() { ["tool"] = "editor.ping" });   // warm
+
+        var ops = new JsonArray();
+        for (var i = 0; i < 32; i++)
+            ops.Add(new JsonObject
+            {
+                ["op"] = "gameobject.create",
+                ["args"] = new JsonObject { ["name"] = Prefix + "b32_" + i }
+            });
+
+        var sw = Stopwatch.StartNew();
+        var result = await CallAsync("unity_batch", new()
+        {
+            ["ops"] = ops,
+            ["returns"] = "ids",
+            ["undoName"] = "umcp-bench 32"
+        });
+        var wall = sw.ElapsedMilliseconds;
+
+        var count = (int?)result["data"]?["count"] ?? 0;
+        var bytes = Encoding.UTF8.GetByteCount(result.ToJsonString());
+
+        return new JsonObject
+        {
+            ["ops"] = 32,
+            ["batchMs"] = wall,
+            ["msPerOp"] = Math.Round((double)wall / 32, 2),
+            ["created"] = count,
+            ["responseBytes"] = bytes,
+            ["target"] = "<=150ms",
+            ["pass"] = wall <= 150 && count == 32
+        };
+    }
+
+    /// <summary>
+    /// A dependent batch: op 2 and 3 refer to op 1's result with "$1". Serial round trips are
+    /// what kill the naive design; this proves dependency does not force them.
+    /// </summary>
+    public async Task<JsonObject> BatchDependentAsync()
+    {
+        var ops = new JsonArray
+        {
+            new JsonObject { ["op"] = "gameobject.create", ["args"] = new JsonObject { ["name"] = Prefix + "dep", ["primitive"] = "Capsule" } },
+            new JsonObject { ["op"] = "component.add", ["args"] = new JsonObject { ["target"] = "$1", ["type"] = "Rigidbody" } },
+            new JsonObject { ["op"] = "component.set", ["args"] = new JsonObject { ["target"] = "$1", ["type"] = "Rigidbody", ["props"] = new JsonObject { ["mass"] = 80 } } },
+            new JsonObject { ["op"] = "transform.set", ["args"] = new JsonObject { ["target"] = "$1", ["position"] = new JsonArray(0, 3, 0) } }
+        };
+
+        var sw = Stopwatch.StartNew();
+        var result = await CallAsync("unity_batch", new() { ["ops"] = ops, ["atomic"] = true, ["returns"] = "summary" });
+        return new JsonObject
+        {
+            ["ops"] = 4,
+            ["batchMs"] = sw.ElapsedMilliseconds,
+            ["ok"] = (bool?)result["ok"] ?? false,
+            ["count"] = (int?)result["data"]?["count"] ?? 0,
+            ["error"] = result["data"]?["error"]?.DeepClone() ?? result["message"]?.DeepClone()
+        };
+    }
+
+    /// <summary>Response size on a read. One scene read cost 138,205 B before.</summary>
+    public async Task<JsonObject> PayloadAsync()
+    {
+        var info = await CallAsync("unity_run", new() { ["tool"] = "scene.info" });
+        var find = await CallAsync("unity_run", new()
+        {
+            ["tool"] = "gameobject.find",
+            ["args"] = new JsonObject { ["name"] = "", ["limit"] = 500 }
+        });
+
+        var infoBytes = Encoding.UTF8.GetByteCount(info.ToJsonString());
+        var findBytes = Encoding.UTF8.GetByteCount(find.ToJsonString());
+        return new JsonObject
+        {
+            ["sceneInfoBytes"] = infoBytes,
+            ["find500Bytes"] = findBytes,
+            ["objectsInScene"] = (int?)info["data"]?["objectCount"] ?? 0,
+            ["cap"] = 32768,
+            ["pass"] = infoBytes <= 32768 && findBytes <= 32768
+        };
+    }
+
+    /// <summary>
+    /// Force a recompile mid-sequence and count agent-visible errors. The exit criterion is zero:
+    /// a domain reload should look like a slow call, not a failure.
+    /// </summary>
+    public async Task<JsonObject> ReloadAsync()
+    {
+        var errors = new JsonArray();
+        var sw = Stopwatch.StartNew();
+
+        var compile = await CallAsync("unity_run", new() { ["tool"] = "editor.compile" });
+        if ((bool?)compile["ok"] != true) errors.Add("compile: " + compile["code"]);
+
+        // Fire a mixed sequence straight into the reload window.
+        var during = new List<Task<JsonObject>>();
+        for (var i = 0; i < 8; i++)
+        {
+            during.Add(CallAsync("unity_run", new() { ["tool"] = "editor.ping" }));
+            during.Add(CallAsync("unity_run", new()
+            {
+                ["tool"] = "gameobject.create",
+                ["args"] = new JsonObject { ["name"] = Prefix + "reload_" + i }
+            }));
+            await Task.Delay(120);
+        }
+
+        var results = await Task.WhenAll(during);
+        foreach (var r in results)
+            if ((bool?)r["ok"] != true) errors.Add((string?)r["code"] + ": " + (string?)r["message"]);
+
+        var held = results.Count(r => (long?)r["meta"]?["heldMs"] > 0);
+        var replayed = results.Count(r => (bool?)r["meta"]?["replayed"] == true);
+
+        return new JsonObject
+        {
+            ["opsDuringReload"] = results.Length,
+            ["visibleErrors"] = errors.Count,
+            ["heldOps"] = held,
+            ["replayedOps"] = replayed,
+            ["sequenceMs"] = sw.ElapsedMilliseconds,
+            ["errors"] = errors,
+            ["pass"] = errors.Count == 0
+        };
+    }
+
+    /// <summary>
+    /// Confirms the out-of-band control channel answers and reports tick age. The full modal test
+    /// needs a human to raise a dialog; this proves the mechanism that detects one is live.
+    /// </summary>
+    public async Task<JsonObject> BlockedProbeAsync()
+    {
+        var status = await CallAsync("unity_status", new());
+        var editor = status["data"]?["editors"]?[0];
+        return new JsonObject
+        {
+            ["controlChannel"] = editor?["controlChannel"]?.DeepClone(),
+            ["msSinceTick"] = editor?["msSinceTick"]?.DeepClone(),
+            ["health"] = editor?["health"]?.DeepClone(),
+            ["lastRoundTripMs"] = editor?["lastRoundTripMs"]?.DeepClone(),
+            ["pass"] = (string?)editor?["controlChannel"] == "ok"
+        };
+    }
+
+    /// <summary>
+    /// Stall the Editor main thread and confirm a concurrent operation is told
+    /// E_EDITOR_BLOCKED — with a reason — rather than sitting in a silent timeout.
+    ///
+    /// A modal dialog produces exactly this condition: the pump stops while the socket stays
+    /// ESTABLISHED and /health cheerfully reports connected. Detection keys on main-thread tick
+    /// age, so a stall is the same signal from the detector's point of view, and unlike a real
+    /// dialog it can run unattended.
+    /// </summary>
+    public async Task<JsonObject> BlockedUnderStallAsync()
+    {
+        var stall = CallAsync("unity_run", new()
+        {
+            ["tool"] = "editor.stall",
+            ["args"] = new JsonObject { ["seconds"] = 12 }
+        });
+
+        await Task.Delay(1500);   // let the stall reach the main thread
+
+        var sw = Stopwatch.StartNew();
+        var victim = await CallAsync("unity_run", new() { ["tool"] = "editor.ping" });
+        var detectMs = sw.ElapsedMilliseconds;
+
+        var code = (string?)victim["code"];
+        try { await stall; } catch { }
+
+        // The daemon gave up on the stalling op long before Unity did: the Editor is still
+        // asleep. Wait for a real completed round trip before letting the next test run, or it
+        // measures the tail of this one.
+        var recoveredMs = await WaitUntilHealthyAsync(TimeSpan.FromSeconds(60));
+
+        return new JsonObject
+        {
+            ["code"] = code,
+            ["detectMs"] = detectMs,
+            ["message"] = (string?)victim["message"],
+            ["recoveredMs"] = recoveredMs,
+            ["target"] = "E_EDITOR_BLOCKED within 15000ms",
+            ["pass"] = code == "E_EDITOR_BLOCKED" && detectMs <= 15000 && recoveredMs >= 0
+        };
+    }
+
+    /// <summary>
+    /// Wait until a ping actually completes. Returns how long that took, or -1 on give-up.
+    /// </summary>
+    public async Task<long> WaitUntilHealthyAsync(TimeSpan timeout)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.Elapsed < timeout)
+        {
+            var r = await CallAsync("unity_run", new() { ["tool"] = "editor.ping" });
+            if ((bool?)r["ok"] == true) return sw.ElapsedMilliseconds;
+            await Task.Delay(500);
+        }
+        return -1;
+    }
+
+    /// <summary>Delete everything this harness created. The scene is never saved.</summary>
+    public async Task<JsonObject> CleanupAsync()
+    {
+        var find = await CallAsync("unity_run", new()
+        {
+            ["tool"] = "gameobject.find",
+            ["args"] = new JsonObject { ["name"] = Prefix, ["limit"] = 500 }
+        });
+
+        // A refused query is not an empty scene. Reporting "nothing left" because the question
+        // could not be asked is exactly the kind of rounded-up pass this project exists to avoid.
+        if ((bool?)find["ok"] != true)
+            return new JsonObject
+            {
+                ["deleted"] = 0,
+                ["remaining"] = "unknown",
+                ["queryFailed"] = (string?)find["code"] ?? "unknown",
+                ["pass"] = false
+            };
+
+        var items = find["data"]?["items"] as JsonArray ?? new JsonArray();
+        if (items.Count == 0) return new JsonObject { ["deleted"] = 0, ["remaining"] = 0, ["pass"] = true };
+
+        var ops = new JsonArray();
+        foreach (var item in items)
+            ops.Add(new JsonObject
+            {
+                ["op"] = "gameobject.delete",
+                ["args"] = new JsonObject { ["target"] = "#" + (int?)item?["id"] }
+            });
+
+        var result = await CallAsync("unity_batch", new() { ["ops"] = ops, ["returns"] = "none", ["undoName"] = "umcp-bench cleanup" });
+
+        var check = await CallAsync("unity_run", new()
+        {
+            ["tool"] = "gameobject.find",
+            ["args"] = new JsonObject { ["name"] = Prefix, ["limit"] = 500 }
+        });
+        var remaining = (bool?)check["ok"] == true ? (int?)check["data"]?["_total"] ?? -1 : -1;
+
+        return new JsonObject
+        {
+            ["found"] = items.Count,
+            ["deleted"] = (int?)result["data"]?["count"] ?? 0,
+            ["remaining"] = remaining,
+            ["pass"] = remaining == 0
+        };
+    }
+
+    async Task<JsonObject> CallAsync(string tool, JsonObject args)
+    {
+        var dict = args.ToDictionary(kv => kv.Key, kv => (object?)JsonSerializer.Deserialize<JsonElement>(kv.Value!.ToJsonString()));
+        var result = await client.CallToolAsync(tool, dict);
+        var text = result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text ?? "{}";
+        return JsonNode.Parse(text) as JsonObject ?? new JsonObject { ["ok"] = false, ["message"] = text };
+    }
+
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out int pid);
+}
