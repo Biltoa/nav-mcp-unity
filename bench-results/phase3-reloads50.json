@@ -1,0 +1,21 @@
+{
+  "when": "2026-09-05T21:52:53.2988740\u002B03:00",
+  "focus": "unfocused",
+  "results": [
+    {
+      "reloads": 50,
+      "reads": 600,
+      "readFailures": 0,
+      "fromMirror": 597,
+      "fromLive": 3,
+      "flaggedStale": 266,
+      "seconds": 445,
+      "failures": [],
+      "target": "zero read failures across every reload",
+      "pass": true,
+      "name": "reads-through-reloads",
+      "harnessMs": 445864,
+      "focus": "unfocused"
+    }
+  ]
+}

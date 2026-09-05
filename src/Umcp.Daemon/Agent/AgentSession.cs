@@ -219,6 +219,12 @@ public sealed class AgentSession : IAsyncDisposable
                     break;
                 }
 
+            case "mirror":
+                // Scene deltas travel as their own frame type rather than as a generic event,
+                // because they are high-volume and must not be confused with lifecycle.
+                Event?.Invoke(this, "mirror", node);
+                break;
+
             case "event":
                 {
                     var kind = (string?)node["kind"] ?? "";

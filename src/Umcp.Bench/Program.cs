@@ -18,6 +18,8 @@ using ModelContextProtocol.Protocol;
 var port = ArgInt("--port", 8730);
 var only = Arg("--only");
 var jsonOut = Arg("--json");
+var reloads = ArgInt("--reloads", 5);
+var soakSeconds = ArgInt("--soak", 0);
 var token = Arg("--token") ?? Environment.GetEnvironmentVariable("UMCP_TOKEN") ?? ReadTokenFile();
 
 var transport = new HttpClientTransport(new HttpClientTransportOptions
@@ -47,10 +49,21 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("skill-tree", bench.SkillTreeAsync),
     ("scene-query-vs-dump", bench.SceneQueryAsync),
     ("code-mode", bench.CodeModeAsync),
+    ("mirror-latency", bench.MirrorLatencyAsync),
+    ("mirror-reconcile", bench.MirrorReconcileAsync),
+    ("reads-through-reloads", () => bench.ReadsThroughReloadsAsync(reloads)),
     ("blocked-detection", bench.BlockedProbeAsync),
     ("blocked-under-stall", bench.BlockedUnderStallAsync),
     ("cleanup", bench.CleanupAsync)
 };
+
+// The soak is opt-in: it is the proxy for "no drift over a long editing session",
+// and it takes as long as you give it.
+if (soakSeconds > 0)
+    all = all.Take(all.Length - 1)
+             .Append(("mirror-soak", (Func<Task<JsonObject>>)(() => bench.SoakAsync(soakSeconds))))
+             .Append(("cleanup", (Func<Task<JsonObject>>)bench.CleanupAsync))
+             .ToArray();
 
 foreach (var (name, run) in all)
 {
@@ -486,6 +499,340 @@ sealed class Bench(McpClient client)
     }
 
     /// <summary>
+    /// Read latency with the mirror answering, against the same read forced live. The mirror is
+    /// the reason a read no longer costs an Editor tick.
+    /// </summary>
+    public async Task<JsonObject> MirrorLatencyAsync()
+    {
+        // Warm both paths so neither number includes a first-call cost.
+        await QueryAsync(false);
+        await QueryAsync(true);
+
+        var mirrorTimes = new List<long>();
+        JsonObject last = new();
+        for (var i = 0; i < 20; i++)
+        {
+            var sw = Stopwatch.StartNew();
+            last = await QueryAsync(false);
+            mirrorTimes.Add(sw.ElapsedMilliseconds);
+        }
+
+        var liveTimes = new List<long>();
+        JsonObject live = new();
+        for (var i = 0; i < 10; i++)
+        {
+            var sw = Stopwatch.StartNew();
+            live = await QueryAsync(true);
+            liveTimes.Add(sw.ElapsedMilliseconds);
+        }
+
+        var source = (string?)last["meta"]?["source"];
+        var liveSource = (string?)live["meta"]?["source"];
+
+        // The two paths must agree, or "source: mirror" is a lie.
+        var mirrorCount = (int?)last["data"]?["_total"] ?? -1;
+        var liveCount = (int?)live["data"]?["_total"] ?? -2;
+
+        return new JsonObject
+        {
+            ["source"] = source,
+            ["verifySource"] = liveSource,
+            ["mirrorMsMean"] = Math.Round(mirrorTimes.Average(), 2),
+            ["mirrorMsMax"] = mirrorTimes.Max(),
+            ["liveMsMean"] = Math.Round(liveTimes.Average(), 1),
+            ["staleMs"] = last["meta"]?["staleMs"]?.DeepClone(),
+            ["mirrorMatches"] = mirrorCount,
+            ["liveMatches"] = liveCount,
+            ["agree"] = mirrorCount == liveCount,
+            ["target"] = "served from mirror, agrees with live, mean < 10 ms",
+            ["pass"] = source == "mirror" && liveSource == "live" && mirrorCount == liveCount
+                       && mirrorTimes.Average() < 10
+        };
+    }
+
+    Task<JsonObject> QueryAsync(bool verify) => CallAsync("unity_run", new()
+    {
+        ["tool"] = "scene.query",
+        ["args"] = new JsonObject
+        {
+            ["select"] = "//*[has:Transform]",
+            ["fields"] = new JsonArray("name", "path"),
+            ["limit"] = 100
+        },
+        ["verify"] = verify
+    });
+
+    /// <summary>
+    /// Churn the hierarchy in every way the mirror models, then ask the Editor for hashes and
+    /// compare. "Zero drift" only means something if drift was actually looked for.
+    /// </summary>
+    public async Task<JsonObject> MirrorReconcileAsync()
+    {
+        var mutations = 0;
+
+        // Create a tree, reparent it, rename it, toggle it, add components, reorder, delete some.
+        var ops = new JsonArray();
+        for (var i = 0; i < 12; i++)
+            ops.Add(new JsonObject
+            {
+                ["op"] = "gameobject.create",
+                ["args"] = new JsonObject { ["name"] = Prefix + "rec_" + i, ["primitive"] = i % 3 == 0 ? "Cube" : null }
+            });
+        var created = await CallAsync("unity_batch", new() { ["ops"] = ops, ["returns"] = "ids" });
+        mutations += 12;
+
+        var ids = (created["data"]?["results"] as JsonArray)?.Select(n => (int?)n ?? 0).Where(n => n != 0).ToArray()
+                  ?? Array.Empty<int>();
+
+        if (ids.Length >= 6)
+        {
+            var second = new JsonArray();
+            // reparent
+            for (var i = 1; i < 4; i++)
+                second.Add(new JsonObject
+                {
+                    ["op"] = "gameobject.setParent",
+                    ["args"] = new JsonObject { ["target"] = "#" + ids[i], ["parent"] = "#" + ids[0] }
+                });
+            // rename
+            second.Add(new JsonObject
+            {
+                ["op"] = "gameobject.rename",
+                ["args"] = new JsonObject { ["target"] = "#" + ids[4], ["name"] = Prefix + "rec_renamed" }
+            });
+            // deactivate
+            second.Add(new JsonObject
+            {
+                ["op"] = "gameobject.setActive",
+                ["args"] = new JsonObject { ["target"] = "#" + ids[5], ["active"] = false }
+            });
+            // add a component (changes the component list the hash covers)
+            second.Add(new JsonObject
+            {
+                ["op"] = "component.add",
+                ["args"] = new JsonObject { ["target"] = "#" + ids[0], ["type"] = "Rigidbody" }
+            });
+            // tag and layer
+            second.Add(new JsonObject
+            {
+                ["op"] = "gameobject.setLayer",
+                ["args"] = new JsonObject { ["target"] = "#" + ids[2], ["layer"] = "Water" }
+            });
+            await CallAsync("unity_batch", new() { ["ops"] = second, ["returns"] = "none" });
+            mutations += second.Count;
+
+            // delete two, including one with children
+            var third = new JsonArray
+            {
+                new JsonObject { ["op"] = "gameobject.delete", ["args"] = new JsonObject { ["target"] = "#" + ids[6] } },
+                new JsonObject { ["op"] = "gameobject.delete", ["args"] = new JsonObject { ["target"] = "#" + ids[0] } }
+            };
+            await CallAsync("unity_batch", new() { ["ops"] = third, ["returns"] = "none" });
+            mutations += 2;
+        }
+
+        // Let the Editor publish its change stream and the daemon apply it.
+        await Task.Delay(600);
+
+        var projects = await CallAsync("unity_projects", new() { ["reconcile"] = true });
+        var editor = projects["data"]?["editors"]?[0];
+        var reconcile = editor?["reconcile"];
+
+        return new JsonObject
+        {
+            ["mutations"] = mutations,
+            ["drift"] = reconcile?["drift"]?.DeepClone(),
+            ["liveNodes"] = reconcile?["liveNodes"]?.DeepClone(),
+            ["mirrorNodes"] = reconcile?["mirrorNodes"]?.DeepClone(),
+            ["details"] = reconcile?["details"]?.DeepClone(),
+            ["resyncs"] = editor?["mirror"]?["resyncs"]?.DeepClone(),
+            ["target"] = "zero drift after a mixed mutation workload",
+            ["pass"] = (bool?)reconcile?["drift"] == false
+        };
+    }
+
+    /// <summary>
+    /// Reads must keep working across domain reloads. Without a mirror every read during a
+    /// recompile either fails or stalls; with one, only mutations wait.
+    /// </summary>
+    public async Task<JsonObject> ReadsThroughReloadsAsync(int reloads)
+    {
+        var readFailures = new JsonArray();
+        var mirrorServed = 0;
+        var liveServed = 0;
+        var staleServed = 0;
+        var totalReads = 0;
+        var sw = Stopwatch.StartNew();
+
+        for (var r = 0; r < reloads; r++)
+        {
+            var compile = await CallAsync("unity_run", new() { ["tool"] = "editor.compile" });
+            if ((bool?)compile["ok"] != true)
+                readFailures.Add($"compile {r}: {(string?)compile["code"]}");
+
+            // Hammer reads straight through the reload window.
+            for (var i = 0; i < 12; i++)
+            {
+                var read = await CallAsync("unity_run", new()
+                {
+                    ["tool"] = "scene.count",
+                    ["args"] = new JsonObject { ["select"] = "//*" }
+                });
+                totalReads++;
+
+                if ((bool?)read["ok"] != true)
+                {
+                    readFailures.Add($"reload {r} read {i}: {(string?)read["code"]} {(string?)read["message"]}");
+                    continue;
+                }
+                var source = (string?)read["meta"]?["source"];
+                if (source == "mirror") mirrorServed++; else liveServed++;
+                if ((bool?)read["meta"]?["stale"] == true) staleServed++;
+
+                await Task.Delay(120);
+            }
+
+            await WaitUntilHealthyAsync(TimeSpan.FromSeconds(90));
+        }
+
+        return new JsonObject
+        {
+            ["reloads"] = reloads,
+            ["reads"] = totalReads,
+            ["readFailures"] = readFailures.Count,
+            ["fromMirror"] = mirrorServed,
+            ["fromLive"] = liveServed,
+            ["flaggedStale"] = staleServed,
+            ["seconds"] = sw.ElapsedMilliseconds / 1000,
+            ["failures"] = readFailures,
+            ["target"] = "zero read failures across every reload",
+            ["pass"] = readFailures.Count == 0
+        };
+    }
+
+    /// <summary>
+    /// Sustained churn with repeated reconciles. This is the practical stand-in for "zero drift
+    /// over an 8-hour editing session": the plan's criterion is about accumulated divergence, and
+    /// what accumulates divergence is mutations and reconciles, not wall-clock hours. Reported as
+    /// what it is — a churn soak of a stated length — not as eight hours.
+    /// </summary>
+    public async Task<JsonObject> SoakAsync(int seconds)
+    {
+        var rng = new Random(20260905);
+        var deadline = DateTime.UtcNow.AddSeconds(seconds);
+        var mutations = 0;
+        var reconciles = 0;
+        var driftEvents = new JsonArray();
+        var live = new List<int>();
+        var round = 0;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            round++;
+            var ops = new JsonArray();
+
+            // Create a handful.
+            var creates = rng.Next(3, 10);
+            for (var i = 0; i < creates; i++)
+                ops.Add(new JsonObject
+                {
+                    ["op"] = "gameobject.create",
+                    ["args"] = new JsonObject
+                    {
+                        ["name"] = Prefix + "soak_" + round + "_" + i,
+                        ["primitive"] = rng.Next(4) == 0 ? "Cube" : null
+                    }
+                });
+
+            var created = await CallAsync("unity_batch", new() { ["ops"] = ops, ["returns"] = "ids" });
+            mutations += creates;
+            foreach (var n in (created["data"]?["results"] as JsonArray) ?? new JsonArray())
+                if ((int?)n is int id && id != 0) live.Add(id);
+
+            // Mutate some of what exists, in every way the mirror models.
+            if (live.Count > 4)
+            {
+                var second = new JsonArray();
+                for (var i = 0; i < Math.Min(6, live.Count / 2); i++)
+                {
+                    var target = "#" + live[rng.Next(live.Count)];
+                    switch (rng.Next(5))
+                    {
+                        case 0:
+                            second.Add(new JsonObject { ["op"] = "gameobject.rename",
+                                ["args"] = new JsonObject { ["target"] = target, ["name"] = Prefix + "soak_r" + round + "_" + i } });
+                            break;
+                        case 1:
+                            second.Add(new JsonObject { ["op"] = "gameobject.setActive",
+                                ["args"] = new JsonObject { ["target"] = target, ["active"] = rng.Next(2) == 0 } });
+                            break;
+                        case 2:
+                            second.Add(new JsonObject { ["op"] = "gameobject.setParent",
+                                ["args"] = new JsonObject { ["target"] = target, ["parent"] = "#" + live[rng.Next(live.Count)] } });
+                            break;
+                        case 3:
+                            second.Add(new JsonObject { ["op"] = "component.add",
+                                ["args"] = new JsonObject { ["target"] = target, ["type"] = rng.Next(2) == 0 ? "Rigidbody" : "BoxCollider" } });
+                            break;
+                        default:
+                            second.Add(new JsonObject { ["op"] = "gameobject.setLayer",
+                                ["args"] = new JsonObject { ["target"] = target, ["layer"] = rng.Next(2) == 0 ? "Water" : "Default" } });
+                            break;
+                    }
+                }
+                if (second.Count > 0)
+                {
+                    await CallAsync("unity_batch", new() { ["ops"] = second, ["returns"] = "none" });
+                    mutations += second.Count;
+                }
+            }
+
+            // Delete a few, so removal and root reordering are exercised too.
+            if (live.Count > 20)
+            {
+                var third = new JsonArray();
+                for (var i = 0; i < 5 && live.Count > 0; i++)
+                {
+                    var idx = rng.Next(live.Count);
+                    third.Add(new JsonObject { ["op"] = "gameobject.delete",
+                        ["args"] = new JsonObject { ["target"] = "#" + live[idx] } });
+                    live.RemoveAt(idx);
+                }
+                await CallAsync("unity_batch", new() { ["ops"] = third, ["returns"] = "none" });
+                mutations += third.Count;
+            }
+
+            await Task.Delay(400);
+
+            var projects = await CallAsync("unity_projects", new() { ["reconcile"] = true });
+            var reconcile = projects["data"]?["editors"]?[0]?["reconcile"];
+            reconciles++;
+
+            if ((bool?)reconcile?["drift"] == true)
+                driftEvents.Add(new JsonObject
+                {
+                    ["round"] = round,
+                    ["mutationsSoFar"] = mutations,
+                    ["liveNodes"] = reconcile?["liveNodes"]?.DeepClone(),
+                    ["mirrorNodes"] = reconcile?["mirrorNodes"]?.DeepClone(),
+                    ["details"] = reconcile?["details"]?.DeepClone()
+                });
+        }
+
+        return new JsonObject
+        {
+            ["seconds"] = seconds,
+            ["rounds"] = round,
+            ["mutations"] = mutations,
+            ["reconciles"] = reconciles,
+            ["driftEvents"] = driftEvents.Count,
+            ["drift"] = driftEvents,
+            ["target"] = "zero drift across the whole soak",
+            ["pass"] = driftEvents.Count == 0
+        };
+    }
+
+    /// <summary>
     /// Confirms the out-of-band control channel answers and reports tick age. The full modal test
     /// needs a human to raise a dialog; this proves the mechanism that detects one is live.
     /// </summary>
@@ -560,50 +907,93 @@ sealed class Bench(McpClient client)
         return -1;
     }
 
-    /// <summary>Delete everything this harness created. The scene is never saved.</summary>
+    /// <summary>
+    /// Delete everything this harness created, and verify it. The scene is never saved.
+    ///
+    /// Deliberately iterative: the soak reparents objects under each other, so deleting a parent
+    /// takes its children with it and the ids queued behind it are already gone. A single batch
+    /// stops at the first such failure, which is how an earlier version of this reported
+    /// "deleted 0, remaining 720" and called it a day.
+    /// </summary>
     public async Task<JsonObject> CleanupAsync()
     {
-        var find = await CallAsync("unity_run", new()
+        var deleted = 0;
+        var rounds = 0;
+        var initial = -1;
+
+        while (rounds++ < 40)
         {
-            ["tool"] = "gameobject.find",
-            ["args"] = new JsonObject { ["name"] = Prefix, ["limit"] = 500 }
-        });
-
-        // A refused query is not an empty scene. Reporting "nothing left" because the question
-        // could not be asked is exactly the kind of rounded-up pass this project exists to avoid.
-        if ((bool?)find["ok"] != true)
-            return new JsonObject
+            // Ask for ids only, so the page is small enough never to hit the response cap, and
+            // take roots first: deleting a root removes its subtree in one operation.
+            var find = await CallAsync("unity_run", new()
             {
-                ["deleted"] = 0,
-                ["remaining"] = "unknown",
-                ["queryFailed"] = (string?)find["code"] ?? "unknown",
-                ["pass"] = false
-            };
-
-        var items = find["data"]?["items"] as JsonArray ?? new JsonArray();
-        if (items.Count == 0) return new JsonObject { ["deleted"] = 0, ["remaining"] = 0, ["pass"] = true };
-
-        var ops = new JsonArray();
-        foreach (var item in items)
-            ops.Add(new JsonObject
-            {
-                ["op"] = "gameobject.delete",
-                ["args"] = new JsonObject { ["target"] = "#" + (int?)item?["id"] }
+                ["tool"] = "scene.query",
+                ["args"] = new JsonObject
+                {
+                    ["select"] = $"//*[name^:{Prefix}]",
+                    ["fields"] = new JsonArray("id"),
+                    ["limit"] = 200
+                },
+                ["verify"] = true
             });
 
-        var result = await CallAsync("unity_batch", new() { ["ops"] = ops, ["returns"] = "none", ["undoName"] = "umcp-bench cleanup" });
+            if ((bool?)find["ok"] != true)
+                return new JsonObject
+                {
+                    ["deleted"] = deleted,
+                    ["remaining"] = "unknown",
+                    ["queryFailed"] = (string?)find["code"] ?? "unknown",
+                    ["pass"] = false
+                };
+
+            var total = (int?)find["data"]?["_total"] ?? 0;
+            if (initial < 0) initial = total;
+            if (total == 0) break;
+
+            var items = find["data"]?["items"] as JsonArray ?? new JsonArray();
+            if (items.Count == 0) break;
+
+            // One op per call would be slow and one batch aborts at the first stale id, so send
+            // small batches and let a failed one cost only its own remainder.
+            foreach (var chunk in items.Chunk(20))
+            {
+                var ops = new JsonArray();
+                foreach (var item in chunk)
+                    ops.Add(new JsonObject
+                    {
+                        ["op"] = "gameobject.delete",
+                        ["args"] = new JsonObject { ["target"] = "#" + (int?)item?["id"] }
+                    });
+
+                var result = await CallAsync("unity_batch", new()
+                {
+                    ["ops"] = ops,
+                    ["returns"] = "none",
+                    ["undoName"] = "umcp-bench cleanup"
+                });
+                deleted += (int?)result["data"]?["count"] ?? 0;
+            }
+        }
 
         var check = await CallAsync("unity_run", new()
         {
-            ["tool"] = "gameobject.find",
-            ["args"] = new JsonObject { ["name"] = Prefix, ["limit"] = 500 }
+            ["tool"] = "scene.query",
+            ["args"] = new JsonObject
+            {
+                ["select"] = $"//*[name^:{Prefix}]",
+                ["fields"] = new JsonArray("id"),
+                ["limit"] = 1
+            },
+            ["verify"] = true
         });
+
         var remaining = (bool?)check["ok"] == true ? (int?)check["data"]?["_total"] ?? -1 : -1;
 
         return new JsonObject
         {
-            ["found"] = items.Count,
-            ["deleted"] = (int?)result["data"]?["count"] ?? 0,
+            ["found"] = initial,
+            ["deleted"] = deleted,
+            ["rounds"] = rounds,
             ["remaining"] = remaining,
             ["pass"] = remaining == 0
         };

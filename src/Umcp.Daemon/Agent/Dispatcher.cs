@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Umcp.Daemon.Generated;
+using Umcp.Daemon.Mirror;
 using Umcp.Daemon.Script;
 using Umcp.Daemon.Security;
 
@@ -29,14 +30,16 @@ public sealed class Dispatcher
     readonly AuditLog _audit;
     readonly DaemonState _state;
     readonly ScriptCompiler _compiler;
+    readonly MirrorService _mirror;
     readonly ILogger<Dispatcher> _log;
 
     // Reference paths change only when the AppDomain does, so they are cached per (project, epoch).
     readonly ConcurrentDictionary<string, string[]> _referenceCache = new();
 
     public Dispatcher(EditorRegistry registry, DaemonOptions options, AuditLog audit, DaemonState state,
-                      ScriptCompiler compiler, ILogger<Dispatcher> log)
+                      ScriptCompiler compiler, MirrorService mirror, ILogger<Dispatcher> log)
     {
+        _mirror = mirror;
         _registry = registry;
         _options = options;
         _audit = audit;
@@ -46,7 +49,7 @@ public sealed class Dispatcher
     }
 
     public Task<JsonObject> RunToolAsync(string tool, JsonObject args, string? projectId, bool dryRun,
-                                        CancellationToken ct, int? maxBytes = null)
+                                        CancellationToken ct, int? maxBytes = null, bool verify = false)
     {
         if (!ToolCatalog.ById.TryGetValue(tool, out var entry))
         {
@@ -63,6 +66,18 @@ public sealed class Dispatcher
 
         var validation = SchemaCheck.Validate(entry, args);
         if (validation is not null) return Task.FromResult(validation);
+
+        // Reads go to the mirror first. It answers in microseconds, it does not need an Editor
+        // tick, and it keeps answering while the Editor is mid-reload — which is when half an
+        // agent's calls would otherwise fail. Mutations always go live; the mirror is never
+        // authoritative for writes.
+        if (!dryRun && !entry.Mutating)
+        {
+            var served = _mirror.TryServe(projectId, tool, args, verify, out var why);
+            if (served is not null) return Task.FromResult(served);
+            if (why is not null && MirrorCandidates.Contains(tool))
+                _log.LogDebug("{Tool} went live: {Reason}", tool, why);
+        }
 
         var message = new JsonObject
         {
@@ -104,6 +119,9 @@ public sealed class Dispatcher
         }
         return DispatchAsync(batch, projectId, timeout, "unity.batch", mutating: true, ct);
     }
+
+    /// <summary>Tools the mirror can answer at all. Anything else is live by construction.</summary>
+    static readonly HashSet<string> MirrorCandidates = new(StringComparer.Ordinal) { "scene.query", "scene.count" };
 
     TimeSpan TimeoutFor(string retryClass) => retryClass switch
     {

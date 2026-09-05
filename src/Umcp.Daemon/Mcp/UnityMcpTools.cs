@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using ModelContextProtocol.Server;
 using Umcp.Daemon.Agent;
 using Umcp.Daemon.Generated;
+using Umcp.Daemon.Mirror;
 using Umcp.Daemon.Security;
 
 namespace Umcp.Daemon.Mcp;
@@ -25,12 +26,15 @@ public sealed class UnityMcpTools
     readonly EditorRegistry _registry;
     readonly DaemonOptions _options;
     readonly SkillTree _skills;
+    readonly MirrorService _mirror;
 
     // project.info per (project, epoch): a domain reload is the only thing that can change it.
     readonly ConcurrentDictionary<string, Dictionary<string, string>> _facts = new();
 
-    public UnityMcpTools(Dispatcher dispatcher, EditorRegistry registry, DaemonOptions options, SkillTree skills)
+    public UnityMcpTools(Dispatcher dispatcher, EditorRegistry registry, DaemonOptions options,
+                         SkillTree skills, MirrorService mirror)
     {
+        _mirror = mirror;
         _dispatcher = dispatcher;
         _registry = registry;
         _options = options;
@@ -47,9 +51,10 @@ public sealed class UnityMcpTools
         [Description("Project id, when more than one editor is connected")] string? project = null,
         [Description("Validate and report what would happen, without applying it")] bool dryRun = false,
         [Description("Raise the 32 KB response cap for this call. Use only when you truly need the whole payload.")] int? maxResponseBytes = null,
+        [Description("Force a live round trip instead of answering a read from the daemon's mirror.")] bool verify = false,
         CancellationToken ct = default)
     {
-        var result = await _dispatcher.RunToolAsync(tool, ToObject(args), project, dryRun, ct, maxResponseBytes).ConfigureAwait(false);
+        var result = await _dispatcher.RunToolAsync(tool, ToObject(args), project, dryRun, ct, maxResponseBytes, verify).ConfigureAwait(false);
         return result.ToJsonString();
     }
 
@@ -222,6 +227,7 @@ public sealed class UnityMcpTools
     [Description("List connected Unity editors with their health, and optionally set the default target. Health is the last completed round trip, not socket state: a connected socket with a wedged Editor reports \"blocked\" and names the dialog when it can.")]
     public async Task<string> ProjectsAsync(
         [Description("Set this project id as the default target for later calls")] string? use = null,
+        [Description("Check the daemon's scene mirror against the live hierarchy and repair any drift")] bool reconcile = false,
         CancellationToken ct = default)
     {
         if (use is not null)
@@ -253,8 +259,12 @@ public sealed class UnityMcpTools
                 ["msSinceTick"] = tickAge,
                 ["lastRoundTripMs"] = s.LastRoundTripMs,
                 ["opsCompleted"] = s.OpsCompleted,
-                ["controlChannel"] = probe is null ? "unreachable" : "ok"
+                ["controlChannel"] = probe is null ? "unreachable" : "ok",
+                ["mirror"] = _mirror.For(s.ProjectId).StatusJson()
             };
+
+            if (reconcile)
+                o["reconcile"] = await _mirror.ReconcileAsync(s, ct).ConfigureAwait(false);
 
             if (tickAge >= _options.BlockedTickAge.TotalMilliseconds)
             {

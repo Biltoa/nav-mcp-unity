@@ -46,6 +46,8 @@ namespace Umcp.Agent
             "gameobject.setTag",
             "material.create",
             "material.set",
+            "mirror.hashes",
+            "mirror.snapshot",
             "prefab.create",
             "prefab.instantiate",
             "project.info",
@@ -101,6 +103,8 @@ namespace Umcp.Agent
             { "gameobject.setTag", new ToolMeta { Id = "gameobject.setTag", Skill = "gameobject", Summary = "Set a GameObject's tag.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set Tag", NoUndoReason = null } },
             { "material.create", new ToolMeta { Id = "material.create", Skill = "material", Summary = "Create a material asset. Defaults to the project's active pipeline shader.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Asset creation is not undoable." } },
             { "material.set", new ToolMeta { Id = "material.set", Skill = "material", Summary = "Set shader properties on a material asset.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set Material Properties", NoUndoReason = null } },
+            { "mirror.hashes", new ToolMeta { Id = "mirror.hashes", Skill = "diagnostics", Summary = "Per-root subtree hashes, for reconciling the daemon's mirror against the live hierarchy.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
+            { "mirror.snapshot", new ToolMeta { Id = "mirror.snapshot", Skill = "diagnostics", Summary = "Full compact hierarchy snapshot. Used by the daemon to seed its mirror; rarely useful directly.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "prefab.create", new ToolMeta { Id = "prefab.create", Skill = "assets", Summary = "Save a scene GameObject as a prefab asset.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Create Prefab", NoUndoReason = null } },
             { "prefab.instantiate", new ToolMeta { Id = "prefab.instantiate", Skill = "assets", Summary = "Instantiate a prefab into the active scene.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Instantiate Prefab", NoUndoReason = null } },
             { "project.info", new ToolMeta { Id = "project.info", Skill = "diagnostics", Summary = "Project identity: name, path, Unity version, pipeline, package count.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
@@ -198,6 +202,10 @@ namespace Umcp.Agent
                     return AssetTools.MaterialCreate(Bind.Str(a, "path", true), Bind.Str(a, "shader", false), Bind.FltArr(a, "color", false));
                 case "material.set":
                     return AssetTools.MaterialSet(Bind.Str(a, "path", true), Bind.Obj(a, "colors", false), Bind.Obj(a, "floats", false), Bind.Obj(a, "textures", false));
+                case "mirror.hashes":
+                    return MirrorTools.Hashes();
+                case "mirror.snapshot":
+                    return MirrorTools.Snapshot();
                 case "prefab.create":
                     return AssetTools.PrefabCreate(Bind.Str(a, "target", true), Bind.Str(a, "path", true), Bind.Bool(a, "connect", false, true));
                 case "prefab.instantiate":

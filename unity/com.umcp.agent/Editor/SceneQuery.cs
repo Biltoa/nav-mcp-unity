@@ -7,124 +7,65 @@ using UnityEngine;
 namespace Umcp.Agent
 {
     /// <summary>
-    /// Selector + projection over the open scenes. This is the single largest token saver on the
-    /// read path: instead of dumping a scene — 138,205 bytes, about 34,500 tokens, roughly 17% of a
-    /// 200 k context window for one call in the implementation being replaced — the caller says
-    /// which objects it wants and which fields of them.
+    /// Live evaluation of a <see cref="SceneSelector"/> against the open scenes, plus field
+    /// projection. The grammar itself lives in SceneSelector.cs, which the daemon compiles too —
+    /// the daemon evaluates the same selectors against its mirror, and a second parser would let
+    /// the two drift, which would make <c>source: "mirror"</c> a lie.
     ///
-    /// Selector grammar, deliberately small:
-    ///
-    ///   /Root            a scene root named Root
-    ///   /Root/Child      a direct child
-    ///   //Button         any descendant named Button, at any depth
-    ///   //Canvas//Button descendants of any Canvas
-    ///   //*              everything
-    ///
-    /// Predicates chain, and all must hold:
-    ///
-    ///   [active] [inactive]        activeInHierarchy
-    ///   [has:Rigidbody]            has that component
-    ///   [missing:Rigidbody]        does not have it
-    ///   [tag:Player]  [layer:Water]
-    ///   [name*:Enemy] [name^:UI_] [name$:_LOD0]   contains / starts / ends
-    ///   [root] [leaf]
+    /// This is the single largest token saver on the read path: instead of dumping a scene —
+    /// 138,205 bytes, about 34,500 tokens, roughly 17% of a 200k context window for one call in the
+    /// implementation being replaced — the caller says which objects it wants and which fields.
     /// </summary>
     internal static class SceneQuery
     {
-        // ------------------------------------------------------------------ selector
-
-        internal sealed class Segment
+        internal static List<SceneSelector.Step> Parse(string selector)
         {
-            public string Name;              // literal, or "*"
-            public bool Descendant;          // reached by "//" rather than "/"
-            public readonly List<Func<GameObject, bool>> Predicates = new List<Func<GameObject, bool>>();
-        }
-
-        internal static List<Segment> Parse(string selector)
-        {
-            if (string.IsNullOrEmpty(selector)) selector = "//*";
-            if (!selector.StartsWith("/")) selector = "//" + selector;
-
-            var segments = new List<Segment>();
-            int i = 0;
-            while (i < selector.Length)
+            try { return SceneSelector.Parse(selector); }
+            catch (SceneSelector.ParseException e)
             {
-                bool descendant = false;
-                if (selector[i] == '/')
-                {
-                    i++;
-                    if (i < selector.Length && selector[i] == '/') { descendant = true; i++; }
-                }
-                if (i >= selector.Length) break;
-
-                int start = i;
-                while (i < selector.Length && selector[i] != '/' && selector[i] != '[') i++;
-                var seg = new Segment { Name = selector.Substring(start, i - start), Descendant = descendant };
-                if (seg.Name.Length == 0) seg.Name = "*";
-
-                while (i < selector.Length && selector[i] == '[')
-                {
-                    int close = selector.IndexOf(']', i);
-                    if (close < 0)
-                        throw new UmcpToolException("E_SELECTOR_SYNTAX",
-                            "Unclosed predicate in selector.", "select", selector, null,
-                            "Predicates look like [active] or [has:Rigidbody].");
-                    seg.Predicates.Add(Predicate(selector.Substring(i + 1, close - i - 1), selector));
-                    i = close + 1;
-                }
-                segments.Add(seg);
+                throw new UmcpToolException(e.Code, e.Message, "select", e.Value, e.DidYouMean, e.Hint);
             }
-
-            if (segments.Count == 0)
-                throw new UmcpToolException("E_SELECTOR_SYNTAX", "Empty selector.", "select", selector, null,
-                    "For example: //Canvas//Button[active]");
-            return segments;
         }
 
-        static Func<GameObject, bool> Predicate(string body, string selector)
-        {
-            var colon = body.IndexOf(':');
-            var key = (colon < 0 ? body : body.Substring(0, colon)).Trim();
-            var arg = colon < 0 ? null : body.Substring(colon + 1).Trim();
+        // ------------------------------------------------------------------ evaluation
 
-            switch (key)
+        static Func<GameObject, bool> Compile(SceneSelector.Predicate p)
+        {
+            switch (p.Key)
             {
                 case "active": return go => go.activeInHierarchy;
                 case "inactive": return go => !go.activeInHierarchy;
                 case "root": return go => go.transform.parent == null;
                 case "leaf": return go => go.transform.childCount == 0;
-                case "has": { var t = Resolve.ComponentType(Need(arg, key, selector), "select"); return go => go.GetComponent(t) != null; }
-                case "missing": { var t = Resolve.ComponentType(Need(arg, key, selector), "select"); return go => go.GetComponent(t) == null; }
-                case "tag": { var v = Need(arg, key, selector); return go => go.CompareTag(v); }
-                case "layer": { var v = Need(arg, key, selector); var idx = LayerMask.NameToLayer(v); return go => go.layer == idx; }
-                case "name*": { var v = Need(arg, key, selector); return go => go.name.IndexOf(v, StringComparison.OrdinalIgnoreCase) >= 0; }
-                case "name^": { var v = Need(arg, key, selector); return go => go.name.StartsWith(v, StringComparison.OrdinalIgnoreCase); }
-                case "name$": { var v = Need(arg, key, selector); return go => go.name.EndsWith(v, StringComparison.OrdinalIgnoreCase); }
+                case "has": { var t = Resolve.ComponentType(p.Arg, "select"); return go => go.GetComponent(t) != null; }
+                case "missing": { var t = Resolve.ComponentType(p.Arg, "select"); return go => go.GetComponent(t) == null; }
+                case "tag": { var v = p.Arg; return go => go.CompareTag(v); }
+                case "layer":
+                    {
+                        var idx = LayerMask.NameToLayer(p.Arg);
+                        if (idx < 0)
+                            throw new UmcpToolException("E_LAYER_NOT_FOUND", "Layer '" + p.Arg + "' is not defined.",
+                                "select", p.Arg,
+                                Suggest.Closest(p.Arg, UnityEditorInternal.InternalEditorUtility.layers, 3));
+                        return go => go.layer == idx;
+                    }
+                case "name*": { var v = p.Arg; return go => go.name.IndexOf(v, StringComparison.OrdinalIgnoreCase) >= 0; }
+                case "name^": { var v = p.Arg; return go => go.name.StartsWith(v, StringComparison.OrdinalIgnoreCase); }
+                case "name$": { var v = p.Arg; return go => go.name.EndsWith(v, StringComparison.OrdinalIgnoreCase); }
                 default:
-                    throw new UmcpToolException("E_SELECTOR_PREDICATE",
-                        "Unknown predicate '" + key + "'.", "select", body,
-                        Suggest.Closest(key, new[] { "active", "inactive", "root", "leaf", "has", "missing", "tag", "layer", "name*", "name^", "name$" }, 3),
-                        "Predicates: [active] [inactive] [root] [leaf] [has:T] [missing:T] [tag:T] [layer:L] [name*:s] [name^:s] [name$:s]");
+                    throw new UmcpToolException(SceneSelector.ErrPredicate,
+                        "Unknown predicate '" + p.Key + "'.", "select", p.Key);
             }
         }
 
-        static string Need(string arg, string key, string selector)
-        {
-            if (string.IsNullOrEmpty(arg))
-                throw new UmcpToolException("E_SELECTOR_PREDICATE",
-                    "Predicate '" + key + "' needs a value, e.g. [" + key + ":Rigidbody].", "select", selector);
-            return arg;
-        }
-
-        // ------------------------------------------------------------------ evaluation
-
-        internal static IEnumerable<GameObject> Evaluate(List<Segment> segments, int maxDepth)
+        internal static IEnumerable<GameObject> Evaluate(List<SceneSelector.Step> steps, int maxDepth)
         {
             IEnumerable<GameObject> current = Resolve.AllRoots();
 
-            for (int s = 0; s < segments.Count; s++)
+            for (int s = 0; s < steps.Count; s++)
             {
-                var seg = segments[s];
+                var step = steps[s];
+                var predicates = step.Predicates.Select(Compile).ToArray();
                 var next = new List<GameObject>();
                 var seen = new HashSet<int>();
 
@@ -132,15 +73,15 @@ namespace Umcp.Agent
                 {
                     if (s == 0)
                     {
-                        // The first segment matches against the roots themselves, and — when it
-                        // was reached by "//" — against every descendant of a root too.
-                        Collect(go, seg, seg.Descendant, maxDepth, 0, next, seen, includeSelf: true);
+                        // The first step matches the roots themselves, and — when it was reached
+                        // by "//" — every descendant of a root as well.
+                        Collect(go, step, predicates, step.Descendant, maxDepth, 0, next, seen);
                     }
                     else
                     {
                         var t = go.transform;
                         for (int i = 0; i < t.childCount; i++)
-                            Collect(t.GetChild(i).gameObject, seg, seg.Descendant, maxDepth, 0, next, seen, includeSelf: true);
+                            Collect(t.GetChild(i).gameObject, step, predicates, step.Descendant, maxDepth, 0, next, seen);
                     }
                 }
                 current = next;
@@ -149,24 +90,23 @@ namespace Umcp.Agent
             return current;
         }
 
-        static void Collect(GameObject go, Segment seg, bool descend, int maxDepth, int depth,
-                            List<GameObject> into, HashSet<int> seen, bool includeSelf)
+        static void Collect(GameObject go, SceneSelector.Step step, Func<GameObject, bool>[] predicates,
+                            bool descend, int maxDepth, int depth, List<GameObject> into, HashSet<int> seen)
         {
             if (maxDepth >= 0 && depth > maxDepth) return;
 
-            if (includeSelf && Matches(go, seg) && seen.Add(go.GetInstanceID()))
-                into.Add(go);
+            if (Matches(go, step, predicates) && seen.Add(go.GetInstanceID())) into.Add(go);
 
             if (!descend) return;
             var t = go.transform;
             for (int i = 0; i < t.childCount; i++)
-                Collect(t.GetChild(i).gameObject, seg, true, maxDepth, depth + 1, into, seen, true);
+                Collect(t.GetChild(i).gameObject, step, predicates, true, maxDepth, depth + 1, into, seen);
         }
 
-        static bool Matches(GameObject go, Segment seg)
+        static bool Matches(GameObject go, SceneSelector.Step step, Func<GameObject, bool>[] predicates)
         {
-            if (seg.Name != "*" && go.name != seg.Name) return false;
-            foreach (var p in seg.Predicates) if (!p(go)) return false;
+            if (step.Name != "*" && go.name != step.Name) return false;
+            for (int i = 0; i < predicates.Length; i++) if (!predicates[i](go)) return false;
             return true;
         }
 
@@ -181,19 +121,11 @@ namespace Umcp.Agent
             var result = new Dictionary<string, object>();
             foreach (var field in fields)
             {
-                object value;
                 var dot = field.IndexOf('.');
-                if (dot > 0)
-                {
-                    var typeName = field.Substring(0, dot);
-                    var propName = field.Substring(dot + 1);
-                    value = ComponentField(go, typeName, propName);
-                }
-                else
-                {
-                    value = BuiltinField(go, field);
-                }
-                if (value != null || field.EndsWith("?")) result[field] = value;
+                var value = dot > 0
+                    ? ComponentField(go, field.Substring(0, dot), field.Substring(dot + 1))
+                    : BuiltinField(go, field);
+                if (value != null) result[field] = value;
             }
             return result;
         }
@@ -227,7 +159,7 @@ namespace Umcp.Agent
             }
         }
 
-        static readonly string[] KnownFields =
+        internal static readonly string[] KnownFields =
         {
             "id", "name", "path", "active", "activeInHierarchy", "tag", "layer", "parent",
             "childCount", "position", "worldPosition", "rotation", "scale", "components", "prefab"
@@ -245,7 +177,8 @@ namespace Umcp.Agent
             if (c == null) return null;
 
             var so = new SerializedObject(c);
-            var sp = so.FindProperty(propName) ?? so.FindProperty("m_" + char.ToUpperInvariant(propName[0]) + propName.Substring(1));
+            var sp = so.FindProperty(propName)
+                     ?? so.FindProperty("m_" + char.ToUpperInvariant(propName[0]) + propName.Substring(1));
             if (sp != null) return ReadSerialized(sp);
 
             var pi = type.GetProperty(propName);
@@ -286,14 +219,14 @@ namespace Umcp.Agent
             if (v is Quaternion) return Vec.Arr((Quaternion)v);
             if (v is UnityEngine.Object) return ((UnityEngine.Object)v).name;
             if (v is string || v is bool || v.GetType().IsPrimitive) return v;
-            if (v is Enum) return v.ToString();
             return v.ToString();
         }
     }
 
     internal static class SceneQueryTools
     {
-        [UnityTool(Id = "scene.query", Summary = "Select GameObjects from the scene hierarchy with a path selector and return only the fields you ask for.",
+        [UnityTool(Id = "scene.query", Skill = "scene",
+            Summary = "Select GameObjects from the scene hierarchy with a path selector and return only the fields you ask for.",
             Retry = RetryClass.Read)]
         [Example("{ \"select\": \"//Canvas//Button[active]\", \"fields\": [\"name\", \"path\"] }")]
         [Example("{ \"select\": \"//*[has:Rigidbody]\", \"fields\": [\"path\", \"Rigidbody.mass\"], \"limit\": 50 }")]
@@ -306,40 +239,37 @@ namespace Umcp.Agent
             [Doc("Deepest level a \"//\" step will descend. -1 for unlimited.")] int maxDepth = -1,
             [Doc("Return only the number of matches")] bool countOnly = false)
         {
-            var segments = SceneQuery.Parse(select);
-            var matches = SceneQuery.Evaluate(segments, maxDepth).ToList();
+            var steps = SceneQuery.Parse(select);
+            var matches = SceneQuery.Evaluate(steps, maxDepth).ToList();
 
             if (countOnly) return new { count = matches.Count, select };
 
-            var projection = fields == null || fields.Length == 0
-                ? new[] { "name", "path" }
-                : fields;
-
+            var projection = fields == null || fields.Length == 0 ? new[] { "name", "path" } : fields;
             var page = matches.Skip(offset).Take(Bounds.Limit(limit))
                 .Select(go => SceneQuery.Project(go, projection))
                 .ToArray();
 
+            bool truncated = offset + page.Length < matches.Count;
             return new
             {
                 items = page,
                 _total = matches.Count,
                 _returned = page.Length,
                 _offset = offset,
-                _truncated = offset + page.Length < matches.Count,
+                _truncated = truncated,
                 _select = select,
-                _hint = offset + page.Length < matches.Count
-                    ? "re-query with offset=" + (offset + page.Length) + ", or narrow the selector"
-                    : null
+                _hint = truncated ? "re-query with offset=" + (offset + page.Length) + ", or narrow the selector" : null
             };
         }
 
-        [UnityTool(Id = "scene.count", Summary = "Count GameObjects in the hierarchy matching a selector. The cheapest possible read.",
+        [UnityTool(Id = "scene.count", Skill = "scene",
+            Summary = "Count GameObjects in the hierarchy matching a selector. The cheapest possible read.",
             Retry = RetryClass.Read)]
         [Example("{ \"select\": \"//*[has:Renderer]\" }")]
         public static object Count([Doc("Selector")] string select = "//*")
         {
-            var segments = SceneQuery.Parse(select);
-            return new { count = SceneQuery.Evaluate(segments, -1).Count(), select };
+            var steps = SceneQuery.Parse(select);
+            return new { count = SceneQuery.Evaluate(steps, -1).Count(), select };
         }
     }
 }

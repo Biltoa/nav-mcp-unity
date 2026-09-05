@@ -84,6 +84,8 @@ namespace Umcp.Agent
             _conn.Start();
             UnityEngine.Debug.Log("[umcp] agent up — daemon 127.0.0.1:" + _daemonPort + ", control port " + (_control == null ? 0 : _control.Port) + ", epoch " + Epoch);
 
+            UmcpMirror.Start(Send);
+
             EditorApplication.update -= Tick;
             EditorApplication.update += Tick;
 
@@ -128,6 +130,10 @@ namespace Umcp.Agent
                 Handle(json);
                 if (++n >= MaxOpsPerTick) break;
             }
+
+            // Push scene changes after executing this tick's ops, so a mutation and the delta it
+            // produced arrive in that order and the daemon's model never lags its own writes.
+            UmcpMirror.Flush();
 
             if (_appliedDirty) { SaveAppliedKeys(); _appliedDirty = false; }
         }
@@ -477,6 +483,7 @@ namespace Umcp.Agent
                 ["epoch"] = Epoch,
                 ["controlPort"] = _control != null ? _control.Port : 0,
                 ["toolCount"] = ToolDispatch.Ids.Length,
+                ["mirror"] = UmcpMirror.Enabled,
                 ["appliedKeys"] = new JArray(_appliedResults.Keys.Cast<object>().ToArray())
             };
             Send(hello.ToString(Formatting.None));
@@ -514,6 +521,7 @@ namespace Umcp.Agent
         static void Shutdown()
         {
             EditorApplication.update -= Tick;
+            try { UmcpMirror.Stop(); } catch { }
             try { if (_conn != null) _conn.Dispose(); } catch { }
             try { if (_control != null) _control.Dispose(); } catch { }
             _conn = null; _control = null;

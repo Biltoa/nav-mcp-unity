@@ -26,7 +26,7 @@ Generated tool reference: [docs/TOOLS.md](docs/TOOLS.md).
 | `src/Umcp.Stdio` | `umcp-stdio` — the shim a client spawns; starts the daemon if it isn't up |
 | `src/Umcp.ToolGen` | `umcp-toolgen` — reads the `[UnityTool]` methods and generates dispatch, catalog and docs |
 | `src/Umcp.Bench` | `umcp-bench` — the measurement harness; every claim in PROGRESS.md comes from it |
-| `unity/com.umcp.agent` | the Unity package: connect out, pump the main thread, execute, report lifecycle |
+| `unity/com.umcp.agent` | the Unity package: connect out, pump the main thread, execute, stream scene deltas |
 | `tests/Umcp.Tests` | the quality bar as tests |
 
 ## Build
@@ -102,6 +102,29 @@ anything.
 | `unity_find` | BM25 search across tools and skills |
 | `unity_skill` | a domain's guidance plus its tools' schemas; also one tool's schema |
 | `unity_projects` | connected editors, their health, and the default target |
+
+### The mirror
+
+The daemon keeps a live model of each project's scene hierarchy, updated by push from Unity's own
+`ObjectChangeEvents` stream. `scene.query` and `scene.count` are answered from it — about **1 ms**
+instead of ~95 ms — and keep working while the Editor is recompiling, so a domain reload stops
+mutations rather than everything.
+
+Every response says where its answer came from:
+
+```jsonc
+"meta": { "source": "mirror", "staleMs": 42, "epoch": 19, "revision": 118 }
+```
+
+The model holds identity, parentage and sibling order, active state, tag, layer, and component
+*type* names. It does not hold component property values, so a query asking for `Rigidbody.mass`
+goes live automatically rather than being answered approximately. `verify: true` on `unity_run`
+forces a live round trip. `unity_projects(reconcile: true)` compares the model against per-subtree
+hashes from the Editor and repairs any drift, reporting exactly which node and which field differed.
+
+Both sides compute selectors and hashes from the same two source files
+(`SceneSelector.cs`, `MirrorHash.cs`), compiled into the Unity package and linked into the daemon —
+a second copy would drift, and a drifting hash makes reconcile meaningless.
 
 ### The skill tree
 

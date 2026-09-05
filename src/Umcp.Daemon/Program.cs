@@ -174,6 +174,8 @@ static void AddCore(IServiceCollection services, DaemonOptions options)
     services.AddSingleton<DaemonState>();
     services.AddSingleton<Umcp.Daemon.Script.ScriptCompiler>();
     services.AddSingleton<SkillTree>();
+    services.AddSingleton<Umcp.Daemon.Mirror.MirrorService>();
+    services.AddHostedService<Umcp.Daemon.Mirror.MirrorReconciler>();
 }
 
 static bool CryptographicEquals(string a, string b)

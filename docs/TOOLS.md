@@ -2,7 +2,7 @@
 
 # Tool reference
 
-51 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
+53 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
 
 ## assets
 
@@ -225,6 +225,8 @@ Set serialized properties on a component.
 | `editor.selection.set` | yes | — *Selection is editor UI state, not object state.* | Set the Editor selection. |
 | `editor.stall` | no | n/a | Diagnostic: block the Editor main thread for N seconds, reproducing a modal dialog's effect. |
 | `editor.status` | no | n/a | Editor state: compiling, updating, play mode, focus, selection. |
+| `mirror.hashes` | no | n/a | Per-root subtree hashes, for reconciling the daemon's mirror against the live hierarchy. |
+| `mirror.snapshot` | no | n/a | Full compact hierarchy snapshot. Used by the daemon to seed its mirror; rarely useful directly. |
 | `project.info` | no | n/a | Project identity: name, path, Unity version, pipeline, package count. |
 
 ### `compile.errors`
@@ -329,6 +331,22 @@ Diagnostic: block the Editor main thread for N seconds, reproducing a modal dial
 ### `editor.status`
 
 Editor state: compiling, updating, play mode, focus, selection.
+
+```json
+{ }
+```
+
+### `mirror.hashes`
+
+Per-root subtree hashes, for reconciling the daemon's mirror against the live hierarchy.
+
+```json
+{ }
+```
+
+### `mirror.snapshot`
+
+Full compact hierarchy snapshot. Used by the daemon to seed its mirror; rarely useful directly.
 
 ```json
 { }

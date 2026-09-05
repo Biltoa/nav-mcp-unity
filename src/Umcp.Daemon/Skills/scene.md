@@ -37,6 +37,13 @@ worldPosition rotation scale components prefab`) or `Component.property`, e.g. `
 `Image.sprite`. A `Component.property` on an object without that component returns nothing for that
 object rather than failing the query.
 
+## Where a read is answered
+
+`scene.query` and `scene.count` are normally answered from the daemon's mirror — about 1 ms rather
+than ~95 ms — and keep working while the Editor recompiles. Every response says so in
+`meta.source`, with `staleMs`. Queries that need component property values go live automatically.
+Pass `verify: true` to force a live round trip. Details in the `mirror` sub-skill.
+
 ## Choosing a read
 
 | Question | Tool |

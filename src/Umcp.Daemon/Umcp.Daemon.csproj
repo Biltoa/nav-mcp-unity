@@ -13,6 +13,13 @@
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.4.0-preview.2" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
   </ItemGroup>
+  <!-- Shared with the Unity package: one selector grammar and one reconcile hash, compiled
+       into both sides. Two copies would drift, and a drifting hash makes reconcile
+       meaningless. -->
+  <ItemGroup>
+    <Compile Include="..\..\unity\com.umcp.agent\Editor\SceneSelector.cs" Link="Shared\SceneSelector.cs" />
+    <Compile Include="..\..\unity\com.umcp.agent\Editor\MirrorHash.cs" Link="Shared\MirrorHash.cs" />
+  </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Skills\**\*.md" />
   </ItemGroup>

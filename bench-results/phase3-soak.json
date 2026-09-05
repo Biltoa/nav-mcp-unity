@@ -1,0 +1,19 @@
+{
+  "when": "2026-09-05T22:03:12.6854195\u002B03:00",
+  "focus": "unfocused",
+  "results": [
+    {
+      "seconds": 600,
+      "rounds": 759,
+      "mutations": 12782,
+      "reconciles": 759,
+      "driftEvents": 0,
+      "drift": [],
+      "target": "zero drift across the whole soak",
+      "pass": true,
+      "name": "mirror-soak",
+      "harnessMs": 600318,
+      "focus": "unfocused"
+    }
+  ]
+}

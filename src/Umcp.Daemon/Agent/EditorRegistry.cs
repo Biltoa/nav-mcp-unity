@@ -20,6 +20,11 @@ public sealed class EditorRegistry
 
     public string? DefaultProjectId { get; set; }
 
+    /// <summary>Raised once a session has identified itself.</summary>
+    public event Action<AgentSession>? SessionHandshake;
+    /// <summary>Raised for every lifecycle or mirror event an agent pushes.</summary>
+    public event Action<AgentSession, string, System.Text.Json.Nodes.JsonNode>? SessionEvent;
+
     public EditorRegistry(ILogger<EditorRegistry> log) => _log = log;
 
     public IReadOnlyCollection<AgentSession> Sessions => _byProject.Values.ToArray();
@@ -29,6 +34,7 @@ public sealed class EditorRegistry
         _pending[session] = 0;
         session.Handshake += OnHandshake;
         session.Closed += OnClosed;
+        session.Event += (s, kind, node) => SessionEvent?.Invoke(s, kind, node);
         session.Start();
     }
 
@@ -56,6 +62,7 @@ public sealed class EditorRegistry
             s.ProjectName, s.ProjectId, s.Epoch, s.ToolCount, s.ControlPort);
 
         ReleaseWaiters(s);
+        SessionHandshake?.Invoke(s);
     }
 
     void OnClosed(AgentSession s)
