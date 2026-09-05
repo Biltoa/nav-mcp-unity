@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Umcp.Daemon.Agent;
 using Umcp.Daemon.Generated;
@@ -54,9 +55,13 @@ public sealed class UnityMcpTools
         [Description("Report what would happen; apply nothing")] bool dryRun = false,
         [Description("Raise the 32 KB response cap for this call")] int? maxResponseBytes = null,
         [Description("Force a live read instead of the mirror")] bool verify = false,
+        IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken ct = default)
     {
-        var result = await _dispatcher.RunToolAsync(tool, ToObject(args), project, dryRun, ct, maxResponseBytes, verify).ConfigureAwait(false);
+        using var linked = RequestAbort.Link(ct);
+        var result = await _dispatcher
+            .RunToolAsync(tool, ToObject(args), project, dryRun, linked.Token, maxResponseBytes, verify, Sink(progress))
+            .ConfigureAwait(false);
         return result.ToJsonString();
     }
 
@@ -69,6 +74,7 @@ public sealed class UnityMcpTools
         [Description("Undo-history name")] string? undoName = null,
         [Description("Project id, when several editors are connected")] string? project = null,
         [Description("Validate without applying")] bool dryRun = false,
+        IProgress<ProgressNotificationValue>? progress = null,
         CancellationToken ct = default)
     {
         if (ops.ValueKind != JsonValueKind.Array)
@@ -85,7 +91,8 @@ public sealed class UnityMcpTools
         };
         if (undoName is not null) batch["undoName"] = undoName;
 
-        var result = await _dispatcher.RunBatchAsync(batch, project, ct).ConfigureAwait(false);
+        using var linked = RequestAbort.Link(ct);
+        var result = await _dispatcher.RunBatchAsync(batch, project, linked.Token, Sink(progress)).ConfigureAwait(false);
         return result.ToJsonString();
     }
 
@@ -96,7 +103,8 @@ public sealed class UnityMcpTools
         [Description("Project id, when several editors are connected")] string? project = null,
         CancellationToken ct = default)
     {
-        var result = await _dispatcher.RunScriptAsync(code, project, ct).ConfigureAwait(false);
+        using var linked = RequestAbort.Link(ct);
+        var result = await _dispatcher.RunScriptAsync(code, project, linked.Token).ConfigureAwait(false);
         return result.ToJsonString();
     }
 
@@ -368,6 +376,24 @@ public sealed class UnityMcpTools
             _facts[key] = facts;
         }
         return facts;
+    }
+
+    /// <summary>
+    /// Bridge the dispatcher's progress to MCP's, when the client asked for progress at all.
+    ///
+    /// Progress exists here for one situation: an operation held across a domain reload or an
+    /// auto-restart takes tens of seconds, and a client with no signal cannot tell that from a
+    /// hang. It is never used to narrate work that is already fast.
+    /// </summary>
+    static IProgress<OpProgress>? Sink(IProgress<ProgressNotificationValue>? progress)
+    {
+        if (progress is null) return null;
+        return new Progress<OpProgress>(p => progress.Report(new ProgressNotificationValue
+        {
+            Progress = p.Percent,
+            Total = 100,
+            Message = $"{p.Label}: {p.Message} ({p.ElapsedMs} ms)"
+        }));
     }
 
     static JsonObject ToObject(JsonElement? args)

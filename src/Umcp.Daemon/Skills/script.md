@@ -1,6 +1,7 @@
 title: Code mode — running C# in the Editor
 covers: when to use unity.script, what is in scope, return values, undo, errors
 excludes: creating .cs files in the project (that is an asset edit, and triggers a compile)
+tools: none
 
 # Code mode
 

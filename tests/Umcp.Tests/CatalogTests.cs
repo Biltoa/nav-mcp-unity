@@ -113,8 +113,9 @@ public class SkillTreeTests
     {
         foreach (var node in Tree.Nodes)
         {
-            // script.md documents unity_script, which is a Tier-0 tool rather than a catalog entry.
-            if (node.Id == "script") continue;
+            // A node may own no catalog tools, but only by saying "tools: none" in its own
+            // header — script.md and fleet.md document Tier-0 tools. Silence is still a failure.
+            if (SkillTree.IsGuidanceOnly(node)) continue;
             Assert.NotEmpty(Tree.ToolsFor(node));
         }
     }

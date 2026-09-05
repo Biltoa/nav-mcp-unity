@@ -112,8 +112,14 @@ public sealed class SkillTree
         _index.Build();
     }
 
+    /// <summary>A node that documents Tier-0 behaviour and owns no catalog tools says so explicitly.</summary>
+    public static bool IsGuidanceOnly(SkillNode node) =>
+        node.Tools.Length == 1 && node.Tools[0].Equals("none", StringComparison.OrdinalIgnoreCase);
+
     public ToolEntry[] ToolsFor(SkillNode node)
     {
+        if (IsGuidanceOnly(node)) return Array.Empty<ToolEntry>();
+
         if (node.Tools.Length > 0)
             return node.Tools.Select(id => ToolCatalog.ById.GetValueOrDefault(id))
                              .Where(t => t is not null).Select(t => t!).ToArray();

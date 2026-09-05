@@ -2,12 +2,13 @@
 
 # Tool reference
 
-54 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
+63 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
 
 ## assets
 
 | Tool | Mutating | Undo | Summary |
 |---|---|---|---|
+| `assets.addressables` | no | n/a | Addressables settings, groups and entries. action: status | groups | entries. |
 | `assets.createFolder` | yes | — *AssetDatabase folder creation is not undoable.* | Create a folder, creating intermediate folders as needed. |
 | `assets.delete` | yes | — *AssetDatabase deletion is not undoable.* | Delete an asset. Destructive. |
 | `assets.find` | no | n/a | Search the AssetDatabase. Bounded output. |
@@ -16,6 +17,26 @@
 | `assets.refresh` | yes | — *An import is not an undoable operation.* | Refresh the AssetDatabase. May trigger a compile and a domain reload. |
 | `prefab.create` | yes | Create Prefab | Save a scene GameObject as a prefab asset. |
 | `prefab.instantiate` | yes | Instantiate Prefab | Instantiate a prefab into the active scene. |
+| `prefab.overrides` | yes | Prefab overrides | List, apply or revert a prefab instance's overrides. action: list | apply | revert. |
+| `vcs.touched` | no | n/a | Which assets changed recently, in VCS terms: modified files under Assets/, and git status when the project is a repository. |
+
+### `assets.addressables`
+
+Addressables settings, groups and entries. action: status | groups | entries.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `action` | `string` | no | `"status"` | status | groups | entries (default status) |
+| `group` | `string` | no | `null` | Group name, for action:entries |
+| `limit` | `int` | no | `100` | Maximum entries (default 100) |
+
+```json
+{ "action": "status" }
+```
+
+```json
+{ "action": "entries", "group": "Default Local Group", "limit": 50 }
+```
 
 ### `assets.createFolder`
 
@@ -128,6 +149,62 @@ Instantiate a prefab into the active scene.
 { "path": "Assets/Prefabs/Enemy.prefab", "position": [0, 0, 5] }
 ```
 
+### `prefab.overrides`
+
+List, apply or revert a prefab instance's overrides. action: list | apply | revert.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `target` | `string` | yes | — | Prefab instance: path, name or #id |
+| `action` | `string` | no | `"list"` | list | apply | revert (default list) |
+| `properties` | `string[]` | no | `null` | Property paths to act on. Omit for all of them. |
+| `limit` | `int` | no | `100` | Maximum entries returned (default 100) |
+
+```json
+{ "target": "Enemy", "action": "list" }
+```
+
+```json
+{ "target": "Enemy", "action": "revert", "properties": ["m_Name"] }
+```
+
+### `vcs.touched`
+
+Which assets changed recently, in VCS terms: modified files under Assets/, and git status when the project is a repository.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `sinceMinutes` | `int` | no | `60` | Look back this many minutes (default 60) |
+| `limit` | `int` | no | `100` | Maximum files (default 100) |
+
+```json
+{ "sinceMinutes": 60 }
+```
+
+## build
+
+| Tool | Mutating | Undo | Summary |
+|---|---|---|---|
+| `build.validateTarget` | no | n/a | Check a build target for the platform failures that are statically detectable: audio resampling, shader model, small SDF text, emissive clipping, build scenes. |
+
+### `build.validateTarget`
+
+Check a build target for the platform failures that are statically detectable: audio resampling, shader model, small SDF text, emissive clipping, build scenes.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `platform` | `string` | no | `null` | Build target, e.g. WebGL, Android, iOS, StandaloneWindows64. Defaults to the active target. |
+| `checks` | `string[]` | no | `null` | Which checks to run: scenes, audio, shader, text, emissive. Default all. |
+| `limit` | `int` | no | `25` | Maximum findings per check (default 25) |
+
+```json
+{ "platform": "WebGL" }
+```
+
+```json
+{ "platform": "Android", "checks": ["shader", "emissive"], "limit": 20 }
+```
+
 ## component
 
 | Tool | Mutating | Undo | Summary |
@@ -228,6 +305,7 @@ Set serialized properties on a component.
 | `editor.status` | no | n/a | Editor state: compiling, updating, play mode, focus, selection. |
 | `mirror.hashes` | no | n/a | Per-root subtree hashes, for reconciling the daemon's mirror against the live hierarchy. |
 | `mirror.snapshot` | no | n/a | Full compact hierarchy snapshot. Used by the daemon to seed its mirror; rarely useful directly. |
+| `profile.frame` | no | n/a | Editor frame cost: main-thread time, draw calls, batches, triangles, allocations, memory. Does not enter Play mode. |
 | `project.info` | no | n/a | Project identity: name, path, Unity version, pipeline, package count. |
 
 ### `compile.errors`
@@ -361,6 +439,18 @@ Per-root subtree hashes, for reconciling the daemon's mirror against the live hi
 ### `mirror.snapshot`
 
 Full compact hierarchy snapshot. Used by the daemon to seed its mirror; rarely useful directly.
+
+```json
+{ }
+```
+
+### `profile.frame`
+
+Editor frame cost: main-thread time, draw calls, batches, triangles, allocations, memory. Does not enter Play mode.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `frames` | `int` | no | `60` | How many recent frames to summarise (default 60) |
 
 ```json
 { }
@@ -585,13 +675,16 @@ Set shader properties on a material asset.
 | `scene.children` | no | n/a | List the children of a GameObject, to a bounded depth. |
 | `scene.count` | no | n/a | Count GameObjects in the hierarchy matching a selector. The cheapest possible read. |
 | `scene.create` | yes | — *Scene creation is not an undoable operation in Unity.* | Create a new empty scene. |
+| `scene.diff` | no | n/a | What changed in the open scenes since a marker: objects added, removed, renamed, reparented, or otherwise altered. |
 | `scene.info` | no | n/a | Summarise the active scene: counts, roots, render pipeline. Bounded. |
 | `scene.list` | no | n/a | List open scenes and their dirty state. |
+| `scene.mark` | no | n/a | Take a marker of the open scenes' current state, for scene.diff to compare against later. |
 | `scene.open` | yes | — *Scene loading is not an undoable operation in Unity.* | Open a scene by asset path. |
 | `scene.query` | no | n/a | Select GameObjects from the scene hierarchy with a path selector and return only the fields you ask for. |
 | `scene.roots` | no | n/a | List root GameObjects of a scene. Bounded. |
 | `scene.save` | yes | — *Writing a file is not undoable.* | Save an open scene. Refuses to overwrite unless asked explicitly. |
 | `scene.setActive` | yes | — *Active-scene selection is editor state, not object state.* | Make an open scene the active scene. |
+| `scene.validate` | no | n/a | Find broken things in the open scenes: missing scripts, missing prefab assets, dangling object references, missing materials. |
 
 ### `scene.children`
 
@@ -633,6 +726,19 @@ Create a new empty scene.
 { "path": "Assets/Scenes/New.unity", "setup": "defaultGameObjects" }
 ```
 
+### `scene.diff`
+
+What changed in the open scenes since a marker: objects added, removed, renamed, reparented, or otherwise altered.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `marker` | `string` | yes | — | Marker id from scene.mark |
+| `limit` | `int` | no | `50` | Maximum entries per category (default 50) |
+
+```json
+{ "marker": "before-edit" }
+```
+
 ### `scene.info`
 
 Summarise the active scene: counts, roots, render pipeline. Bounded.
@@ -648,6 +754,18 @@ Summarise the active scene: counts, roots, render pipeline. Bounded.
 ### `scene.list`
 
 List open scenes and their dirty state.
+
+```json
+{ }
+```
+
+### `scene.mark`
+
+Take a marker of the open scenes' current state, for scene.diff to compare against later.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `name` | `string` | no | `null` | Marker name. Defaults to an auto-generated one. |
 
 ```json
 { }
@@ -729,6 +847,24 @@ Make an open scene the active scene.
 
 ```json
 { "scene": "Main" }
+```
+
+### `scene.validate`
+
+Find broken things in the open scenes: missing scripts, missing prefab assets, dangling object references, missing materials.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `checks` | `string[]` | no | `null` | Which checks: scripts, prefabs, references, materials. Default all. |
+| `root` | `string` | no | `null` | Only inside this subtree (path or #id) |
+| `limit` | `int` | no | `100` | Maximum findings (default 100) |
+
+```json
+{ }
+```
+
+```json
+{ "checks": ["scripts", "references"], "limit": 50 }
 ```
 
 ## transform
@@ -813,5 +949,30 @@ Move a GameObject by a delta.
 
 ```json
 { "target": "Crate", "delta": [0, 0.5, 0] }
+```
+
+## ui
+
+| Tool | Mutating | Undo | Summary |
+|---|---|---|---|
+| `ui.layoutReport` | no | n/a | Geometric UI problems on a canvas: off-screen rects, zero-size elements, overlapping siblings, low-contrast text, unsafe-area content. |
+
+### `ui.layoutReport`
+
+Geometric UI problems on a canvas: off-screen rects, zero-size elements, overlapping siblings, low-contrast text, unsafe-area content.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `canvas` | `string` | no | `null` | Canvas name or path. Defaults to every canvas in the open scenes. |
+| `checks` | `string[]` | no | `null` | Which checks: offscreen, zerosize, overlap, contrast, safearea. Default all. |
+| `safeAreaInset` | `float` | no | `0f` | Safe-area inset in pixels to assume, for notch devices (default 0) |
+| `limit` | `int` | no | `50` | Maximum findings (default 50) |
+
+```json
+{ }
+```
+
+```json
+{ "canvas": "HUD", "checks": ["offscreen", "contrast"] }
 ```
 

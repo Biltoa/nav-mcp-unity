@@ -38,9 +38,27 @@ internal sealed class ParamModel
         var parts = new List<string> { $"\"type\":\"{type}\"" };
         if (items is not null) parts.Add($"\"items\":{{\"type\":\"{items}\"}}");
         if (!string.IsNullOrEmpty(Doc)) parts.Add($"\"description\":{Json.Str(Doc)}");
-        if (Default is not null && Default != "null") parts.Add($"\"default\":{Default}");
+        if (Default is not null && Default != "null") parts.Add($"\"default\":{JsonDefault(type)}");
         return "{" + string.Join(",", parts) + "}";
     }
+
+    /// <summary>
+    /// The default as JSON rather than as C#. A C# float literal is <c>0f</c>, and <c>0f</c> in a
+    /// JSON Schema is not a number — it is a parse error two layers away from the code that wrote
+    /// it, which is exactly the kind of drift this generator exists to make impossible.
+    /// </summary>
+    string JsonDefault(string jsonType)
+    {
+        var d = Default!;
+        if (jsonType is "number" or "integer")
+            return d.TrimEnd('f', 'F', 'd', 'D', 'm', 'M');
+        if (jsonType == "boolean") return d;
+        if (jsonType == "string") return d.StartsWith('"') ? d : Json.Str(d);
+        return d;
+    }
+
+    /// <summary>The binder call as a statement whose value is discarded — validation only.</summary>
+    public string BindDiscard() => "var __" + Name + " = " + Binder();
 
     /// <summary>The binder call the generated dispatch uses for this parameter.</summary>
     public string Binder()

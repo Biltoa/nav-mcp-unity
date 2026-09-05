@@ -62,6 +62,21 @@ if (dupes.Length > 0)
 
 tools = tools.OrderBy(t => t.Id, StringComparer.Ordinal).ToList();
 
+// Every generated schema must parse as JSON, checked here rather than discovered by whatever
+// tries to read it. A C# `0f` default produced a schema that failed to parse two layers away,
+// in the daemon's skill index, as a JsonReaderException with no tool name in it.
+var badSchemas = new List<string>();
+foreach (var tool in tools)
+{
+    try { System.Text.Json.JsonDocument.Parse(tool.InputSchema()); }
+    catch (Exception e) { badSchemas.Add($"{tool.Id}: {e.Message}"); }
+}
+if (badSchemas.Count > 0)
+{
+    foreach (var b in badSchemas) Console.Error.WriteLine("toolgen: invalid input schema - " + b);
+    return 1;
+}
+
 Write(unityOut, Emit.UnityDispatch(tools));
 Write(daemonOut, Emit.DaemonCatalog(tools));
 Write(docsOut, Emit.Docs(tools));

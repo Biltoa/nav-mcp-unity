@@ -1,7 +1,7 @@
 title: Scenes and the hierarchy
 covers: reading the hierarchy, selecting objects, opening and saving scenes
 excludes: creating or editing objects (see gameobject), components (see component), assets (see assets)
-tools: scene.query, scene.count, scene.info, scene.list, scene.roots, scene.children, scene.open, scene.setActive, scene.save, scene.create
+tools: scene.query, scene.count, scene.info, scene.list, scene.roots, scene.children, scene.open, scene.setActive, scene.save, scene.create, scene.mark, scene.diff, scene.validate
 
 # Scenes and the hierarchy
 
@@ -83,3 +83,27 @@ Everything at the scene root, one level only:
 ```json
 { "select": "/*", "fields": ["name", "childCount"] }
 ```
+
+## Reviewing what you changed
+
+An agent that edits a scene and says "done" is asking to be trusted. These two make the edit
+checkable instead:
+
+```
+unity_run("scene.mark", { name: "before-edit" })
+... do the work ...
+unity_run("scene.diff", { marker: "before-edit" })
+```
+
+`scene.diff` reports added, removed and changed paths, where *changed* means name, sibling order,
+active state, tag, layer or component set differs — the same definition the mirror's reconcile hash
+uses, so a diff and a reconcile can never disagree about what "the same" means. A moved object
+appears as removed at its old path and added at the new one.
+
+Markers live in the Editor's memory and are **lost on a domain reload**; `scene.diff` says so in
+`stale` rather than quietly comparing against a snapshot from a previous AppDomain.
+
+`scene.validate` finds what is broken rather than what changed: missing scripts, prefab instances
+whose asset is gone, references pointing at deleted objects, empty material slots. It reports a
+*dangling* reference — one whose target existed and no longer does — and never an unset field,
+because an unset field is not a defect.

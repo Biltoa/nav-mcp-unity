@@ -1,6 +1,7 @@
 title: Editors, projects and process lifecycle
 covers: several projects at once, opening and closing editors, crashes, restarts, editor versions
 excludes: anything inside a project (see scene, assets, diagnostics)
+tools: none
 
 # The fleet
 

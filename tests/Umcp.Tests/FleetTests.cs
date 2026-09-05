@@ -1,5 +1,7 @@
 using System.Text.Json.Nodes;
 using Umcp.Daemon.Fleet;
+using Umcp.Daemon.Generated;
+using Umcp.Daemon.Mcp;
 using Xunit;
 
 namespace Umcp.Tests;
@@ -292,5 +294,47 @@ public class CrashLoopBreakerTests
         breaker.Reset("p");
         Assert.Equal(2, breaker.Remaining("p"));
         Assert.True(breaker.TryRestart("p", out _));
+    }
+}
+
+/// <summary>
+/// Phase 5 gates: the ones that would have caught the defects Phase 5 found in itself.
+/// </summary>
+public class CatalogReachabilityTests
+{
+    static readonly SkillTree Tree = new();
+
+    [Fact]
+    public void Every_tool_is_reachable_from_at_least_one_skill_node()
+    {
+        // The smoke harness reached 60 of 63 tools on its first run: scene.mark, scene.diff and
+        // scene.validate existed in the catalog but were missing from scene.md's explicit tool
+        // list, so nothing that walks the tree could ever find them. A tool nobody can discover
+        // is, for an agent, a tool that does not exist.
+        var reachable = Tree.Nodes.SelectMany(n => Tree.ToolsFor(n)).Select(t => t.Id).ToHashSet();
+        var missing = ToolCatalog.All.Select(t => t.Id).Where(id => !reachable.Contains(id)).ToArray();
+
+        Assert.True(missing.Length == 0,
+            "Not reachable from any skill node: " + string.Join(", ", missing));
+    }
+
+    [Fact]
+    public void Every_input_schema_is_parseable_json()
+    {
+        // A C# `0f` default emitted straight into a schema is not valid JSON, and the failure
+        // surfaced two layers away as a JsonReaderException with no tool name in it.
+        foreach (var tool in ToolCatalog.All)
+        {
+            var exception = Record.Exception(() => JsonNode.Parse(tool.InputSchema));
+            Assert.True(exception is null, tool.Id + ": " + exception?.Message);
+        }
+    }
+
+    [Fact]
+    public void A_guidance_only_node_says_so_explicitly()
+    {
+        var guidanceOnly = Tree.Nodes.Where(SkillTree.IsGuidanceOnly).Select(n => n.Id).ToArray();
+        Assert.Contains("script", guidanceOnly);
+        Assert.Contains("fleet", guidanceOnly);
     }
 }

@@ -8,6 +8,14 @@ using Umcp.Daemon.Security;
 
 namespace Umcp.Daemon.Agent;
 
+/// <summary>One step of a long operation, as the caller sees it.</summary>
+public readonly record struct OpProgress(string Label, string Message, int Percent, long ElapsedMs);
+
+sealed class NoopDisposable : IDisposable
+{
+    public void Dispose() { }
+}
+
 /// <summary>
 /// Owns the request lifecycle, so that a domain reload is invisible to the caller.
 ///
@@ -49,7 +57,8 @@ public sealed class Dispatcher
     }
 
     public Task<JsonObject> RunToolAsync(string tool, JsonObject args, string? projectId, bool dryRun,
-                                        CancellationToken ct, int? maxBytes = null, bool verify = false)
+                                        CancellationToken ct, int? maxBytes = null, bool verify = false,
+                                        IProgress<OpProgress>? progress = null)
     {
         if (!ToolCatalog.ById.TryGetValue(tool, out var entry))
         {
@@ -88,10 +97,11 @@ public sealed class Dispatcher
             ["dryRun"] = dryRun
         };
 
-        return DispatchAsync(message, projectId, TimeoutFor(entry.Retry), tool, entry.Mutating && !dryRun, ct, maxBytes);
+        return DispatchAsync(message, projectId, TimeoutFor(entry.Retry), tool, entry.Mutating && !dryRun, ct, maxBytes, progress);
     }
 
-    public Task<JsonObject> RunBatchAsync(JsonObject batch, string? projectId, CancellationToken ct)
+    public Task<JsonObject> RunBatchAsync(JsonObject batch, string? projectId, CancellationToken ct,
+                                          IProgress<OpProgress>? progress = null)
     {
         batch["t"] = "batch";
         batch["key"] = Guid.NewGuid().ToString("N");
@@ -117,7 +127,7 @@ public sealed class Dispatcher
                 if (e.Retry == "Compile") timeout = _options.CompileTimeout;
             }
         }
-        return DispatchAsync(batch, projectId, timeout, "unity.batch", mutating: true, ct);
+        return DispatchAsync(batch, projectId, timeout, "unity.batch", mutating: true, ct, progress: progress);
     }
 
     /// <summary>Tools the mirror can answer at all. Anything else is live by construction.</summary>
@@ -232,7 +242,7 @@ public sealed class Dispatcher
 
     async Task<JsonObject> DispatchAsync(JsonObject message, string? projectId, TimeSpan opTimeout,
                                          string label, bool mutating, CancellationToken ct,
-                                         int? maxBytes = null)
+                                         int? maxBytes = null, IProgress<OpProgress>? progress = null)
     {
         if (_state.Paused)
             return Envelope.Error("E_PAUSED", "The daemon is paused from the tray UI.",
@@ -255,11 +265,29 @@ public sealed class Dispatcher
                 if (remaining <= TimeSpan.Zero)
                     return NoEditor(projectId, total.ElapsedMilliseconds, heldMs);
 
+                // A hold is the one thing that makes a call take minutes rather than milliseconds,
+                // so it is the one thing worth telling the caller about while it happens.
+                progress?.Report(new OpProgress(label, "waiting for an editor to connect", 10, total.ElapsedMilliseconds));
                 session = await _registry.WaitForAsync(projectId, remaining, ct).ConfigureAwait(false);
                 heldMs += holdStart.ElapsedMilliseconds;
                 if (session is null)
                     return NoEditor(projectId, total.ElapsedMilliseconds, heldMs);
             }
+
+            progress?.Report(new OpProgress(label, attempts == 1 ? "running in the Editor" : "replaying after a reload",
+                                            attempts == 1 ? 50 : 60, total.ElapsedMilliseconds));
+
+            // Cancellation reaches the Editor as its own frame, ahead of the queued operation.
+            // Without this the caller's cancel only stops the *waiting*: the Editor still runs
+            // the mutation, which is the worst of both outcomes.
+            var key = (string?)message["key"];
+            using var cancelRegistration = key is null
+                ? (IDisposable)new NoopDisposable()
+                : ct.Register(() =>
+                {
+                    _log.LogInformation("{Label}: caller cancelled; telling the Editor to drop key {Key}", label, key);
+                    session!.SendCancel(key);
+                });
 
             var result = await SendWatchedAsync(session, message, opTimeout, ct).ConfigureAwait(false);
 
@@ -267,6 +295,7 @@ public sealed class Dispatcher
             {
                 case SendOutcome.Completed:
                     {
+                        progress?.Report(new OpProgress(label, "complete", 100, total.ElapsedMilliseconds));
                         var envelope = Envelope.FromAgentResult(result.Result!, session, heldMs, attempts, maxBytes ?? _options.MaxResponseBytes);
                         if (mutating) _audit.Write(label, session.ProjectId, message, envelope);
                         return envelope;
@@ -290,6 +319,7 @@ public sealed class Dispatcher
                     if (DateTime.UtcNow < holdDeadline)
                     {
                         _log.LogInformation("{Label}: editor went away mid-op, holding for replay (attempt {N})", label, attempts);
+                        progress?.Report(new OpProgress(label, "the Editor is reloading; holding this operation", 30, total.ElapsedMilliseconds));
                         var holdStart = Stopwatch.StartNew();
                         var next = await _registry.WaitForAsync(projectId ?? session.ProjectId,
                             holdDeadline - DateTime.UtcNow, ct).ConfigureAwait(false);

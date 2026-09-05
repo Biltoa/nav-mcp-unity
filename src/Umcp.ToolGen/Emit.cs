@@ -81,6 +81,34 @@ internal static class Emit
                                 throw new UmcpToolException("E_TOOL_NOT_FOUND", "No tool named '" + id + "'.", "tool", id);
                         }
                     }
+
+                    /// <summary>
+                    /// Run a tool's argument binders and throw exactly what a real call would
+                    /// throw, without calling the tool. This is what makes dryRun a validation
+                    /// rather than a promise: the same generated binders, the same errors.
+                    /// </summary>
+                    public static void Validate(string id, JObject a)
+                    {
+                        switch (id)
+                        {
+
+            """);
+
+        foreach (var t in tools)
+        {
+            // Each case gets its own scope: two tools that share a parameter name would
+            // otherwise declare the same local twice in the switch's shared scope.
+            sb.Append("                case ").Append(Json.CsStr(t.Id)).Append(":\n                {\n");
+            foreach (var p in t.Params)
+                sb.Append("                    ").Append(p.BindDiscard()).Append(";\n");
+            sb.Append("                    return;\n                }\n");
+        }
+
+        sb.Append("""
+                            default:
+                                throw new UmcpToolException("E_TOOL_NOT_FOUND", "No tool named '" + id + "'.", "tool", id);
+                        }
+                    }
                 }
             }
 

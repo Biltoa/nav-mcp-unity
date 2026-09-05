@@ -100,6 +100,10 @@ var app = builder.Build();
 // process, and any page that resolves a name to 127.0.0.1, can reach a loopback listener.
 app.Use(async (ctx, next) =>
 {
+    // A client that hangs up must be able to stop work it started. The SDK's tool token does not
+    // see a transport abort in this version, so it is made reachable to the tools here.
+    Umcp.Daemon.Mcp.RequestAbort.Set(ctx.RequestAborted);
+
     if (ctx.Request.Path.StartsWithSegments("/health"))
     {
         await next();

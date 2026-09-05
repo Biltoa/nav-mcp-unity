@@ -118,6 +118,18 @@ public sealed class AgentSession : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Tell the Editor to drop an operation it has not started yet.
+    ///
+    /// Fire-and-forget by design: there is no reply, because the only honest answer to "did you
+    /// cancel it" arrives as the operation's own result — either the value, or E_CANCELLED.
+    /// </summary>
+    public void SendCancel(string key)
+    {
+        if (string.IsNullOrEmpty(key) || !Alive) return;
+        _outbox.Writer.TryWrite(new JsonObject { ["t"] = "cancel", ["key"] = key }.ToJsonString());
+    }
+
     // ------------------------------------------------------------------ out-of-band control
 
     /// <summary>

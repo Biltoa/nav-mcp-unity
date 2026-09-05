@@ -165,6 +165,12 @@ namespace Umcp.Agent
         static void HandleOp(JObject msg, string id, Stopwatch sw)
         {
             var key = (string)msg["key"];
+            if (UmcpCancellation.Take(key))
+            {
+                SendError(id, "E_CANCELLED", "The caller cancelled this operation before it ran.", sw);
+                return;
+            }
+
             string cached;
             if (!string.IsNullOrEmpty(key) && _appliedResults.TryGetValue(key, out cached))
             {
@@ -204,15 +210,11 @@ namespace Umcp.Agent
             {
                 if (!meta.Mutating)
                     return ToolDispatch.Invoke(tool, args);   // reads are safe to actually run
-                return new
-                {
-                    dryRun = true,
-                    tool,
-                    mutating = true,
-                    undo = meta.Undo,
-                    args,
-                    note = "Arguments validated and bound; nothing was applied."
-                };
+
+                // Bind the arguments first — a dry run that skips validation answers a question
+                // nobody asked — then predict the effect from current state without applying it.
+                ToolDispatch.Validate(tool, args);
+                return DryRun.Predict(tool, args, meta);
             }
             return ToolDispatch.Invoke(tool, args);
         }
@@ -227,6 +229,12 @@ namespace Umcp.Agent
         static void HandleBatch(JObject msg, string id, Stopwatch sw)
         {
             var key = (string)msg["key"];
+            if (UmcpCancellation.Take(key))
+            {
+                SendError(id, "E_CANCELLED", "The caller cancelled this batch before it ran.", sw);
+                return;
+            }
+
             string cached;
             if (!string.IsNullOrEmpty(key) && _appliedResults.TryGetValue(key, out cached))
             {

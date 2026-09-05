@@ -21,6 +21,7 @@ var jsonOut = Arg("--json");
 var reloads = ArgInt("--reloads", 5);
 var soakSeconds = ArgInt("--soak", 0);
 var fleet = Environment.GetCommandLineArgs().Contains("--fleet");
+var smoke = Environment.GetCommandLineArgs().Contains("--smoke");
 var fleetRoot = Arg("--fleet-root") ?? @"D:\umcp-fleet-scratch";
 var fleetProjects = ArgInt("--fleet-projects", 3);
 var fleetClean = Environment.GetCommandLineArgs().Contains("--fleet-clean");
@@ -60,15 +61,31 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("mirror-latency", bench.MirrorLatencyAsync),
     ("mirror-reconcile", bench.MirrorReconcileAsync),
     ("reads-through-reloads", () => bench.ReadsThroughReloadsAsync(reloads)),
+    ("dry-run", bench.DryRunAsync),
+    ("scene-diff", bench.SceneDiffAsync),
+    ("validate-target", bench.ValidateTargetAsync),
+    ("cancel-queued", bench.CancelAsync),
     ("blocked-detection", bench.BlockedProbeAsync),
     ("blocked-under-stall", bench.BlockedUnderStallAsync),
     ("cleanup", bench.CleanupAsync)
 };
 
+// The smoke run calls every tool in the catalog once with its own documented example. It is opt-in
+// because it is coverage rather than measurement: nothing in it is a number worth tracking, and a
+// failure in it is a defect rather than a regression in a figure.
+if (smoke)
+{
+    all = new (string name, Func<Task<JsonObject>> run)[]
+    {
+        ("smoke-catalog", bench.SmokeAsync),
+        ("cleanup", bench.CleanupAsync)
+    };
+}
+
 // The fleet run is opt-in: it launches real Editors, which costs minutes and gigabytes. It
 // replaces the single-editor suite rather than joining it, because half of it is about killing
 // an Editor and the other half assumes one that is alive.
-if (fleet)
+if (fleet && !smoke)
 {
     var defaultProject = await bench.DefaultProjectIdAsync();
     all = new (string name, Func<Task<JsonObject>> run)[]
@@ -84,7 +101,7 @@ if (fleet)
 
 // The soak is opt-in: it is the proxy for "no drift over a long editing session",
 // and it takes as long as you give it.
-if (soakSeconds > 0 && !fleet)
+if (soakSeconds > 0 && !fleet && !smoke)
     all = all.Take(all.Length - 1)
              .Append(("mirror-soak", (Func<Task<JsonObject>>)(() => bench.SoakAsync(soakSeconds))))
              .Append(("cleanup", (Func<Task<JsonObject>>)bench.CleanupAsync))
@@ -1024,10 +1041,12 @@ sealed partial class Bench(McpClient client)
         };
     }
 
-    async Task<JsonObject> CallAsync(string tool, JsonObject args)
+    Task<JsonObject> CallAsync(string tool, JsonObject args) => CallAsync(tool, args, CancellationToken.None);
+
+    async Task<JsonObject> CallAsync(string tool, JsonObject args, CancellationToken ct)
     {
         var dict = args.ToDictionary(kv => kv.Key, kv => (object?)JsonSerializer.Deserialize<JsonElement>(kv.Value!.ToJsonString()));
-        var result = await client.CallToolAsync(tool, dict);
+        var result = await client.CallToolAsync(tool, dict, cancellationToken: ct);
         var text = result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text ?? "{}";
         return JsonNode.Parse(text) as JsonObject ?? new JsonObject { ["ok"] = false, ["message"] = text };
     }

@@ -90,7 +90,7 @@ Or via the shim, which starts the daemon on demand:
 
 ## The MCP surface
 
-Six tools, ~910 tokens at baseline. The 54 Editor tools are reached through them rather than
+Six tools, ~910 tokens at baseline. The 63 Editor tools are reached through them rather than
 exposed individually — the surface being replaced costs ~56,800 tokens before the model does
 anything.
 
@@ -125,6 +125,27 @@ hashes from the Editor and repairs any drift, reporting exactly which node and w
 Both sides compute selectors and hashes from the same two source files
 (`SceneSelector.cs`, `MirrorHash.cs`), compiled into the Unity package and linked into the daemon —
 a second copy would drift, and a drifting hash makes reconcile meaningless.
+
+### Before you build
+
+`build.validateTarget` checks the platform failures that are statically detectable and that no
+build error ever reports: WebGL clips that will be resampled (AAC padding makes loops jitter),
+`#pragma target 4.5` shaders on a GLES3 target (they become the error shader on device), small
+TextMeshPro text on a mobile SDF shader (grey boxes), emission above ~1.8 under ACES (clips and
+yellows), and build-scene problems. On this project, WebGL: 8 errors and 25 warnings in 307 ms
+against a ~25-minute build.
+
+`scene.mark` / `scene.diff` make an agent's edits reviewable, `scene.validate` finds what is broken
+(missing scripts, dead references, empty material slots), and `ui.layoutReport` finds the UI
+problems that are geometric rather than aesthetic.
+
+### Dry run, cancellation, progress
+
+`dryRun: true` runs the real argument binders, resolves every named target, and states the effect -
+"Deletes 'Crate' and 4 descendant(s)", "Would fail: 'Player' has no Rigidbody" - without applying
+anything. Cancelling a call cancels the *mutation*, not just the wait: the daemon tells the Editor
+to drop the operation, and an operation that has not started does not start. Long calls - one held
+across a domain reload or an auto-restart - report progress.
 
 ### The fleet
 

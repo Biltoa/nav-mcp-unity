@@ -13,12 +13,14 @@ namespace Umcp.Agent
     {
         public static readonly string[] Ids =
         {
+            "assets.addressables",
             "assets.createFolder",
             "assets.delete",
             "assets.find",
             "assets.info",
             "assets.move",
             "assets.refresh",
+            "build.validateTarget",
             "compile.errors",
             "component.add",
             "component.get",
@@ -51,32 +53,41 @@ namespace Umcp.Agent
             "mirror.snapshot",
             "prefab.create",
             "prefab.instantiate",
+            "prefab.overrides",
+            "profile.frame",
             "project.info",
             "scene.children",
             "scene.count",
             "scene.create",
+            "scene.diff",
             "scene.info",
             "scene.list",
+            "scene.mark",
             "scene.open",
             "scene.query",
             "scene.roots",
             "scene.save",
             "scene.setActive",
+            "scene.validate",
             "transform.get",
             "transform.lookAt",
             "transform.rotate",
             "transform.set",
             "transform.translate",
+            "ui.layoutReport",
+            "vcs.touched",
         };
 
         static readonly Dictionary<string, ToolMeta> _meta = new Dictionary<string, ToolMeta>
         {
+            { "assets.addressables", new ToolMeta { Id = "assets.addressables", Skill = "assets", Summary = "Addressables settings, groups and entries. action: status | groups | entries.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "assets.createFolder", new ToolMeta { Id = "assets.createFolder", Skill = "assets", Summary = "Create a folder, creating intermediate folders as needed.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "AssetDatabase folder creation is not undoable." } },
             { "assets.delete", new ToolMeta { Id = "assets.delete", Skill = "assets", Summary = "Delete an asset. Destructive.", Mutating = true, Retry = "None", Cost = "Cheap", Undo = null, NoUndoReason = "AssetDatabase deletion is not undoable." } },
             { "assets.find", new ToolMeta { Id = "assets.find", Skill = "assets", Summary = "Search the AssetDatabase. Bounded output.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "assets.info", new ToolMeta { Id = "assets.info", Skill = "assets", Summary = "Read one asset's identity, type and direct dependencies.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "assets.move", new ToolMeta { Id = "assets.move", Skill = "assets", Summary = "Move or rename an asset, preserving its GUID.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "AssetDatabase moves are not undoable." } },
             { "assets.refresh", new ToolMeta { Id = "assets.refresh", Skill = "assets", Summary = "Refresh the AssetDatabase. May trigger a compile and a domain reload.", Mutating = true, Retry = "Compile", Cost = "Expensive", Undo = null, NoUndoReason = "An import is not an undoable operation." } },
+            { "build.validateTarget", new ToolMeta { Id = "build.validateTarget", Skill = "build", Summary = "Check a build target for the platform failures that are statically detectable: audio resampling, shader model, small SDF text, emissive clipping, build scenes.", Mutating = false, Retry = "Read", Cost = "Expensive", Undo = null, NoUndoReason = null } },
             { "compile.errors", new ToolMeta { Id = "compile.errors", Skill = "diagnostics", Summary = "Structured compile errors and warnings: file, line, column, message.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "component.add", new ToolMeta { Id = "component.add", Skill = "component", Summary = "Add a component to a GameObject.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Add Component", NoUndoReason = null } },
             { "component.get", new ToolMeta { Id = "component.get", Skill = "component", Summary = "Read a component's serialized properties.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
@@ -109,22 +120,29 @@ namespace Umcp.Agent
             { "mirror.snapshot", new ToolMeta { Id = "mirror.snapshot", Skill = "diagnostics", Summary = "Full compact hierarchy snapshot. Used by the daemon to seed its mirror; rarely useful directly.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "prefab.create", new ToolMeta { Id = "prefab.create", Skill = "assets", Summary = "Save a scene GameObject as a prefab asset.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Create Prefab", NoUndoReason = null } },
             { "prefab.instantiate", new ToolMeta { Id = "prefab.instantiate", Skill = "assets", Summary = "Instantiate a prefab into the active scene.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Instantiate Prefab", NoUndoReason = null } },
+            { "prefab.overrides", new ToolMeta { Id = "prefab.overrides", Skill = "assets", Summary = "List, apply or revert a prefab instance's overrides. action: list | apply | revert.", Mutating = true, Retry = "Write", Cost = "Moderate", Undo = "Prefab overrides", NoUndoReason = null } },
+            { "profile.frame", new ToolMeta { Id = "profile.frame", Skill = "diagnostics", Summary = "Editor frame cost: main-thread time, draw calls, batches, triangles, allocations, memory. Does not enter Play mode.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "project.info", new ToolMeta { Id = "project.info", Skill = "diagnostics", Summary = "Project identity: name, path, Unity version, pipeline, package count.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "scene.children", new ToolMeta { Id = "scene.children", Skill = "scene", Summary = "List the children of a GameObject, to a bounded depth.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "scene.count", new ToolMeta { Id = "scene.count", Skill = "scene", Summary = "Count GameObjects in the hierarchy matching a selector. The cheapest possible read.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "scene.create", new ToolMeta { Id = "scene.create", Skill = "scene", Summary = "Create a new empty scene.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Scene creation is not an undoable operation in Unity." } },
+            { "scene.diff", new ToolMeta { Id = "scene.diff", Skill = "scene", Summary = "What changed in the open scenes since a marker: objects added, removed, renamed, reparented, or otherwise altered.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "scene.info", new ToolMeta { Id = "scene.info", Skill = "scene", Summary = "Summarise the active scene: counts, roots, render pipeline. Bounded.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "scene.list", new ToolMeta { Id = "scene.list", Skill = "scene", Summary = "List open scenes and their dirty state.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
+            { "scene.mark", new ToolMeta { Id = "scene.mark", Skill = "scene", Summary = "Take a marker of the open scenes' current state, for scene.diff to compare against later.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "scene.open", new ToolMeta { Id = "scene.open", Skill = "scene", Summary = "Open a scene by asset path.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Scene loading is not an undoable operation in Unity." } },
             { "scene.query", new ToolMeta { Id = "scene.query", Skill = "scene", Summary = "Select GameObjects from the scene hierarchy with a path selector and return only the fields you ask for.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "scene.roots", new ToolMeta { Id = "scene.roots", Skill = "scene", Summary = "List root GameObjects of a scene. Bounded.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "scene.save", new ToolMeta { Id = "scene.save", Skill = "scene", Summary = "Save an open scene. Refuses to overwrite unless asked explicitly.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Writing a file is not undoable." } },
             { "scene.setActive", new ToolMeta { Id = "scene.setActive", Skill = "scene", Summary = "Make an open scene the active scene.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Active-scene selection is editor state, not object state." } },
+            { "scene.validate", new ToolMeta { Id = "scene.validate", Skill = "scene", Summary = "Find broken things in the open scenes: missing scripts, missing prefab assets, dangling object references, missing materials.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "transform.get", new ToolMeta { Id = "transform.get", Skill = "transform", Summary = "Read a GameObject's transform in local and world space.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "transform.lookAt", new ToolMeta { Id = "transform.lookAt", Skill = "transform", Summary = "Aim a GameObject at another GameObject or a world point.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Look At", NoUndoReason = null } },
             { "transform.rotate", new ToolMeta { Id = "transform.rotate", Skill = "transform", Summary = "Rotate a GameObject by euler angles.", Mutating = true, Retry = "None", Cost = "Cheap", Undo = "Rotate", NoUndoReason = null } },
             { "transform.set", new ToolMeta { Id = "transform.set", Skill = "transform", Summary = "Set position, rotation and/or scale on a GameObject.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set Transform", NoUndoReason = null } },
             { "transform.translate", new ToolMeta { Id = "transform.translate", Skill = "transform", Summary = "Move a GameObject by a delta.", Mutating = true, Retry = "None", Cost = "Cheap", Undo = "Translate", NoUndoReason = null } },
+            { "ui.layoutReport", new ToolMeta { Id = "ui.layoutReport", Skill = "ui", Summary = "Geometric UI problems on a canvas: off-screen rects, zero-size elements, overlapping siblings, low-contrast text, unsafe-area content.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
+            { "vcs.touched", new ToolMeta { Id = "vcs.touched", Skill = "assets", Summary = "Which assets changed recently, in VCS terms: modified files under Assets/, and git status when the project is a repository.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
         };
 
         public static ToolMeta Meta(string id)
@@ -138,6 +156,8 @@ namespace Umcp.Agent
         {
             switch (id)
             {
+                case "assets.addressables":
+                    return AddressableTools.Addressables(Bind.Str(a, "action", false, "status"), Bind.Str(a, "group", false), Bind.Int(a, "limit", false, 100));
                 case "assets.createFolder":
                     return AssetTools.CreateFolder(Bind.Str(a, "path", true));
                 case "assets.delete":
@@ -150,6 +170,8 @@ namespace Umcp.Agent
                     return AssetTools.Move(Bind.Str(a, "from", true), Bind.Str(a, "to", true));
                 case "assets.refresh":
                     return AssetTools.Refresh(Bind.Bool(a, "force", false, false));
+                case "build.validateTarget":
+                    return BuildTools.ValidateTarget(Bind.Str(a, "platform", false), Bind.StrArr(a, "checks", false), Bind.Int(a, "limit", false, 25));
                 case "compile.errors":
                     return EditorTools.CompileErrors(Bind.Bool(a, "warnings", false, false));
                 case "component.add":
@@ -214,6 +236,10 @@ namespace Umcp.Agent
                     return AssetTools.PrefabCreate(Bind.Str(a, "target", true), Bind.Str(a, "path", true), Bind.Bool(a, "connect", false, true));
                 case "prefab.instantiate":
                     return AssetTools.PrefabInstantiate(Bind.Str(a, "path", true), Bind.Str(a, "parent", false), Bind.FltArr(a, "position", false), Bind.Str(a, "name", false));
+                case "prefab.overrides":
+                    return PrefabOverrideTools.Overrides(Bind.Str(a, "target", true), Bind.Str(a, "action", false, "list"), Bind.StrArr(a, "properties", false), Bind.Int(a, "limit", false, 100));
+                case "profile.frame":
+                    return ProfileTools.Frame(Bind.Int(a, "frames", false, 60));
                 case "project.info":
                     return EditorTools.ProjectInfo();
                 case "scene.children":
@@ -222,10 +248,14 @@ namespace Umcp.Agent
                     return SceneQueryTools.Count(Bind.Str(a, "select", false, "//*"));
                 case "scene.create":
                     return SceneTools.Create(Bind.Str(a, "path", true), Bind.Str(a, "setup", false, "defaultGameObjects"), Bind.Str(a, "mode", false, "additive"));
+                case "scene.diff":
+                    return InspectTools.Diff(Bind.Str(a, "marker", true), Bind.Int(a, "limit", false, 50));
                 case "scene.info":
                     return SceneTools.Info(Bind.Int(a, "limit", false, 50));
                 case "scene.list":
                     return SceneTools.List();
+                case "scene.mark":
+                    return InspectTools.Mark(Bind.Str(a, "name", false));
                 case "scene.open":
                     return SceneTools.Open(Bind.Str(a, "path", true), Bind.Str(a, "mode", false, "single"));
                 case "scene.query":
@@ -236,6 +266,8 @@ namespace Umcp.Agent
                     return SceneTools.Save(Bind.Str(a, "scene", false), Bind.Bool(a, "confirm", false, false), Bind.Str(a, "saveAs", false));
                 case "scene.setActive":
                     return SceneTools.SetActive(Bind.Str(a, "scene", true));
+                case "scene.validate":
+                    return InspectTools.Validate(Bind.StrArr(a, "checks", false), Bind.Str(a, "root", false), Bind.Int(a, "limit", false, 100));
                 case "transform.get":
                     return TransformTools.Get(Bind.Str(a, "target", true));
                 case "transform.lookAt":
@@ -246,6 +278,419 @@ namespace Umcp.Agent
                     return TransformTools.Set(Bind.Str(a, "target", true), Bind.FltArr(a, "position", false), Bind.FltArr(a, "rotation", false), Bind.FltArr(a, "scale", false), Bind.Str(a, "space", false, "local"));
                 case "transform.translate":
                     return TransformTools.Translate(Bind.Str(a, "target", true), Bind.FltArr(a, "delta", true), Bind.Str(a, "space", false, "local"));
+                case "ui.layoutReport":
+                    return UiTools.LayoutReport(Bind.Str(a, "canvas", false), Bind.StrArr(a, "checks", false), Bind.Flt(a, "safeAreaInset", false, 0f), Bind.Int(a, "limit", false, 50));
+                case "vcs.touched":
+                    return InspectTools.Touched(Bind.Int(a, "sinceMinutes", false, 60), Bind.Int(a, "limit", false, 100));
+                default:
+                    throw new UmcpToolException("E_TOOL_NOT_FOUND", "No tool named '" + id + "'.", "tool", id);
+            }
+        }
+
+        /// <summary>
+        /// Run a tool's argument binders and throw exactly what a real call would
+        /// throw, without calling the tool. This is what makes dryRun a validation
+        /// rather than a promise: the same generated binders, the same errors.
+        /// </summary>
+        public static void Validate(string id, JObject a)
+        {
+            switch (id)
+            {
+                case "assets.addressables":
+                {
+                    var __action = Bind.Str(a, "action", false, "status");
+                    var __group = Bind.Str(a, "group", false);
+                    var __limit = Bind.Int(a, "limit", false, 100);
+                    return;
+                }
+                case "assets.createFolder":
+                {
+                    var __path = Bind.Str(a, "path", true);
+                    return;
+                }
+                case "assets.delete":
+                {
+                    var __path = Bind.Str(a, "path", true);
+                    var __confirm = Bind.Bool(a, "confirm", false, false);
+                    return;
+                }
+                case "assets.find":
+                {
+                    var __filter = Bind.Str(a, "filter", true);
+                    var __folders = Bind.StrArr(a, "folders", false);
+                    var __limit = Bind.Int(a, "limit", false, 100);
+                    var __offset = Bind.Int(a, "offset", false, 0);
+                    return;
+                }
+                case "assets.info":
+                {
+                    var __path = Bind.Str(a, "path", true);
+                    var __dependencies = Bind.Bool(a, "dependencies", false, false);
+                    return;
+                }
+                case "assets.move":
+                {
+                    var __from = Bind.Str(a, "from", true);
+                    var __to = Bind.Str(a, "to", true);
+                    return;
+                }
+                case "assets.refresh":
+                {
+                    var __force = Bind.Bool(a, "force", false, false);
+                    return;
+                }
+                case "build.validateTarget":
+                {
+                    var __platform = Bind.Str(a, "platform", false);
+                    var __checks = Bind.StrArr(a, "checks", false);
+                    var __limit = Bind.Int(a, "limit", false, 25);
+                    return;
+                }
+                case "compile.errors":
+                {
+                    var __warnings = Bind.Bool(a, "warnings", false, false);
+                    return;
+                }
+                case "component.add":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __type = Bind.Str(a, "type", true);
+                    var __props = Bind.Obj(a, "props", false);
+                    return;
+                }
+                case "component.get":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __type = Bind.Str(a, "type", true);
+                    var __fields = Bind.StrArr(a, "fields", false);
+                    var __includeDefaults = Bind.Bool(a, "includeDefaults", false, false);
+                    return;
+                }
+                case "component.list":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    return;
+                }
+                case "component.remove":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __type = Bind.Str(a, "type", true);
+                    var __all = Bind.Bool(a, "all", false, false);
+                    return;
+                }
+                case "component.set":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __type = Bind.Str(a, "type", true);
+                    var __props = Bind.Obj(a, "props", true);
+                    return;
+                }
+                case "console.clear":
+                {
+                    return;
+                }
+                case "console.read":
+                {
+                    var __types = Bind.StrArr(a, "types", false);
+                    var __contains = Bind.Str(a, "contains", false);
+                    var __limit = Bind.Int(a, "limit", false, 50);
+                    var __stackTrace = Bind.Bool(a, "stackTrace", false, false);
+                    return;
+                }
+                case "editor.assemblies":
+                {
+                    var __fileBackedOnly = Bind.Bool(a, "fileBackedOnly", false, true);
+                    return;
+                }
+                case "editor.compile":
+                {
+                    return;
+                }
+                case "editor.ping":
+                {
+                    return;
+                }
+                case "editor.quit":
+                {
+                    var __save = Bind.Bool(a, "save", false, false);
+                    var __force = Bind.Bool(a, "force", false, false);
+                    return;
+                }
+                case "editor.selection.get":
+                {
+                    var __limit = Bind.Int(a, "limit", false, 100);
+                    return;
+                }
+                case "editor.selection.set":
+                {
+                    var __targets = Bind.StrArr(a, "targets", true);
+                    return;
+                }
+                case "editor.stall":
+                {
+                    var __seconds = Bind.Int(a, "seconds", false, 10);
+                    return;
+                }
+                case "editor.status":
+                {
+                    return;
+                }
+                case "gameobject.create":
+                {
+                    var __name = Bind.Str(a, "name", true);
+                    var __primitive = Bind.Str(a, "primitive", false);
+                    var __parent = Bind.Str(a, "parent", false);
+                    var __position = Bind.FltArr(a, "position", false);
+                    var __rotation = Bind.FltArr(a, "rotation", false);
+                    var __scale = Bind.FltArr(a, "scale", false);
+                    return;
+                }
+                case "gameobject.delete":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    return;
+                }
+                case "gameobject.duplicate":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __name = Bind.Str(a, "name", false);
+                    return;
+                }
+                case "gameobject.find":
+                {
+                    var __name = Bind.Str(a, "name", false);
+                    var __tag = Bind.Str(a, "tag", false);
+                    var __layer = Bind.Str(a, "layer", false);
+                    var __component = Bind.Str(a, "component", false);
+                    var __contains = Bind.Bool(a, "contains", false, true);
+                    var __includeInactive = Bind.Bool(a, "includeInactive", false, true);
+                    var __limit = Bind.Int(a, "limit", false, 100);
+                    var __offset = Bind.Int(a, "offset", false, 0);
+                    return;
+                }
+                case "gameobject.get":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __children = Bind.Bool(a, "children", false, false);
+                    return;
+                }
+                case "gameobject.rename":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __name = Bind.Str(a, "name", true);
+                    return;
+                }
+                case "gameobject.setActive":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __active = Bind.Bool(a, "active", true);
+                    return;
+                }
+                case "gameobject.setLayer":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __layer = Bind.Str(a, "layer", true);
+                    var __recursive = Bind.Bool(a, "recursive", false, false);
+                    return;
+                }
+                case "gameobject.setParent":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __parent = Bind.Str(a, "parent", false);
+                    var __worldPositionStays = Bind.Bool(a, "worldPositionStays", false, true);
+                    return;
+                }
+                case "gameobject.setTag":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __tag = Bind.Str(a, "tag", true);
+                    return;
+                }
+                case "material.create":
+                {
+                    var __path = Bind.Str(a, "path", true);
+                    var __shader = Bind.Str(a, "shader", false);
+                    var __color = Bind.FltArr(a, "color", false);
+                    return;
+                }
+                case "material.set":
+                {
+                    var __path = Bind.Str(a, "path", true);
+                    var __colors = Bind.Obj(a, "colors", false);
+                    var __floats = Bind.Obj(a, "floats", false);
+                    var __textures = Bind.Obj(a, "textures", false);
+                    return;
+                }
+                case "mirror.hashes":
+                {
+                    return;
+                }
+                case "mirror.snapshot":
+                {
+                    return;
+                }
+                case "prefab.create":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __path = Bind.Str(a, "path", true);
+                    var __connect = Bind.Bool(a, "connect", false, true);
+                    return;
+                }
+                case "prefab.instantiate":
+                {
+                    var __path = Bind.Str(a, "path", true);
+                    var __parent = Bind.Str(a, "parent", false);
+                    var __position = Bind.FltArr(a, "position", false);
+                    var __name = Bind.Str(a, "name", false);
+                    return;
+                }
+                case "prefab.overrides":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __action = Bind.Str(a, "action", false, "list");
+                    var __properties = Bind.StrArr(a, "properties", false);
+                    var __limit = Bind.Int(a, "limit", false, 100);
+                    return;
+                }
+                case "profile.frame":
+                {
+                    var __frames = Bind.Int(a, "frames", false, 60);
+                    return;
+                }
+                case "project.info":
+                {
+                    return;
+                }
+                case "scene.children":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __maxDepth = Bind.Int(a, "maxDepth", false, 1);
+                    var __limit = Bind.Int(a, "limit", false, 100);
+                    return;
+                }
+                case "scene.count":
+                {
+                    var __select = Bind.Str(a, "select", false, "//*");
+                    return;
+                }
+                case "scene.create":
+                {
+                    var __path = Bind.Str(a, "path", true);
+                    var __setup = Bind.Str(a, "setup", false, "defaultGameObjects");
+                    var __mode = Bind.Str(a, "mode", false, "additive");
+                    return;
+                }
+                case "scene.diff":
+                {
+                    var __marker = Bind.Str(a, "marker", true);
+                    var __limit = Bind.Int(a, "limit", false, 50);
+                    return;
+                }
+                case "scene.info":
+                {
+                    var __limit = Bind.Int(a, "limit", false, 50);
+                    return;
+                }
+                case "scene.list":
+                {
+                    return;
+                }
+                case "scene.mark":
+                {
+                    var __name = Bind.Str(a, "name", false);
+                    return;
+                }
+                case "scene.open":
+                {
+                    var __path = Bind.Str(a, "path", true);
+                    var __mode = Bind.Str(a, "mode", false, "single");
+                    return;
+                }
+                case "scene.query":
+                {
+                    var __select = Bind.Str(a, "select", false, "//*");
+                    var __fields = Bind.StrArr(a, "fields", false);
+                    var __limit = Bind.Int(a, "limit", false, 100);
+                    var __offset = Bind.Int(a, "offset", false, 0);
+                    var __maxDepth = Bind.Int(a, "maxDepth", false, -1);
+                    var __countOnly = Bind.Bool(a, "countOnly", false, false);
+                    return;
+                }
+                case "scene.roots":
+                {
+                    var __scene = Bind.Str(a, "scene", false);
+                    var __limit = Bind.Int(a, "limit", false, 100);
+                    var __offset = Bind.Int(a, "offset", false, 0);
+                    return;
+                }
+                case "scene.save":
+                {
+                    var __scene = Bind.Str(a, "scene", false);
+                    var __confirm = Bind.Bool(a, "confirm", false, false);
+                    var __saveAs = Bind.Str(a, "saveAs", false);
+                    return;
+                }
+                case "scene.setActive":
+                {
+                    var __scene = Bind.Str(a, "scene", true);
+                    return;
+                }
+                case "scene.validate":
+                {
+                    var __checks = Bind.StrArr(a, "checks", false);
+                    var __root = Bind.Str(a, "root", false);
+                    var __limit = Bind.Int(a, "limit", false, 100);
+                    return;
+                }
+                case "transform.get":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    return;
+                }
+                case "transform.lookAt":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __at = Bind.Str(a, "at", false);
+                    var __point = Bind.FltArr(a, "point", false);
+                    return;
+                }
+                case "transform.rotate":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __euler = Bind.FltArr(a, "euler", true);
+                    var __space = Bind.Str(a, "space", false, "local");
+                    return;
+                }
+                case "transform.set":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __position = Bind.FltArr(a, "position", false);
+                    var __rotation = Bind.FltArr(a, "rotation", false);
+                    var __scale = Bind.FltArr(a, "scale", false);
+                    var __space = Bind.Str(a, "space", false, "local");
+                    return;
+                }
+                case "transform.translate":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __delta = Bind.FltArr(a, "delta", true);
+                    var __space = Bind.Str(a, "space", false, "local");
+                    return;
+                }
+                case "ui.layoutReport":
+                {
+                    var __canvas = Bind.Str(a, "canvas", false);
+                    var __checks = Bind.StrArr(a, "checks", false);
+                    var __safeAreaInset = Bind.Flt(a, "safeAreaInset", false, 0f);
+                    var __limit = Bind.Int(a, "limit", false, 50);
+                    return;
+                }
+                case "vcs.touched":
+                {
+                    var __sinceMinutes = Bind.Int(a, "sinceMinutes", false, 60);
+                    var __limit = Bind.Int(a, "limit", false, 100);
+                    return;
+                }
                 default:
                     throw new UmcpToolException("E_TOOL_NOT_FOUND", "No tool named '" + id + "'.", "tool", id);
             }

@@ -1,0 +1,94 @@
+{
+  "when": "2026-09-06T01:50:54.5061447\u002B03:00",
+  "focus": "unfocused",
+  "results": [
+    {
+      "catalogTools": 63,
+      "reachedViaSkills": 63,
+      "unreachable": 0,
+      "ran": 61,
+      "live": 30,
+      "dryRun": 31,
+      "skipped": [
+        {
+          "tool": "editor.quit",
+          "why": "would stall or close the Editor"
+        },
+        {
+          "tool": "editor.stall",
+          "why": "would stall or close the Editor"
+        }
+      ],
+      "failures": [
+        {
+          "tool": "assets.addressables",
+          "code": "E_PACKAGE_MISSING",
+          "message": "The Addressables package is not installed in this project.",
+          "kind": "example does not fit this project"
+        },
+        {
+          "tool": "assets.info",
+          "code": "E_ASSET_NOT_FOUND",
+          "message": "No asset at \u0027Assets/Materials/Rock.mat\u0027.",
+          "kind": "example does not fit this project"
+        },
+        {
+          "tool": "component.get",
+          "code": "E_TARGET_NOT_FOUND",
+          "message": "No GameObject matched \u0027Player\u0027.",
+          "kind": "example does not fit this project"
+        },
+        {
+          "tool": "component.list",
+          "code": "E_TARGET_NOT_FOUND",
+          "message": "No GameObject matched \u0027Player\u0027.",
+          "kind": "example does not fit this project"
+        },
+        {
+          "tool": "gameobject.get",
+          "code": "E_TARGET_NOT_FOUND",
+          "message": "No GameObject matched \u0027Player\u0027.",
+          "kind": "example does not fit this project"
+        },
+        {
+          "tool": "scene.children",
+          "code": "E_TARGET_NOT_FOUND",
+          "message": "No GameObject matched \u0027Level\u0027.",
+          "kind": "example does not fit this project"
+        },
+        {
+          "tool": "scene.diff",
+          "code": "E_MARKER_NOT_FOUND",
+          "message": "No marker \u0027before-edit\u0027.",
+          "kind": "example does not fit this project"
+        },
+        {
+          "tool": "transform.get",
+          "code": "E_TARGET_NOT_FOUND",
+          "message": "No GameObject matched \u0027Player\u0027.",
+          "kind": "example does not fit this project"
+        }
+      ],
+      "toolDefects": 0,
+      "seconds": 6.2,
+      "slowest": {
+        "tool": "vcs.touched",
+        "ms": 317
+      },
+      "pass": true,
+      "name": "smoke-catalog",
+      "harnessMs": 8558,
+      "focus": "unfocused"
+    },
+    {
+      "found": 0,
+      "deleted": 0,
+      "rounds": 1,
+      "remaining": 0,
+      "pass": true,
+      "name": "cleanup",
+      "harnessMs": 106,
+      "focus": "unfocused"
+    }
+  ]
+}

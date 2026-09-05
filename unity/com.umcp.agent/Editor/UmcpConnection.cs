@@ -107,7 +107,21 @@ namespace Umcp.Agent
                         if (len <= 0 || len > MaxFrame) break;
                         var body = new byte[len];
                         if (!ReadExactly(_stream, body, len)) break;
-                        _inbox.Enqueue(Encoding.UTF8.GetString(body));
+                        var frame = Encoding.UTF8.GetString(body);
+
+                        // A cancel has to be seen *before* the operation it cancels is
+                        // dequeued, and both arrive on the same socket. Queueing it would
+                        // put it behind that operation in the same tick, which is the one
+                        // ordering in which cancellation can never work. It carries no
+                        // Unity API call, so handling it here — on the reader thread — does
+                        // not break the "no Unity API off the main thread" rule.
+                        if (frame.IndexOf("\"t\":\"cancel\"", StringComparison.Ordinal) >= 0)
+                        {
+                            UmcpCancellation.Note(frame);
+                            continue;
+                        }
+
+                        _inbox.Enqueue(frame);
                     }
                 }
                 catch (Exception)

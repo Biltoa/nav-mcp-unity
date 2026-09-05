@@ -236,15 +236,16 @@ sealed partial class Bench
         };
     }
 
-    async Task<int> CountAsync(string projectId, string selector)
+    async Task<int> CountAsync(string? projectId, string selector)
     {
-        var r = await CallAsync("unity_run", new()
+        var call = new JsonObject
         {
             ["tool"] = "scene.count",
             ["args"] = new JsonObject { ["select"] = selector },
-            ["project"] = projectId,
             ["verify"] = true
-        });
+        };
+        if (projectId is not null) call["project"] = projectId;
+        var r = await CallAsync("unity_run", call);
         return (int?)r["data"]?["count"] ?? (int?)r["data"]?["_total"] ?? -1;
     }
 
