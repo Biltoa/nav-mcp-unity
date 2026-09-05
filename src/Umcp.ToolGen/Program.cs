@@ -16,7 +16,7 @@ using Umcp.ToolGen;
 // double quote or an apostrophe. Drift between layers is structurally impossible here.
 
 var repoRoot = Args.Get("--root") ?? FindRepoRoot();
-var toolsDir = Path.Combine(repoRoot, "unity", "com.umcp.agent", "Editor", "Tools");
+var toolsDir = Path.Combine(repoRoot, "unity", "com.umcp.agent", "Editor");
 var unityOut = Path.Combine(repoRoot, "unity", "com.umcp.agent", "Editor", "Generated", "ToolDispatch.g.cs");
 var daemonOut = Path.Combine(repoRoot, "src", "Umcp.Daemon", "Generated", "ToolCatalog.g.cs");
 var docsOut = Path.Combine(repoRoot, "docs", "TOOLS.md");

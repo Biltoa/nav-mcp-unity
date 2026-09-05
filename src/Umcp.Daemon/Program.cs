@@ -16,6 +16,29 @@ using Umcp.Daemon.Tray;
 
 Paths.EnsureCreated();
 var options = DaemonOptions.Parse(args);
+
+// The Tier-0 map. ~200 tokens in the server instructions so the model can route without searching.
+const string Instructions = """
+    Unity Editor control. Six tools; the full catalog of Editor operations is reached through them.
+
+    Route by domain:
+      scene · gameobject · transform · component | assets · prefabs | material · shaders
+      diagnostics (console, compile errors, editor health) | script (code mode)
+
+    How to choose:
+      one discrete change            -> unity_run
+      several known changes          -> unity_batch   (one Editor tick, one undo group; ~30x faster
+                                                       than the same ops sent one at a time)
+      a loop, filter or aggregate    -> unity_script  (returns its conclusion, not its working)
+      reading the hierarchy          -> unity_run "scene.query" with a selector and a field list;
+                                        never dump a scene
+
+    unity_skill("<domain>") loads guidance plus that domain's tool schemas, including caveats for
+    the render pipeline this project actually uses. unity_find searches tools and skills.
+    unity_projects reports editor health: "blocked" means a modal dialog is open in Unity and a
+    human has to dismiss it.
+    """;
+
 var tokens = new TokenStore(options.Token ?? Environment.GetEnvironmentVariable("UMCP_TOKEN"));
 
 if (args.Contains("--help") || args.Contains("-h"))
@@ -28,6 +51,7 @@ if (args.Contains("--help") || args.Contains("-h"))
           --stdio                   also serve MCP on this process's stdio
           --tray                    show the Windows tray UI
           --token <s>               use this bearer token instead of minting one
+          --profile <p>             readonly | standard | full   (default standard)
           --max-response-bytes <n>  response cap           (default 32768)
 
         The token is written to %LOCALAPPDATA%/UnityMCP/token.
@@ -42,12 +66,13 @@ if (options.Stdio)
     stdio.Logging.ClearProviders();
     stdio.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
     AddCore(stdio.Services, options);
-    stdio.Services.AddMcpServer(o => o.ServerInfo = new() { Name = "unity-mcp-tool", Version = "0.1.0" })
+    stdio.Services.AddMcpServer(o => { o.ServerInfo = new() { Name = "unity-mcp-tool", Version = "0.2.0" }; o.ServerInstructions = Instructions; })
         .WithStdioServerTransport()
         .WithTools<UnityMcpTools>();
     await stdio.Build().RunAsync();
     return 0;
 }
+
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
@@ -62,7 +87,7 @@ builder.WebHost.ConfigureKestrel(k =>
 
 AddCore(builder.Services, options);
 builder.Services.AddSingleton(tokens);
-builder.Services.AddMcpServer(o => o.ServerInfo = new() { Name = "unity-mcp-tool", Version = "0.1.0" })
+builder.Services.AddMcpServer(o => { o.ServerInfo = new() { Name = "unity-mcp-tool", Version = "0.2.0" }; o.ServerInstructions = Instructions; })
     .WithHttpTransport()
     .WithTools<UnityMcpTools>();
 
@@ -117,11 +142,12 @@ app.MapGet("/health", async (EditorRegistry registry, DaemonOptions opts) =>
         ["daemon"] = new JsonObject
         {
             ["pid"] = Environment.ProcessId,
-            ["version"] = "0.1.0",
+            ["version"] = "0.2.0",
             ["uptimeSec"] = (long)(DateTime.UtcNow - DaemonInfo.StartedUtc).TotalSeconds,
             ["httpPort"] = opts.HttpPort,
             ["agentPort"] = opts.AgentPort,
-            ["tools"] = ToolCatalog.All.Length
+            ["tools"] = ToolCatalog.All.Length,
+            ["profile"] = Umcp.Daemon.Security.Profiles.Name(opts.Profile)
         },
         ["editors"] = editors
     });
@@ -131,7 +157,8 @@ if (options.Tray && OperatingSystem.IsWindows())
     TrayHost.Start(app.Services, options, tokens);
 
 Console.Error.WriteLine($"[umcpd] http 127.0.0.1:{options.HttpPort}/mcp · agents 127.0.0.1:{options.AgentPort} · " +
-                        $"{ToolCatalog.All.Length} tools · token in {Paths.TokenFile}");
+                        $"{ToolCatalog.All.Length} tools · profile {Umcp.Daemon.Security.Profiles.Name(options.Profile)} · " +
+                        $"token in {Paths.TokenFile}");
 
 await app.RunAsync();
 return 0;
@@ -145,6 +172,8 @@ static void AddCore(IServiceCollection services, DaemonOptions options)
     services.AddSingleton<UnityMcpTools>();
     services.AddHostedService<AgentServer>();
     services.AddSingleton<DaemonState>();
+    services.AddSingleton<Umcp.Daemon.Script.ScriptCompiler>();
+    services.AddSingleton<SkillTree>();
 }
 
 static bool CryptographicEquals(string a, string b)

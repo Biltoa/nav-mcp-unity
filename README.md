@@ -46,6 +46,8 @@ input example, or if a mutating tool declares neither an undo group nor a reason
 dotnet run --project src/Umcp.Daemon -- --port 8730 --agent-port 8731 --tray
 ```
 
+Add `--profile full` to enable code mode.
+
 Both ports bind `127.0.0.1` explicitly. A bearer token is minted at start and written to
 `%LOCALAPPDATA%\UnityMCP\token` with an ACL granting the current user only; `/health` is the one
 unauthenticated endpoint.
@@ -88,17 +90,41 @@ Or via the shim, which starts the daemon on demand:
 
 ## The MCP surface
 
-Six tools, ~660 tokens at baseline. The 48 Editor tools are reached through them rather than
-exposed individually.
+Six tools, ~904 tokens at baseline. The 51 Editor tools are reached through them rather than
+exposed individually — the surface being replaced costs ~56,800 tokens before the model does
+anything.
 
 | Tool | What |
 |---|---|
 | `unity_run` | run one Editor tool by id |
 | `unity_batch` | N operations, one Editor tick, one undo group; `"$1"` refers to op 1's result |
-| `unity_find` | search the tool catalog |
-| `unity_catalog` | full schema and examples for a tool or family |
-| `unity_status` | health — last completed round trip, not socket state |
-| `unity_projects` | connected editors; set the default target |
+| `unity_script` | C# executed in the Editor, returning only its conclusion (`full` profile only) |
+| `unity_find` | BM25 search across tools and skills |
+| `unity_skill` | a domain's guidance plus its tools' schemas; also one tool's schema |
+| `unity_projects` | connected editors, their health, and the default target |
+
+### The skill tree
+
+`unity_skill()` returns a ~400-token map of domains. `unity_skill("material")` returns that domain's
+guidance and schemas — around 1,200 tokens — including caveats for the render pipeline the connected
+project *actually* uses, read from the Editor rather than assumed. A typical task that loads three
+domains costs about 5,000 tokens against a 56,800-token baseline.
+
+Content lives in `src/Umcp.Daemon/Skills/*.md` and is embedded in the binary.
+
+## Profiles
+
+`--profile readonly | standard | full`, default `standard`.
+
+| Profile | Allows |
+|---|---|
+| `readonly` | non-mutating tools only |
+| `standard` | mutations, but not arbitrary code or irreversible writes |
+| `full` | everything |
+
+`unity.script`, `assets.delete`, `scene.save`, `scene.create` and `editor.stall` require `full`.
+This is a second lock: the first is that both listeners bind `127.0.0.1` and every request carries a
+bearer token.
 
 ## Benchmarks
 

@@ -1,0 +1,158 @@
+{
+  "when": "2026-09-05T21:04:54.8109236\u002B03:00",
+  "focus": "unfocused",
+  "results": [
+    {
+      "tools": 6,
+      "bytes": 3618,
+      "approxTokens": 904,
+      "target": "\u003C1000 tokens",
+      "pass": true,
+      "name": "toolsurface",
+      "harnessMs": 17,
+      "focus": "unfocused"
+    },
+    {
+      "ops": 16,
+      "msPerOp": 98.6,
+      "p50": 99,
+      "min": 96,
+      "max": 100,
+      "name": "ping-sequential",
+      "harnessMs": 1693,
+      "focus": "unfocused"
+    },
+    {
+      "ops": 32,
+      "burstMs": 101,
+      "msPerOp": 3.16,
+      "ok": 32,
+      "name": "ping-concurrent-32",
+      "harnessMs": 195,
+      "focus": "unfocused"
+    },
+    {
+      "ops": 32,
+      "batchMs": 109,
+      "msPerOp": 3.41,
+      "created": 32,
+      "responseBytes": 442,
+      "target": "\u003C=150ms",
+      "pass": true,
+      "name": "batch-32",
+      "harnessMs": 207,
+      "focus": "unfocused"
+    },
+    {
+      "ops": 4,
+      "batchMs": 137,
+      "ok": true,
+      "count": 4,
+      "error": null,
+      "name": "batch-dependent",
+      "harnessMs": 138,
+      "focus": "unfocused"
+    },
+    {
+      "sceneInfoBytes": 1357,
+      "find500Bytes": 13940,
+      "objectsInScene": 159,
+      "cap": 32768,
+      "pass": true,
+      "name": "payload-scene-info",
+      "harnessMs": 153,
+      "focus": "unfocused"
+    },
+    {
+      "opsDuringReload": 16,
+      "visibleErrors": 0,
+      "heldOps": 6,
+      "replayedOps": 0,
+      "sequenceMs": 8490,
+      "errors": [],
+      "pass": true,
+      "name": "reload-hold-replay",
+      "harnessMs": 8491,
+      "focus": "unfocused"
+    },
+    {
+      "mapTokens": 403,
+      "perSkillTokens": {
+        "material": 1182,
+        "scene.query": 362,
+        "gameobject": 2477
+      },
+      "typicalTaskTokens": 5084,
+      "findTop": "material",
+      "baseline": 56800,
+      "pass": true,
+      "name": "skill-tree",
+      "harnessMs": 96,
+      "focus": "unfocused"
+    },
+    {
+      "dumpBytes": 49761,
+      "dumpTruncated": false,
+      "queryBytes": 4353,
+      "queryMs": 99,
+      "countBytes": 152,
+      "objectsMatched": 49,
+      "overviewBytes": 1357,
+      "baselineOverviewBytes": 138205,
+      "target": "scene overview \u003C 2048 B (was 138,205 B)",
+      "pass": true,
+      "name": "scene-query-vs-dump",
+      "harnessMs": 381,
+      "focus": "unfocused"
+    },
+    {
+      "batchMs": 114,
+      "batchBytes": 359,
+      "scriptMs": 1319,
+      "scriptBytes": 290,
+      "bytesRatio": 1.2,
+      "scriptOk": true,
+      "scriptCode": null,
+      "queryFirstMs": 89,
+      "queryCachedMs": 99,
+      "queryBytes": 218,
+      "compileMsFirst": 44,
+      "compileMsCached": 0,
+      "rendererCount": 49,
+      "pass": true,
+      "name": "code-mode",
+      "harnessMs": 1623,
+      "focus": "unfocused"
+    },
+    {
+      "controlChannel": "ok",
+      "msSinceTick": 4,
+      "health": "ok",
+      "lastRoundTripMs": 98,
+      "pass": true,
+      "name": "blocked-detection",
+      "harnessMs": 4,
+      "focus": "unfocused"
+    },
+    {
+      "code": "E_EDITOR_BLOCKED",
+      "detectMs": 7039,
+      "message": "No main-thread tick for 8.5 s while 1 operation(s) are queued.",
+      "recoveredMs": 3035,
+      "target": "E_EDITOR_BLOCKED within 15000ms",
+      "pass": true,
+      "name": "blocked-under-stall",
+      "harnessMs": 12102,
+      "focus": "unfocused"
+    },
+    {
+      "found": 121,
+      "deleted": 121,
+      "remaining": 0,
+      "pass": true,
+      "name": "cleanup",
+      "harnessMs": 204,
+      "focus": "unfocused"
+    }
+  ]
+}

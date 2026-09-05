@@ -1,6 +1,9 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Umcp.Daemon.Generated;
+using Umcp.Daemon.Script;
+using Umcp.Daemon.Security;
 
 namespace Umcp.Daemon.Agent;
 
@@ -25,18 +28,25 @@ public sealed class Dispatcher
     readonly DaemonOptions _options;
     readonly AuditLog _audit;
     readonly DaemonState _state;
+    readonly ScriptCompiler _compiler;
     readonly ILogger<Dispatcher> _log;
 
-    public Dispatcher(EditorRegistry registry, DaemonOptions options, AuditLog audit, DaemonState state, ILogger<Dispatcher> log)
+    // Reference paths change only when the AppDomain does, so they are cached per (project, epoch).
+    readonly ConcurrentDictionary<string, string[]> _referenceCache = new();
+
+    public Dispatcher(EditorRegistry registry, DaemonOptions options, AuditLog audit, DaemonState state,
+                      ScriptCompiler compiler, ILogger<Dispatcher> log)
     {
         _registry = registry;
         _options = options;
         _audit = audit;
         _state = state;
+        _compiler = compiler;
         _log = log;
     }
 
-    public Task<JsonObject> RunToolAsync(string tool, JsonObject args, string? projectId, bool dryRun, CancellationToken ct)
+    public Task<JsonObject> RunToolAsync(string tool, JsonObject args, string? projectId, bool dryRun,
+                                        CancellationToken ct, int? maxBytes = null)
     {
         if (!ToolCatalog.ById.TryGetValue(tool, out var entry))
         {
@@ -45,6 +55,11 @@ public sealed class Dispatcher
                 didYouMean: Fuzzy.Closest(tool, ToolCatalog.All.Select(e => e.Id), 3),
                 hint: "Use unity.find to search the catalog."));
         }
+
+        var denied = Profiles.Denies(_options.Profile, entry.Id, entry.Mutating);
+        if (denied is not null)
+            return Task.FromResult(Envelope.Error("E_PROFILE_DENIED", denied,
+                hint: "Restart the daemon with --profile full if this is intended."));
 
         var validation = SchemaCheck.Validate(entry, args);
         if (validation is not null) return Task.FromResult(validation);
@@ -58,7 +73,7 @@ public sealed class Dispatcher
             ["dryRun"] = dryRun
         };
 
-        return DispatchAsync(message, projectId, TimeoutFor(entry.Retry), tool, entry.Mutating && !dryRun, ct);
+        return DispatchAsync(message, projectId, TimeoutFor(entry.Retry), tool, entry.Mutating && !dryRun, ct, maxBytes);
     }
 
     public Task<JsonObject> RunBatchAsync(JsonObject batch, string? projectId, CancellationToken ct)
@@ -66,15 +81,25 @@ public sealed class Dispatcher
         batch["t"] = "batch";
         batch["key"] = Guid.NewGuid().ToString("N");
 
-        // A batch is as slow as its slowest class.
+        // A batch is as slow as its slowest class, and as restricted as its most restricted op.
         var timeout = _options.WriteTimeout;
         if (batch["ops"] is JsonArray ops)
         {
             foreach (var op in ops)
             {
                 var id = (string?)op?["op"];
-                if (id is not null && ToolCatalog.ById.TryGetValue(id, out var e) && e.Retry == "Compile")
-                    timeout = _options.CompileTimeout;
+                if (id is null) continue;
+                if (!ToolCatalog.ById.TryGetValue(id, out var e))
+                    return Task.FromResult(Envelope.Error("E_TOOL_NOT_FOUND", $"No tool named '{id}'.",
+                        param: "ops", value: id,
+                        didYouMean: Fuzzy.Closest(id, ToolCatalog.All.Select(x => x.Id), 3)));
+
+                var opDenied = Profiles.Denies(_options.Profile, e.Id, e.Mutating);
+                if (opDenied is not null)
+                    return Task.FromResult(Envelope.Error("E_PROFILE_DENIED", opDenied,
+                        hint: "Restart the daemon with --profile full if this is intended."));
+
+                if (e.Retry == "Compile") timeout = _options.CompileTimeout;
             }
         }
         return DispatchAsync(batch, projectId, timeout, "unity.batch", mutating: true, ct);
@@ -88,8 +113,108 @@ public sealed class Dispatcher
         _ => _options.ReadTimeout
     };
 
+    // ---------------------------------------------------------------- code mode
+
+    /// <summary>
+    /// Compile the caller's C# here and execute it in the Editor: one round trip that returns its
+    /// conclusion instead of N tool results that return their working. Measured on this project,
+    /// 20 operations cost 145 B through code mode versus 6,020 B as tool calls.
+    /// </summary>
+    public async Task<JsonObject> RunScriptAsync(string code, string? projectId, CancellationToken ct)
+    {
+        var denied = Profiles.Denies(_options.Profile, "unity.script", mutating: true);
+        if (denied is not null)
+            return Envelope.Error("E_PROFILE_DENIED", denied,
+                hint: "Code mode is arbitrary code execution in the Editor, so it is off unless the " +
+                      "daemon was started with --profile full.");
+
+        var session = _registry.Get(projectId) ??
+                      await _registry.WaitForAsync(projectId, _options.HoldTimeout, ct).ConfigureAwait(false);
+        if (session is null) return NoEditor(projectId, 0, 0);
+
+        var references = await ReferencePathsAsync(session, ct).ConfigureAwait(false);
+        if (references.Length == 0)
+            return Envelope.Error("E_SCRIPT_REFERENCES",
+                "Could not read the Editor's assembly list, so there is nothing to compile against.",
+                hint: "Check unity.status; the Editor may be mid-reload.");
+
+        var compiled = _compiler.Compile(code, references);
+        if (!compiled.Ok)
+        {
+            var diagnostics = new JsonArray();
+            foreach (var d in compiled.Diagnostics.Where(d => d.Severity == "error"))
+                diagnostics.Add(new JsonObject
+                {
+                    ["line"] = d.Line,
+                    ["column"] = d.Column,
+                    ["id"] = d.Id,
+                    ["message"] = d.Message
+                });
+
+            return Envelope.Error("E_SCRIPT_COMPILE",
+                $"The script did not compile ({diagnostics.Count} error(s)).",
+                hint: "Line numbers are relative to your code. Engine and Editor namespaces are " +
+                      "already imported, and a bare expression is returned automatically.",
+                meta: new JsonObject { ["ms"] = compiled.CompileMs, ["diagnostics"] = diagnostics });
+        }
+
+        var message = new JsonObject
+        {
+            ["t"] = "script",
+            ["key"] = Guid.NewGuid().ToString("N"),
+            ["type"] = compiled.TypeName,
+            ["asm"] = Convert.ToBase64String(compiled.Assembly!)
+        };
+
+        var result = await DispatchAsync(message, projectId, _options.WriteTimeout,
+            "unity.script", mutating: true, ct).ConfigureAwait(false);
+
+        if (result["meta"] is JsonObject meta)
+        {
+            meta["compileMs"] = compiled.CompileMs;
+            meta["compileCached"] = compiled.FromCache;
+        }
+        var warnings = compiled.Diagnostics.Where(d => d.Severity == "warning").Take(5).ToArray();
+        if (warnings.Length > 0)
+            result["warnings"] = new JsonArray(warnings
+                .Select(w => (JsonNode)$"line {w.Line}: {w.Id} {w.Message}").ToArray());
+        return result;
+    }
+
+    async Task<string[]> ReferencePathsAsync(AgentSession session, CancellationToken ct)
+    {
+        var cacheKey = session.ProjectId + "@" + session.Epoch;
+        if (_referenceCache.TryGetValue(cacheKey, out var cached)) return cached;
+
+        var message = new JsonObject
+        {
+            ["t"] = "op",
+            ["tool"] = "editor.assemblies",
+            ["args"] = new JsonObject { ["fileBackedOnly"] = true }
+        };
+
+        // Bypass the response cap: this is machinery, not something the model ever reads.
+        var result = await DispatchAsync(message, session.ProjectId, _options.ReadTimeout,
+            "editor.assemblies", mutating: false, ct, maxBytes: int.MaxValue).ConfigureAwait(false);
+
+        if ((bool?)result["ok"] != true) return Array.Empty<string>();
+
+        var paths = (result["data"]?["assemblies"] as JsonArray ?? new JsonArray())
+            .Select(a => (string?)a?["path"])
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Select(p => p!)
+            .Distinct()
+            .ToArray();
+
+        _referenceCache[cacheKey] = paths;
+        _log.LogInformation("code mode: cached {Count} reference assemblies for {Project} epoch {Epoch}",
+            paths.Length, session.ProjectName, session.Epoch);
+        return paths;
+    }
+
     async Task<JsonObject> DispatchAsync(JsonObject message, string? projectId, TimeSpan opTimeout,
-                                         string label, bool mutating, CancellationToken ct)
+                                         string label, bool mutating, CancellationToken ct,
+                                         int? maxBytes = null)
     {
         if (_state.Paused)
             return Envelope.Error("E_PAUSED", "The daemon is paused from the tray UI.",
@@ -124,7 +249,7 @@ public sealed class Dispatcher
             {
                 case SendOutcome.Completed:
                     {
-                        var envelope = Envelope.FromAgentResult(result.Result!, session, heldMs, attempts, _options.MaxResponseBytes);
+                        var envelope = Envelope.FromAgentResult(result.Result!, session, heldMs, attempts, maxBytes ?? _options.MaxResponseBytes);
                         if (mutating) _audit.Write(label, session.ProjectId, message, envelope);
                         return envelope;
                     }

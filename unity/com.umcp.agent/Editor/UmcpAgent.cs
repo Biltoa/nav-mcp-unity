@@ -146,6 +146,7 @@ namespace Umcp.Agent
                 {
                     case "op": HandleOp(msg, id, sw); break;
                     case "batch": HandleBatch(msg, id, sw); break;
+                    case "script": HandleScript(msg, id, sw); break;
                     default: SendError(id, "E_PROTOCOL", "Unknown message type '" + t + "'.", sw); break;
                 }
             }
@@ -338,6 +339,79 @@ namespace Umcp.Agent
                         return j != null && j["id"] != null ? j["id"].ToObject<int>() : (object)null;
                     }).ToList();
             }
+        }
+
+        // ---------------------------------------------------------------- code mode
+
+        // Mono cannot unload an assembly, so every distinct script costs one assembly for the life
+        // of the AppDomain. That is bounded by the next domain reload, and the daemon caches
+        // compiled bytes by source hash, so re-running the same script costs nothing here either.
+        static readonly Dictionary<string, System.Reflection.MethodInfo> _scriptCache =
+            new Dictionary<string, System.Reflection.MethodInfo>();
+
+        static void HandleScript(JObject msg, string id, Stopwatch sw)
+        {
+            var key = (string)msg["key"];
+            string cached;
+            if (!string.IsNullOrEmpty(key) && _appliedResults.TryGetValue(key, out cached))
+            {
+                Send("{\"t\":\"result\",\"id\":" + JsonConvert.ToString(id) + ",\"ok\":true,\"replayed\":true,\"data\":" + cached + ",\"ms\":0}");
+                return;
+            }
+
+            var typeName = (string)msg["type"];
+            try
+            {
+                System.Reflection.MethodInfo run;
+                bool loaded = false;
+                if (!_scriptCache.TryGetValue(typeName, out run))
+                {
+                    var bytes = System.Convert.FromBase64String((string)msg["asm"]);
+                    var asm = System.Reflection.Assembly.Load(bytes);
+                    var type = asm.GetType(typeName);
+                    if (type == null)
+                        throw new UmcpToolException("E_SCRIPT_ENTRY",
+                            "Compiled assembly has no type '" + typeName + "'.");
+                    run = type.GetMethod("Run", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                    if (run == null)
+                        throw new UmcpToolException("E_SCRIPT_ENTRY", "Compiled type has no static Run().");
+                    _scriptCache[typeName] = run;
+                    loaded = true;
+                }
+
+                object value;
+                try
+                {
+                    value = run.Invoke(null, null);
+                }
+                catch (System.Reflection.TargetInvocationException tie)
+                {
+                    // Report the script's own exception, not the reflection wrapper around it.
+                    var inner = tie.InnerException ?? tie;
+                    throw new UmcpToolException("E_SCRIPT_THREW",
+                        inner.GetType().Name + ": " + inner.Message, null, null, null,
+                        FirstUserFrame(inner));
+                }
+
+                var payload = JsonConvert.SerializeObject(
+                    new { value, loadedAssembly = loaded, type = typeName }, UmcpJson.Settings);
+                if (!string.IsNullOrEmpty(key)) RememberApplied(key, payload);
+                _opsExecuted++;
+                Interlocked.Exchange(ref _lastOpMs, _clock.ElapsedMilliseconds);
+                Send("{\"t\":\"result\",\"id\":" + JsonConvert.ToString(id) + ",\"ok\":true,\"data\":" + payload +
+                     ",\"ms\":" + sw.ElapsedMilliseconds + "}");
+            }
+            catch (UmcpToolException te) { SendToolError(id, te, sw); }
+            catch (Exception e) { SendError(id, "E_SCRIPT_FAILED", e.Message, sw); }
+        }
+
+        static string FirstUserFrame(Exception e)
+        {
+            var stack = e.StackTrace;
+            if (string.IsNullOrEmpty(stack)) return null;
+            foreach (var line in stack.Split('\n'))
+                if (line.IndexOf("UmcpScript_", StringComparison.Ordinal) >= 0) return line.Trim();
+            return null;
         }
 
         // ---------------------------------------------------------------- idempotency ring

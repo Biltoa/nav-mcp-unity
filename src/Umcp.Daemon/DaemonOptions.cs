@@ -16,6 +16,9 @@ public sealed class DaemonOptions
 
     public string? Token { get; init; }
 
+    /// <summary>readonly | standard | full. Arbitrary code execution and irreversible writes need full.</summary>
+    public Security.Profile Profile { get; init; } = Security.Profile.Standard;
+
     // -------- timeouts, per class rather than one global number --------
 
     /// <summary>How long an op may wait for an editor to appear or reappear. Covers a domain reload.</summary>
@@ -54,7 +57,8 @@ public sealed class DaemonOptions
             Stdio = args.Contains("--stdio"),
             Tray = args.Contains("--tray"),
             Token = Str("--token"),
-            MaxResponseBytes = Int("--max-response-bytes", 32 * 1024)
+            MaxResponseBytes = Int("--max-response-bytes", 32 * 1024),
+            Profile = Security.Profiles.Parse(Str("--profile"))
         };
     }
 }

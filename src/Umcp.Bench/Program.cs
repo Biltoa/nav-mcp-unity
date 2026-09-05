@@ -44,6 +44,9 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("batch-dependent", bench.BatchDependentAsync),
     ("payload-scene-info", bench.PayloadAsync),
     ("reload-hold-replay", bench.ReloadAsync),
+    ("skill-tree", bench.SkillTreeAsync),
+    ("scene-query-vs-dump", bench.SceneQueryAsync),
+    ("code-mode", bench.CodeModeAsync),
     ("blocked-detection", bench.BlockedProbeAsync),
     ("blocked-under-stall", bench.BlockedUnderStallAsync),
     ("cleanup", bench.CleanupAsync)
@@ -112,7 +115,7 @@ sealed class Bench(McpClient client)
 
     public async Task<string> FocusStateAsync()
     {
-        var status = await CallAsync("unity_status", new());
+        var status = await CallAsync("unity_projects", new());
         var pid = (int?)status["data"]?["editors"]?[0]?["pid"] ?? 0;
         if (pid == 0) return "no-editor";
         if (!OperatingSystem.IsWindows()) return "unknown";
@@ -322,12 +325,173 @@ sealed class Bench(McpClient client)
     }
 
     /// <summary>
+    /// What a task actually costs in tokens: the always-loaded surface, plus the domains a task
+    /// loads on demand. The budget to beat is 56,800 tokens at baseline for every task.
+    /// </summary>
+    public async Task<JsonObject> SkillTreeAsync()
+    {
+        var map = await CallAsync("unity_skill", new());
+        var mapBytes = Encoding.UTF8.GetByteCount(map.ToJsonString());
+
+        var loaded = new JsonObject();
+        var total = 0;
+        foreach (var id in new[] { "material", "scene.query", "gameobject" })
+        {
+            var node = await CallAsync("unity_skill", new() { ["id"] = id });
+            var bytes = Encoding.UTF8.GetByteCount(node.ToJsonString());
+            loaded[id] = bytes / 4;
+            total += bytes;
+        }
+
+        var find = await CallAsync("unity_find", new() { ["query"] = "assign a texture to a material" });
+        var top = (string?)find["data"]?["items"]?[0]?["id"];
+
+        return new JsonObject
+        {
+            ["mapTokens"] = mapBytes / 4,
+            ["perSkillTokens"] = loaded,
+            ["typicalTaskTokens"] = 660 + mapBytes / 4 + total / 4,
+            ["findTop"] = top,
+            ["baseline"] = 56800,
+            ["pass"] = 660 + mapBytes / 4 + total / 4 < 15000
+        };
+    }
+
+    /// <summary>
+    /// The exit criterion this phase exists for: replace the 138 KB scene read with a query.
+    /// Both numbers are measured here, against the same scene, in the same run.
+    /// </summary>
+    public async Task<JsonObject> SceneQueryAsync()
+    {
+        // The "dump" comparison: every object with everything a naive lister would return.
+        var dump = await CallAsync("unity_run", new()
+        {
+            ["tool"] = "scene.query",
+            ["args"] = new JsonObject
+            {
+                ["select"] = "//*",
+                ["fields"] = new JsonArray("id", "name", "path", "active", "activeInHierarchy", "tag",
+                                           "layer", "parent", "childCount", "position", "rotation",
+                                           "scale", "components"),
+                ["limit"] = 500
+            },
+            ["maxResponseBytes"] = 4_000_000
+        });
+
+        // The projected query: the same scene, the question actually being asked.
+        var sw = Stopwatch.StartNew();
+        var query = await CallAsync("unity_run", new()
+        {
+            ["tool"] = "scene.query",
+            ["args"] = new JsonObject
+            {
+                ["select"] = "//*[has:Renderer]",
+                ["fields"] = new JsonArray("path", "MeshRenderer.sharedMaterial"),
+                ["limit"] = 50
+            }
+        });
+        var queryMs = sw.ElapsedMilliseconds;
+
+        var count = await CallAsync("unity_run", new()
+        {
+            ["tool"] = "scene.count",
+            ["args"] = new JsonObject { ["select"] = "//*[has:Renderer]" }
+        });
+
+        // The criterion is the *scene overview* read — the call that cost 138,205 B before.
+        var overview = await CallAsync("unity_run", new() { ["tool"] = "scene.info" });
+        var overviewBytes = Encoding.UTF8.GetByteCount(overview.ToJsonString());
+
+        var dumpBytes = Encoding.UTF8.GetByteCount(dump.ToJsonString());
+        var queryBytes = Encoding.UTF8.GetByteCount(query.ToJsonString());
+        var countBytes = Encoding.UTF8.GetByteCount(count.ToJsonString());
+
+        return new JsonObject
+        {
+            ["dumpBytes"] = dumpBytes,
+            ["dumpTruncated"] = (bool?)dump["meta"]?["truncated"] ?? false,
+            ["queryBytes"] = queryBytes,
+            ["queryMs"] = queryMs,
+            ["countBytes"] = countBytes,
+            ["objectsMatched"] = (int?)count["data"]?["count"] ?? -1,
+            ["overviewBytes"] = overviewBytes,
+            ["baselineOverviewBytes"] = 138205,
+            ["target"] = "scene overview < 2048 B (was 138,205 B)",
+            ["pass"] = overviewBytes < 2048 && (bool?)query["ok"] == true && (bool?)count["ok"] == true
+        };
+    }
+
+    /// <summary>
+    /// Code mode against the same workload as batch: 20 creates. Batching collapses time, code
+    /// mode collapses context, and the two are complementary rather than alternatives.
+    /// </summary>
+    public async Task<JsonObject> CodeModeAsync()
+    {
+        var ops = new JsonArray();
+        for (var i = 0; i < 20; i++)
+            ops.Add(new JsonObject
+            {
+                ["op"] = "gameobject.create",
+                ["args"] = new JsonObject { ["name"] = Prefix + "cmp_" + i }
+            });
+
+        var swBatch = Stopwatch.StartNew();
+        var batch = await CallAsync("unity_batch", new() { ["ops"] = ops, ["returns"] = "ids" });
+        var batchMs = swBatch.ElapsedMilliseconds;
+        var batchBytes = Encoding.UTF8.GetByteCount(batch.ToJsonString());
+
+        var swScript = Stopwatch.StartNew();
+        var script = await CallAsync("unity_script", new()
+        {
+            ["code"] = """
+                for (int i = 0; i < 20; i++) {
+                    var go = new GameObject("__UMCP_BENCH_cms_" + i);
+                    Undo.RegisterCreatedObjectUndo(go, "bench code mode");
+                }
+                return new { created = 20 };
+                """
+        });
+        var scriptMs = swScript.ElapsedMilliseconds;
+        var scriptBytes = Encoding.UTF8.GetByteCount(script.ToJsonString());
+
+        // Re-run to show the compile cache doing its job.
+        var swCached = Stopwatch.StartNew();
+        var cached = await CallAsync("unity_script", new() { ["code"] = "Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None).Length" });
+        var firstCompileMs = (long?)cached["meta"]?["compileMs"] ?? -1;
+        var firstMs = swCached.ElapsedMilliseconds;
+        var swAgain = Stopwatch.StartNew();
+        var again = await CallAsync("unity_script", new() { ["code"] = "Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None).Length" });
+        var cachedRoundTripMs = swAgain.ElapsedMilliseconds;
+        var cachedCompileMs = (long?)again["meta"]?["compileMs"] ?? -1;
+
+        var denied = (string?)script["code"] == "E_PROFILE_DENIED";
+
+        return new JsonObject
+        {
+            ["batchMs"] = batchMs,
+            ["batchBytes"] = batchBytes,
+            ["scriptMs"] = scriptMs,
+            ["scriptBytes"] = scriptBytes,
+            ["bytesRatio"] = scriptBytes == 0 ? 0 : Math.Round((double)batchBytes / scriptBytes, 1),
+            ["scriptOk"] = (bool?)script["ok"] ?? false,
+            ["scriptCode"] = (string?)script["code"],
+            ["queryFirstMs"] = firstMs,
+            ["queryCachedMs"] = cachedRoundTripMs,
+            ["queryBytes"] = Encoding.UTF8.GetByteCount(again.ToJsonString()),
+            ["compileMsFirst"] = firstCompileMs,
+            ["compileMsCached"] = cachedCompileMs,
+            ["rendererCount"] = again["data"]?["value"]?.DeepClone(),
+            ["pass"] = denied || ((bool?)script["ok"] == true && scriptBytes < batchBytes)
+        };
+    }
+
+    /// <summary>
     /// Confirms the out-of-band control channel answers and reports tick age. The full modal test
     /// needs a human to raise a dialog; this proves the mechanism that detects one is live.
     /// </summary>
     public async Task<JsonObject> BlockedProbeAsync()
     {
-        var status = await CallAsync("unity_status", new());
+        var status = await CallAsync("unity_projects", new());
         var editor = status["data"]?["editors"]?[0];
         return new JsonObject
         {

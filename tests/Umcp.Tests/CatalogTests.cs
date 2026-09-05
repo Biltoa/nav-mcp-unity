@@ -77,21 +77,86 @@ public class CatalogTests
         Assert.Empty(wrong);
     }
 
+    [Fact]
+    public void Every_tool_belongs_to_a_skill_node_that_exists()
+    {
+        var tree = new SkillTree();
+        var ids = tree.Nodes.Select(n => n.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var orphans = ToolCatalog.All.Select(t => t.Skill).Distinct()
+            .Where(s => !ids.Contains(s)).ToArray();
+        Assert.Empty(orphans);
+    }
+}
+
+public class SkillTreeTests
+{
+    static readonly SkillTree Tree = new();
+
+    [Fact]
+    public void Skill_nodes_load_from_embedded_resources()
+    {
+        Assert.True(Tree.Nodes.Count >= 6, $"expected at least 6 authored skills, found {Tree.Nodes.Count}");
+        Assert.NotNull(Tree.Get("material"));
+        Assert.NotNull(Tree.Get("scene.query"));
+    }
+
+    [Fact]
+    public void Sub_skills_are_parented_by_their_id()
+    {
+        var children = Tree.ChildrenOf("scene").Select(n => n.Id).ToArray();
+        Assert.Contains("scene.query", children);
+        Assert.DoesNotContain("scene", Tree.Roots().Select(r => r.Id).Where(id => id.Contains('.')));
+    }
+
+    [Fact]
+    public void Every_node_maps_to_at_least_one_tool()
+    {
+        foreach (var node in Tree.Nodes)
+        {
+            // script.md documents unity_script, which is a Tier-0 tool rather than a catalog entry.
+            if (node.Id == "script") continue;
+            Assert.NotEmpty(Tree.ToolsFor(node));
+        }
+    }
+
+    [Fact]
+    public void Placeholders_are_filled_from_project_facts()
+    {
+        var rendered = SkillTree.Render("pipeline is {{pipeline}}", new Dictionary<string, string> { ["pipeline"] = "URP" });
+        Assert.Equal("pipeline is URP", rendered);
+    }
+
+    [Fact]
+    public void Unfilled_placeholders_say_so_rather_than_leaking_the_token()
+    {
+        var rendered = SkillTree.Render("pipeline is {{pipeline}}", new Dictionary<string, string>());
+        Assert.DoesNotContain("{{", rendered);
+        Assert.Contains("unknown", rendered);
+    }
+
     [Theory]
     [InlineData("create gameobject", "gameobject.create")]
     [InlineData("add component", "component.add")]
-    [InlineData("material", "material.create")]
-    [InlineData("console errors", "console.read")]
+    [InlineData("assign texture to material", "material.set")]
+    [InlineData("compile errors", "compile.errors")]
+    [InlineData("select objects in the hierarchy", "scene.query")]
     public void Search_surfaces_the_obvious_tool(string query, string expected)
     {
-        var hits = CatalogSearch.Search(query, 5).Select(h => h.entry.Id).ToArray();
+        var hits = Tree.Index.Search(query, 8).Select(h => h.Doc.Id).ToArray();
         Assert.Contains(expected, hits);
     }
 
     [Fact]
-    public void Search_of_an_exact_id_ranks_it_first()
+    public void Searching_an_exact_id_ranks_it_first()
     {
-        var hits = CatalogSearch.Search("transform.set", 5).ToArray();
-        Assert.Equal("transform.set", hits[0].entry.Id);
+        Assert.Equal("transform.set", Tree.Index.Search("transform.set", 5)[0].Doc.Id);
+    }
+
+    [Fact]
+    public void Search_can_be_restricted_to_skills()
+    {
+        var hits = Tree.Index.Search("material", 5, kind: "skill");
+        Assert.All(hits, h => Assert.Equal("skill", h.Doc.Kind));
+        Assert.Contains("material", hits.Select(h => h.Doc.Id));
     }
 }

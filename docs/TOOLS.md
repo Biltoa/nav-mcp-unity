@@ -2,7 +2,7 @@
 
 # Tool reference
 
-48 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/Tools/`.
+51 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
 
 ## assets
 
@@ -14,6 +14,8 @@
 | `assets.info` | no | n/a | Read one asset's identity, type and direct dependencies. |
 | `assets.move` | yes | — *AssetDatabase moves are not undoable.* | Move or rename an asset, preserving its GUID. |
 | `assets.refresh` | yes | — *An import is not an undoable operation.* | Refresh the AssetDatabase. May trigger a compile and a domain reload. |
+| `prefab.create` | yes | Create Prefab | Save a scene GameObject as a prefab asset. |
+| `prefab.instantiate` | yes | Instantiate Prefab | Instantiate a prefab into the active scene. |
 
 ### `assets.createFolder`
 
@@ -97,22 +99,33 @@ Refresh the AssetDatabase. May trigger a compile and a domain reload.
 { }
 ```
 
-## compile
+### `prefab.create`
 
-| Tool | Mutating | Undo | Summary |
-|---|---|---|---|
-| `compile.errors` | no | n/a | Structured compile errors and warnings: file, line, column, message. |
-
-### `compile.errors`
-
-Structured compile errors and warnings: file, line, column, message.
+Save a scene GameObject as a prefab asset.
 
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `warnings` | `bool` | no | `false` | Include warnings as well as errors |
+| `target` | `string` | yes | — | Path, name or #instanceId of the scene object |
+| `path` | `string` | yes | — | Destination prefab path |
+| `connect` | `bool` | no | `true` | Replace the scene object with an instance of the new prefab |
 
 ```json
-{ }
+{ "target": "Enemy", "path": "Assets/Prefabs/Enemy.prefab" }
+```
+
+### `prefab.instantiate`
+
+Instantiate a prefab into the active scene.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `path` | `string` | yes | — | Prefab asset path |
+| `parent` | `string` | no | `null` | Parent path or #instanceId |
+| `position` | `float[]` | no | `null` | Local position as [x, y, z] |
+| `name` | `string` | no | `null` | Name override for the instance |
+
+```json
+{ "path": "Assets/Prefabs/Enemy.prefab", "position": [0, 0, 5] }
 ```
 
 ## component
@@ -198,12 +211,33 @@ Set serialized properties on a component.
 { "target": "Enemy", "type": "Rigidbody", "props": { "mass": 80, "useGravity": false } }
 ```
 
-## console
+## diagnostics
 
 | Tool | Mutating | Undo | Summary |
 |---|---|---|---|
+| `compile.errors` | no | n/a | Structured compile errors and warnings: file, line, column, message. |
 | `console.clear` | yes | — *Log output is not object state.* | Clear the captured console buffer and Unity's console window. |
 | `console.read` | no | n/a | Read captured console messages. Bounded, newest last. |
+| `editor.assemblies` | no | n/a | List loaded Editor assemblies and their file paths. Code mode uses this to build its reference set. |
+| `editor.compile` | yes | — *Compilation is not an undoable operation.* | Request a script recompilation. Triggers a domain reload. |
+| `editor.ping` | no | n/a | Round-trip liveness probe. Executes on the Editor main thread. |
+| `editor.selection.get` | no | n/a | Read the current Editor selection. |
+| `editor.selection.set` | yes | — *Selection is editor UI state, not object state.* | Set the Editor selection. |
+| `editor.stall` | no | n/a | Diagnostic: block the Editor main thread for N seconds, reproducing a modal dialog's effect. |
+| `editor.status` | no | n/a | Editor state: compiling, updating, play mode, focus, selection. |
+| `project.info` | no | n/a | Project identity: name, path, Unity version, pipeline, package count. |
+
+### `compile.errors`
+
+Structured compile errors and warnings: file, line, column, message.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `warnings` | `bool` | no | `false` | Include warnings as well as errors |
+
+```json
+{ }
+```
 
 ### `console.clear`
 
@@ -228,16 +262,17 @@ Read captured console messages. Bounded, newest last.
 { "types": ["Error", "Exception"], "limit": 20 }
 ```
 
-## editor
+### `editor.assemblies`
 
-| Tool | Mutating | Undo | Summary |
-|---|---|---|---|
-| `editor.compile` | yes | — *Compilation is not an undoable operation.* | Request a script recompilation. Triggers a domain reload. |
-| `editor.ping` | no | n/a | Round-trip liveness probe. Executes on the Editor main thread. |
-| `editor.selection.get` | no | n/a | Read the current Editor selection. |
-| `editor.selection.set` | yes | — *Selection is editor UI state, not object state.* | Set the Editor selection. |
-| `editor.stall` | no | n/a | Diagnostic: block the Editor main thread for N seconds, reproducing a modal dialog's effect. |
-| `editor.status` | no | n/a | Editor state: compiling, updating, play mode, focus, selection. |
+List loaded Editor assemblies and their file paths. Code mode uses this to build its reference set.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `fileBackedOnly` | `bool` | no | `true` | Only assemblies backed by a file on disk |
+
+```json
+{ }
+```
 
 ### `editor.compile`
 
@@ -294,6 +329,14 @@ Diagnostic: block the Editor main thread for N seconds, reproducing a modal dial
 ### `editor.status`
 
 Editor state: compiling, updating, play mode, focus, selection.
+
+```json
+{ }
+```
+
+### `project.info`
+
+Project identity: name, path, Unity version, pipeline, package count.
 
 ```json
 { }
@@ -503,65 +546,17 @@ Set shader properties on a material asset.
 { "path": "Assets/Materials/Rock.mat", "floats": { "_Metallic": 0.2 } }
 ```
 
-## prefab
-
-| Tool | Mutating | Undo | Summary |
-|---|---|---|---|
-| `prefab.create` | yes | Create Prefab | Save a scene GameObject as a prefab asset. |
-| `prefab.instantiate` | yes | Instantiate Prefab | Instantiate a prefab into the active scene. |
-
-### `prefab.create`
-
-Save a scene GameObject as a prefab asset.
-
-| Parameter | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `target` | `string` | yes | — | Path, name or #instanceId of the scene object |
-| `path` | `string` | yes | — | Destination prefab path |
-| `connect` | `bool` | no | `true` | Replace the scene object with an instance of the new prefab |
-
-```json
-{ "target": "Enemy", "path": "Assets/Prefabs/Enemy.prefab" }
-```
-
-### `prefab.instantiate`
-
-Instantiate a prefab into the active scene.
-
-| Parameter | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `path` | `string` | yes | — | Prefab asset path |
-| `parent` | `string` | no | `null` | Parent path or #instanceId |
-| `position` | `float[]` | no | `null` | Local position as [x, y, z] |
-| `name` | `string` | no | `null` | Name override for the instance |
-
-```json
-{ "path": "Assets/Prefabs/Enemy.prefab", "position": [0, 0, 5] }
-```
-
-## project
-
-| Tool | Mutating | Undo | Summary |
-|---|---|---|---|
-| `project.info` | no | n/a | Project identity: name, path, Unity version, pipeline, package count. |
-
-### `project.info`
-
-Project identity: name, path, Unity version, pipeline, package count.
-
-```json
-{ }
-```
-
 ## scene
 
 | Tool | Mutating | Undo | Summary |
 |---|---|---|---|
 | `scene.children` | no | n/a | List the children of a GameObject, to a bounded depth. |
+| `scene.count` | no | n/a | Count GameObjects in the hierarchy matching a selector. The cheapest possible read. |
 | `scene.create` | yes | — *Scene creation is not an undoable operation in Unity.* | Create a new empty scene. |
 | `scene.info` | no | n/a | Summarise the active scene: counts, roots, render pipeline. Bounded. |
 | `scene.list` | no | n/a | List open scenes and their dirty state. |
 | `scene.open` | yes | — *Scene loading is not an undoable operation in Unity.* | Open a scene by asset path. |
+| `scene.query` | no | n/a | Select GameObjects from the scene hierarchy with a path selector and return only the fields you ask for. |
 | `scene.roots` | no | n/a | List root GameObjects of a scene. Bounded. |
 | `scene.save` | yes | — *Writing a file is not undoable.* | Save an open scene. Refuses to overwrite unless asked explicitly. |
 | `scene.setActive` | yes | — *Active-scene selection is editor state, not object state.* | Make an open scene the active scene. |
@@ -578,6 +573,18 @@ List the children of a GameObject, to a bounded depth.
 
 ```json
 { "target": "Level", "maxDepth": 2 }
+```
+
+### `scene.count`
+
+Count GameObjects in the hierarchy matching a selector. The cheapest possible read.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `select` | `string` | no | `"//*"` | Selector |
+
+```json
+{ "select": "//*[has:Renderer]" }
 ```
 
 ### `scene.create`
@@ -625,6 +632,31 @@ Open a scene by asset path.
 
 ```json
 { "path": "Assets/Scenes/Main.unity", "mode": "single" }
+```
+
+### `scene.query`
+
+Select GameObjects from the scene hierarchy with a path selector and return only the fields you ask for.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `select` | `string` | no | `"//*"` | Selector, e.g. "//Canvas//Button[active][has:Image]". Defaults to everything. |
+| `fields` | `string[]` | no | `null` | Fields to return. Built-ins plus "Component.property", e.g. "Rigidbody.mass". |
+| `limit` | `int` | no | `100` | Maximum results (default 100, hard cap 500) |
+| `offset` | `int` | no | `0` | Skip this many matches |
+| `maxDepth` | `int` | no | `-1` | Deepest level a "//" step will descend. -1 for unlimited. |
+| `countOnly` | `bool` | no | `false` | Return only the number of matches |
+
+```json
+{ "select": "//Canvas//Button[active]", "fields": ["name", "path"] }
+```
+
+```json
+{ "select": "//*[has:Rigidbody]", "fields": ["path", "Rigidbody.mass"], "limit": 50 }
+```
+
+```json
+{ "select": "/Level/Props/*", "fields": ["name", "position"] }
 ```
 
 ### `scene.roots`

@@ -119,7 +119,7 @@ namespace Umcp.Agent
             return new { refreshed = true };
         }
 
-        [UnityTool(Id = "prefab.create", Summary = "Save a scene GameObject as a prefab asset.",
+        [UnityTool(Id = "prefab.create", Skill = "assets", Summary = "Save a scene GameObject as a prefab asset.",
             Mutating = true, Retry = RetryClass.Write, Undo = "Create Prefab")]
         [Example("{ \"target\": \"Enemy\", \"path\": \"Assets/Prefabs/Enemy.prefab\" }")]
         public static object PrefabCreate(
@@ -138,7 +138,7 @@ namespace Umcp.Agent
             return new { path = p, guid = AssetDatabase.AssetPathToGUID(p), name = prefab.name };
         }
 
-        [UnityTool(Id = "prefab.instantiate", Summary = "Instantiate a prefab into the active scene.",
+        [UnityTool(Id = "prefab.instantiate", Skill = "assets", Summary = "Instantiate a prefab into the active scene.",
             Mutating = true, Retry = RetryClass.Write, Undo = "Instantiate Prefab")]
         [Example("{ \"path\": \"Assets/Prefabs/Enemy.prefab\", \"position\": [0, 0, 5] }")]
         public static object PrefabInstantiate(
