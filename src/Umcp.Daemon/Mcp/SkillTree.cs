@@ -83,7 +83,9 @@ public sealed class SkillTree
         {
             Id = id,
             Title = header.GetValueOrDefault("title", id),
-            Parent = id.Contains('.') ? id[..id.LastIndexOf('.')] : null,
+            // A dotted id nests by construction (scene.query under scene); anything else says so
+            // in its own header. Grouping is what keeps the map affordable as domains are added.
+            Parent = Blank(header.GetValueOrDefault("parent", id.Contains('.') ? id[..id.LastIndexOf('.')] : null)),
             Covers = header.GetValueOrDefault("covers", ""),
             Excludes = header.GetValueOrDefault("excludes", ""),
             Tools = header.GetValueOrDefault("tools", "")
@@ -91,6 +93,8 @@ public sealed class SkillTree
             Body = string.Join("\n", lines[i..]).Trim()
         };
     }
+
+    static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
 
     void BuildIndex()
     {

@@ -1,6 +1,7 @@
 title: Particles and VFX Graph
 covers: reading and tuning particle systems, reading VFX graphs, setting exposed VFX parameters
 excludes: authoring VFX graphs (a node editor, not a tool surface), materials (see material)
+parent: rendering
 
 # Effects
 

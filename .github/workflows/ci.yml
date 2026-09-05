@@ -43,6 +43,12 @@ jobs:
           dotnet run --project src/Umcp.ToolGen -c Release --no-build
           git diff --exit-code -- unity/com.umcp.agent/Editor/Generated src/Umcp.Daemon/Generated docs/TOOLS.md
 
+      # The one hard rule the compiler cannot enforce: no Unity API on a thread that is not the
+      # main thread. A socket thread that reads Application.productName throws silently, tears the
+      # connection down, and reconnects forever with no log line — that cost an hour to find once.
+      - name: No Unity API off the main thread
+        run: dotnet run --project src/Umcp.MainThreadCheck -c Release --no-build
+
       # Every tool's examples must validate against that tool's own generated schema, every tool
       # must belong to a skill node, and no tool may be reachable without one. These are unit
       # tests, but they are the ones that keep the catalog honest, so they are named here.

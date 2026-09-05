@@ -1,6 +1,7 @@
 title: Lighting, lightmapping and interior setups
 covers: scene lighting settings, baking, reflection probes, the litInterior composite
 excludes: materials and emission (see material), post-processing volumes (not exposed)
+parent: rendering
 
 # Lighting
 

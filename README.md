@@ -90,7 +90,7 @@ Or via the shim, which starts the daemon on demand:
 
 ## The MCP surface
 
-Six tools, ~910 tokens at baseline. The 89 Editor tools are reached through them rather than
+Six tools, ~910 tokens at baseline. The 90 Editor tools are reached through them rather than
 exposed individually — the surface being replaced costs ~56,800 tokens before the model does
 anything.
 

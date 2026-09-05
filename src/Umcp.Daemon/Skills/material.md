@@ -1,6 +1,7 @@
 title: Materials and shaders
 covers: creating materials, setting colours, floats and textures, pipeline-correct shader names
 excludes: shader graphs, post-processing volumes, lighting setup
+parent: rendering
 
 # Materials
 

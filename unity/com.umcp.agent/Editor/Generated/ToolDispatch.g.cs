@@ -90,6 +90,7 @@ namespace Umcp.Agent
             "scene.validate",
             "setup.litInterior",
             "setup.uiScreen",
+            "shader.info",
             "terrain.info",
             "terrain.setDrawSettings",
             "timeline.info",
@@ -183,6 +184,7 @@ namespace Umcp.Agent
             { "scene.validate", new ToolMeta { Id = "scene.validate", Skill = "scene", Summary = "Find broken things in the open scenes: missing scripts, missing prefab assets, dangling object references, missing materials.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "setup.litInterior", new ToolMeta { Id = "setup.litInterior", Skill = "lighting", Summary = "Light an interior: a key light, two fills, and a reflection probe, all sized and placed from the room's own bounds.", Mutating = true, Retry = "Write", Cost = "Moderate", Undo = "Set up interior lighting", NoUndoReason = null } },
             { "setup.uiScreen", new ToolMeta { Id = "setup.uiScreen", Skill = "ui", Summary = "Create a working UI screen: canvas, scaler, raycaster, EventSystem if missing, a root panel, and the elements you name.", Mutating = true, Retry = "Write", Cost = "Moderate", Undo = "Set up UI screen", NoUndoReason = null } },
+            { "shader.info", new ToolMeta { Id = "shader.info", Skill = "material", Summary = "Read a shader: its properties, keywords, passes and shader-model target. Works for .shader and .shadergraph.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "terrain.info", new ToolMeta { Id = "terrain.info", Skill = "terrain", Summary = "Read the terrains in the open scenes: size, resolutions, layers, trees, details, and the draw settings that cost performance.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "terrain.setDrawSettings", new ToolMeta { Id = "terrain.setDrawSettings", Skill = "terrain", Summary = "Set a terrain's performance dials: pixel error, basemap and tree distances, detail density, instancing.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set terrain draw settings", NoUndoReason = null } },
             { "timeline.info", new ToolMeta { Id = "timeline.info", Skill = "cinematics", Summary = "Read the Timelines in the scene: directors, their assets, tracks, clips and bindings.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
@@ -362,6 +364,8 @@ namespace Umcp.Agent
                     return SetupTools.LitInterior(Bind.Str(a, "room", true), Bind.Flt(a, "intensity", false, 1.2f), Bind.Flt(a, "kelvin", false, 4000f), Bind.Str(a, "bakeMode", false, "Mixed"));
                 case "setup.uiScreen":
                     return SetupTools.UiScreen(Bind.Str(a, "name", true), Bind.StrArr(a, "elements", false), Bind.FltArr(a, "referenceResolution", false), Bind.Int(a, "sortOrder", false, 0));
+                case "shader.info":
+                    return ShaderTools.Info(Bind.Str(a, "path", false), Bind.Str(a, "name", false), Bind.Int(a, "limit", false, 60));
                 case "terrain.info":
                     return TerrainTools.Info(Bind.Str(a, "target", false));
                 case "terrain.setDrawSettings":
@@ -893,6 +897,13 @@ namespace Umcp.Agent
                     var __elements = Bind.StrArr(a, "elements", false);
                     var __referenceResolution = Bind.FltArr(a, "referenceResolution", false);
                     var __sortOrder = Bind.Int(a, "sortOrder", false, 0);
+                    return;
+                }
+                case "shader.info":
+                {
+                    var __path = Bind.Str(a, "path", false);
+                    var __name = Bind.Str(a, "name", false);
+                    var __limit = Bind.Int(a, "limit", false, 60);
                     return;
                 }
                 case "terrain.info":

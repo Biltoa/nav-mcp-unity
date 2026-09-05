@@ -2,7 +2,7 @@
 
 # Tool reference
 
-89 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
+90 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
 
 ## animation
 
@@ -931,6 +931,7 @@ Light an interior: a key light, two fills, and a reflection probe, all sized and
 |---|---|---|---|
 | `material.create` | yes | — *Asset creation is not undoable.* | Create a material asset. Defaults to the project's active pipeline shader. |
 | `material.set` | yes | Set Material Properties | Set shader properties on a material asset. |
+| `shader.info` | no | n/a | Read a shader: its properties, keywords, passes and shader-model target. Works for .shader and .shadergraph. |
 
 ### `material.create`
 
@@ -959,6 +960,24 @@ Set shader properties on a material asset.
 
 ```json
 { "path": "Assets/Materials/Rock.mat", "floats": { "_Metallic": 0.2 } }
+```
+
+### `shader.info`
+
+Read a shader: its properties, keywords, passes and shader-model target. Works for .shader and .shadergraph.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `path` | `string` | no | `null` | Shader asset path |
+| `name` | `string` | no | `null` | Shader name as materials refer to it, e.g. "Universal Render Pipeline/Lit" |
+| `limit` | `int` | no | `60` | Maximum properties returned (default 60) |
+
+```json
+{ "path": "Assets/Shaders/Water.shadergraph" }
+```
+
+```json
+{ "name": "Universal Render Pipeline/Lit" }
 ```
 
 ## navmesh

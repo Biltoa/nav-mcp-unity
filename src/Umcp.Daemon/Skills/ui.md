@@ -1,6 +1,7 @@
 title: UI layout checking
 covers: canvases, rect geometry, off-screen and overlapping elements, text contrast, safe area
 excludes: creating UI (use gameobject and component), text content (use component.set)
+parent: rendering
 
 # UI
 

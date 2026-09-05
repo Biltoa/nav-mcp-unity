@@ -1,13 +1,13 @@
 {
-  "when": "2026-09-06T02:11:12.3140777\u002B03:00",
+  "when": "2026-09-06T02:23:28.5848407\u002B03:00",
   "focus": "unfocused",
   "results": [
     {
-      "catalogTools": 89,
-      "reachedViaSkills": 89,
+      "catalogTools": 90,
+      "reachedViaSkills": 90,
       "unreachable": 0,
-      "ran": 87,
-      "live": 45,
+      "ran": 88,
+      "live": 46,
       "dryRun": 42,
       "skipped": [
         {
@@ -75,6 +75,12 @@
           "kind": "example does not fit this project"
         },
         {
+          "tool": "shader.info",
+          "code": "E_ASSET_NOT_FOUND",
+          "message": "No shader at \u0027Assets/Shaders/Water.shadergraph\u0027.",
+          "kind": "example does not fit this project"
+        },
+        {
           "tool": "transform.get",
           "code": "E_TARGET_NOT_FOUND",
           "message": "No GameObject matched \u0027Player\u0027.",
@@ -91,11 +97,11 @@
       "seconds": 9.2,
       "slowest": {
         "tool": "build.lastReport",
-        "ms": 414
+        "ms": 436
       },
       "pass": true,
       "name": "smoke-catalog",
-      "harnessMs": 13158,
+      "harnessMs": 12971,
       "focus": "unfocused"
     },
     {
@@ -105,7 +111,7 @@
       "remaining": 0,
       "pass": true,
       "name": "cleanup",
-      "harnessMs": 198,
+      "harnessMs": 196,
       "focus": "unfocused"
     }
   ]
