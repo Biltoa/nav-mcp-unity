@@ -1,5 +1,6 @@
 using System.Linq;
 using UnityEditor;
+using System.Diagnostics;
 using UnityEditor.Compilation;
 using UnityEngine;
 
@@ -126,6 +127,61 @@ namespace Umcp.Agent
             int s = seconds < 1 ? 1 : (seconds > 60 ? 60 : seconds);
             System.Threading.Thread.Sleep(s * 1000);
             return new { stalledSeconds = s };
+        }
+
+        [UnityTool(Skill = "diagnostics", Id = "editor.quit", Summary = "Quit this Editor. Saves first when asked; refuses on unsaved changes otherwise.",
+            Mutating = true, Retry = RetryClass.None, Cost = Cost.Expensive,
+            NoUndoReason = "Quitting the Editor is not an undoable operation.")]
+        [Example("{ \"save\": true }")]
+        public static object Quit(
+            [Doc("Save open scenes and assets before quitting")] bool save = false,
+            [Doc("Quit even with unsaved changes, discarding them")] bool force = false)
+        {
+            // EditorApplication.Exit is documented to exit immediately, *without* the usual
+            // "save changes?" prompt. That makes it exactly the right call for a daemon (no
+            // modal, ever) and exactly the wrong call to make casually: unsaved work would go
+            // without a word. So the decision is explicit here, before anything exits.
+            var dirty = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
+            {
+                var sc = UnityEngine.SceneManagement.SceneManager.GetSceneAt(i);
+                if (sc.isDirty) dirty.Add(string.IsNullOrEmpty(sc.path) ? sc.name : sc.path);
+            }
+
+            if (dirty.Count > 0 && !save && !force)
+                throw new UmcpToolException("E_UNSAVED_CHANGES",
+                    "There are unsaved scene changes, so this Editor was not closed.",
+                    param: "save", value: string.Join(", ", dirty),
+                    hint: "Pass save:true to save them first, or force:true to discard them.");
+
+            bool saved = false;
+            if (save && dirty.Count > 0)
+            {
+                saved = UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
+                if (!saved)
+                    throw new UmcpToolException("E_SAVE_FAILED",
+                        "SaveOpenScenes() returned false; nothing was closed.",
+                        hint: "An untitled scene has no path to save to. Save it once by hand, or pass force:true.");
+                AssetDatabase.SaveAssets();
+            }
+
+            // Exit on a later tick so this result reaches the daemon first. A process that dies
+            // mid-write turns a clean shutdown into an indistinguishable crash, and the
+            // supervisor would then try to restart it.
+            _quitAt = EditorApplication.timeSinceStartup + 0.4;
+            EditorApplication.update -= QuitTick;
+            EditorApplication.update += QuitTick;
+
+            return new { quitting = true, saved = saved, dirtyScenes = dirty.ToArray(), pid = Process.GetCurrentProcess().Id };
+        }
+
+        static double _quitAt;
+
+        static void QuitTick()
+        {
+            if (EditorApplication.timeSinceStartup < _quitAt) return;
+            EditorApplication.update -= QuitTick;
+            EditorApplication.Exit(0);
         }
 
         [UnityTool(Skill = "diagnostics", Id = "editor.assemblies", Summary = "List loaded Editor assemblies and their file paths. Code mode uses this to build its reference set.",

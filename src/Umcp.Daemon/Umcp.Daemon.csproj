@@ -12,6 +12,9 @@
     <PackageReference Include="ModelContextProtocol" Version="0.4.0-preview.2" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.4.0-preview.2" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
+    <!-- Reading back a launched process's command line, to prove the -projectPath argument
+         survived quoting. Windows-only, which this assembly already is because of the tray. -->
+    <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>
   <!-- Shared with the Unity package: one selector grammar and one reconcile hash, compiled
        into both sides. Two copies would drift, and a drifting hash makes reconcile

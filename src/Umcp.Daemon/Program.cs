@@ -53,6 +53,9 @@ if (args.Contains("--help") || args.Contains("-h"))
           --token <s>               use this bearer token instead of minting one
           --profile <p>             readonly | standard | full   (default standard)
           --max-response-bytes <n>  response cap           (default 32768)
+          --auto-restart            reopen an Editor whose process dies (bounded: 2 per 10 min)
+          --package-path <dir>      com.umcp.agent source, when not next to this binary
+          --open-timeout <sec>      how long to wait for a launched Editor's handshake (default 300)
 
         The token is written to %LOCALAPPDATA%/UnityMCP/token.
         """);
@@ -176,6 +179,8 @@ static void AddCore(IServiceCollection services, DaemonOptions options)
     services.AddSingleton<SkillTree>();
     services.AddSingleton<Umcp.Daemon.Mirror.MirrorService>();
     services.AddHostedService<Umcp.Daemon.Mirror.MirrorReconciler>();
+    services.AddSingleton<Umcp.Daemon.Fleet.FleetService>();
+    services.AddHostedService(sp => sp.GetRequiredService<Umcp.Daemon.Fleet.FleetService>());
 }
 
 static bool CryptographicEquals(string a, string b)

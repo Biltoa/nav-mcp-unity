@@ -22,6 +22,9 @@ public sealed class EditorRegistry
 
     /// <summary>Raised once a session has identified itself.</summary>
     public event Action<AgentSession>? SessionHandshake;
+    /// <summary>Raised when a session's socket goes away — a domain reload, a quit, or a crash.
+    /// Which of those it was is the supervisor's job to decide, not this one's.</summary>
+    public event Action<AgentSession>? SessionClosed;
     /// <summary>Raised for every lifecycle or mirror event an agent pushes.</summary>
     public event Action<AgentSession, string, System.Text.Json.Nodes.JsonNode>? SessionEvent;
 
@@ -74,6 +77,7 @@ public sealed class EditorRegistry
             _log.LogInformation("editor disconnected: {Project} ({ProjectId}){Reloading}",
                 s.ProjectName, s.ProjectId, s.Reloading ? " — domain reload, holding ops" : "");
         }
+        SessionClosed?.Invoke(s);
     }
 
     void ReleaseWaiters(AgentSession s)

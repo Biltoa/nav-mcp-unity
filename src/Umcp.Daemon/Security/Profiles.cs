@@ -22,7 +22,8 @@ public static class Profiles
         "assets.delete",    // AssetDatabase deletion is not undoable
         "scene.save",       // overwrites the user's scene file
         "scene.create",     // writes a new scene asset
-        "editor.stall"      // deliberately wedges the Editor; a diagnostic, not a feature
+        "editor.stall",     // deliberately wedges the Editor; a diagnostic, not a feature
+        "editor.quit"       // closes the user's Editor; irreversible from the caller's side
     };
 
     public static Profile Parse(string? s) => s?.ToLowerInvariant() switch

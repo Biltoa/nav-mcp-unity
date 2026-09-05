@@ -37,6 +37,24 @@ public sealed class DaemonOptions
     /// <summary>Responses larger than this are truncated honestly unless the caller overrides.</summary>
     public int MaxResponseBytes { get; init; } = 32 * 1024;
 
+    // -------- fleet --------
+
+    /// <summary>
+    /// How long <c>unity_projects(open:)</c> waits for a launched Editor to handshake. A cold
+    /// Library import on a large project is minutes, not seconds, and the alternative to waiting
+    /// is reporting a failure that is really a slow import.
+    /// </summary>
+    public TimeSpan OpenTimeout { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Bring an Editor back when its process dies. Off by default: relaunching a window a human
+    /// closed is not recovery. Per-project override via <c>unity_projects(autoRestart:)</c>.
+    /// </summary>
+    public bool AutoRestart { get; init; }
+
+    /// <summary>Where com.umcp.agent lives, when it is not next to the binary.</summary>
+    public string? PackagePath { get; init; }
+
     public static DaemonOptions Parse(string[] args)
     {
         int Int(string name, int dflt)
@@ -58,7 +76,10 @@ public sealed class DaemonOptions
             Tray = args.Contains("--tray"),
             Token = Str("--token"),
             MaxResponseBytes = Int("--max-response-bytes", 32 * 1024),
-            Profile = Security.Profiles.Parse(Str("--profile"))
+            Profile = Security.Profiles.Parse(Str("--profile")),
+            AutoRestart = args.Contains("--auto-restart"),
+            PackagePath = Str("--package-path"),
+            OpenTimeout = TimeSpan.FromSeconds(Int("--open-timeout", 300))
         };
     }
 }

@@ -27,14 +27,16 @@ public sealed class UnityMcpTools
     readonly DaemonOptions _options;
     readonly SkillTree _skills;
     readonly MirrorService _mirror;
+    readonly Fleet.FleetService _fleet;
 
     // project.info per (project, epoch): a domain reload is the only thing that can change it.
     readonly ConcurrentDictionary<string, Dictionary<string, string>> _facts = new();
 
     public UnityMcpTools(Dispatcher dispatcher, EditorRegistry registry, DaemonOptions options,
-                         SkillTree skills, MirrorService mirror)
+                         SkillTree skills, MirrorService mirror, Fleet.FleetService fleet)
     {
         _mirror = mirror;
+        _fleet = fleet;
         _dispatcher = dispatcher;
         _registry = registry;
         _options = options;
@@ -44,14 +46,14 @@ public sealed class UnityMcpTools
     // ------------------------------------------------------------------ execution
 
     [McpServerTool(Name = "unity_run")]
-    [Description("Run one Unity Editor tool by id, e.g. \"scene.query\" or \"gameobject.create\". Find ids with unity_find; get a tool's schema from unity_skill.")]
+    [Description("Run one Editor tool by id. Ids from unity_find, schemas from unity_skill.")]
     public async Task<string> RunAsync(
-        [Description("Tool id, e.g. \"gameobject.create\"")] string tool,
-        [Description("Tool arguments, a JSON object")] JsonElement? args = null,
-        [Description("Project id, when more than one editor is connected")] string? project = null,
-        [Description("Validate and report what would happen, without applying it")] bool dryRun = false,
-        [Description("Raise the 32 KB response cap for this call. Use only when you truly need the whole payload.")] int? maxResponseBytes = null,
-        [Description("Force a live round trip instead of answering a read from the daemon's mirror.")] bool verify = false,
+        [Description("Tool id")] string tool,
+        [Description("Arguments, a JSON object")] JsonElement? args = null,
+        [Description("Project id, when several editors are connected")] string? project = null,
+        [Description("Report what would happen; apply nothing")] bool dryRun = false,
+        [Description("Raise the 32 KB response cap for this call")] int? maxResponseBytes = null,
+        [Description("Force a live read instead of the mirror")] bool verify = false,
         CancellationToken ct = default)
     {
         var result = await _dispatcher.RunToolAsync(tool, ToObject(args), project, dryRun, ct, maxResponseBytes, verify).ConfigureAwait(false);
@@ -59,13 +61,13 @@ public sealed class UnityMcpTools
     }
 
     [McpServerTool(Name = "unity_batch")]
-    [Description("Run many Editor operations in one Editor tick, as one undo group. The Editor drains its whole queue per tick, so 32 operations cost about the wall time of one. ops is [{\"op\":\"<tool id>\",\"args\":{...}}]; \"$1\" in a later op refers to op 1's result.")]
+    [Description("Many Editor ops in one tick, one undo group: 32 ops cost about the wall time of one. ops is [{\"op\":\"<id>\",\"args\":{}}]; \"$1\" refers to op 1's result.")]
     public async Task<string> BatchAsync(
-        [Description("Array of {op, args} objects")] JsonElement ops,
-        [Description("Revert the whole group if any op fails")] bool atomic = false,
-        [Description("How much of each result to return: none | ids | summary | full")] string returns = "ids",
-        [Description("Name shown in Unity's undo history")] string? undoName = null,
-        [Description("Project id, when more than one editor is connected")] string? project = null,
+        [Description("The ops")] JsonElement ops,
+        [Description("Revert the group if any op fails")] bool atomic = false,
+        [Description("Per-op result: none | ids | summary | full")] string returns = "ids",
+        [Description("Undo-history name")] string? undoName = null,
+        [Description("Project id, when several editors are connected")] string? project = null,
         [Description("Validate without applying")] bool dryRun = false,
         CancellationToken ct = default)
     {
@@ -88,10 +90,10 @@ public sealed class UnityMcpTools
     }
 
     [McpServerTool(Name = "unity_script")]
-    [Description("Run C# inside the Editor and return only what the code returns. Use this whenever the task needs a loop, a filter, a conditional or an aggregate — one round trip instead of N tool results. Engine and Editor namespaces are already imported; a bare expression is returned automatically. Requires the \"full\" profile.")]
+    [Description("Run C# in the Editor; returns only what the code returns. Use for any loop, filter or aggregate. Engine and Editor namespaces imported; a bare expression is returned. Needs the \"full\" profile.")]
     public async Task<string> ScriptAsync(
-        [Description("C# statements. Return an anonymous object, array or primitive — a summary, not raw rows.")] string code,
-        [Description("Project id, when more than one editor is connected")] string? project = null,
+        [Description("C# statements. Return a summary, not raw rows.")] string code,
+        [Description("Project id, when several editors are connected")] string? project = null,
         CancellationToken ct = default)
     {
         var result = await _dispatcher.RunScriptAsync(code, project, ct).ConfigureAwait(false);
@@ -101,11 +103,11 @@ public sealed class UnityMcpTools
     // ------------------------------------------------------------------ discovery
 
     [McpServerTool(Name = "unity_find", ReadOnly = true)]
-    [Description("Search the tool catalog and the skill tree by keyword. Returns skill nodes to load and tool ids to run.")]
+    [Description("Search tools and skills by keyword.")]
     public string Find(
-        [Description("Keywords, e.g. \"assign material to renderer\"")] string query,
-        [Description("Restrict to \"tool\" or \"skill\"")] string? kind = null,
-        [Description("Maximum results (default 12)")] int limit = 12)
+        [Description("Keywords")] string query,
+        [Description("Restrict to tool or skill")] string? kind = null,
+        [Description("Maximum results")] int limit = 12)
     {
         var hits = _skills.Index.Search(query, Math.Clamp(limit, 1, 40), kind);
         var items = new JsonArray();
@@ -133,10 +135,10 @@ public sealed class UnityMcpTools
     }
 
     [McpServerTool(Name = "unity_skill", ReadOnly = true)]
-    [Description("Load a skill: guidance for a domain plus the schemas of its tools. Also accepts a single tool id for that tool's full schema and examples. Call with no argument for the map of domains.")]
+    [Description("Load a domain skill: guidance plus its tools' schemas. A tool id gives that tool alone. No argument gives the map.")]
     public async Task<string> SkillAsync(
-        [Description("Skill id (\"material\", \"scene.query\"), or a tool id (\"gameobject.create\"). Omit for the map.")] string? id = null,
-        [Description("Project id, when more than one editor is connected")] string? project = null,
+        [Description("Skill id, or a tool id. Omit for the map.")] string? id = null,
+        [Description("Project id, when several editors are connected")] string? project = null,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(id)) return Map();
@@ -223,13 +225,39 @@ public sealed class UnityMcpTools
 
     // ------------------------------------------------------------------ editors and health
 
-    [McpServerTool(Name = "unity_projects", ReadOnly = true)]
-    [Description("List connected Unity editors with their health, and optionally set the default target. Health is the last completed round trip, not socket state: a connected socket with a wedged Editor reports \"blocked\" and names the dialog when it can.")]
+    [McpServerTool(Name = "unity_projects")]
+    [Description("Editors, their health, and the fleet: open, close, restart, set the default. Health is the last completed round trip: \"blocked\" means a modal has wedged the Editor and a human must dismiss it.")]
     public async Task<string> ProjectsAsync(
-        [Description("Set this project id as the default target for later calls")] string? use = null,
-        [Description("Check the daemon's scene mirror against the live hierarchy and repair any drift")] bool reconcile = false,
+        [Description("Make this project the default target")] string? use = null,
+        [Description("Check the mirror against the live hierarchy and repair drift")] bool reconcile = false,
+        [Description("Launch an Editor for this path")] string? open = null,
+        [Description("Quit this editor (id or path)")] string? close = null,
+        [Description("Close then reopen; works after a crash too")] string? restart = null,
+        [Description("Save scenes before closing")] bool save = false,
+        [Description("Close even with unsaved changes, discarding them")] bool discard = false,
+        [Description("Reopen this Editor if its process dies")] bool? autoRestart = null,
+        [Description("Also list projects on disk and Editor installs")] bool discover = false,
         CancellationToken ct = default)
     {
+        // The fleet verbs are exclusive: doing two of them in one call would make the result
+        // ambiguous about which one failed.
+        var verbs = new[] { open, close, restart }.Count(v => v is not null);
+        if (verbs > 1)
+            return Envelope.Error("E_ARG_CONFLICT", "Pass only one of open, close or restart per call.").ToJsonString();
+
+        if (open is not null)
+            return (await _fleet.OpenAsync(open, null, installAgent: true, wait: true, _options.OpenTimeout, ct)
+                                .ConfigureAwait(false)).ToJsonString();
+
+        if (close is not null)
+            return (await _fleet.CloseAsync(close, save, discard, ct).ConfigureAwait(false)).ToJsonString();
+
+        if (restart is not null)
+            return (await _fleet.RestartAsync(restart, save, discard, ct).ConfigureAwait(false)).ToJsonString();
+
+        if (autoRestart is not null && use is not null)
+            return _fleet.SetAutoRestart(use, autoRestart.Value).ToJsonString();
+
         if (use is not null)
         {
             if (_registry.Get(use) is null)
@@ -238,6 +266,16 @@ public sealed class UnityMcpTools
                     didYouMean: Fuzzy.Closest(use, _registry.Sessions.SelectMany(s => new[] { s.ProjectId, s.ProjectName }), 3),
                     hint: "Connected: " + string.Join(", ", _registry.Sessions.Select(s => $"{s.ProjectName} ({s.ProjectId})"))).ToJsonString();
             _registry.DefaultProjectId = use;
+        }
+
+        if (autoRestart is not null)
+        {
+            var target = _registry.DefaultProjectId;
+            if (target is null)
+                return Envelope.Error("E_NO_EDITOR", "autoRestart needs a project: pass it with use, or connect an editor first.",
+                    param: "autoRestart").ToJsonString();
+            var set = _fleet.SetAutoRestart(target, autoRestart.Value);
+            if ((bool?)set["ok"] != true) return set.ToJsonString();
         }
 
         var editors = new JsonArray();
@@ -274,7 +312,7 @@ public sealed class UnityMcpTools
             editors.Add(o);
         }
 
-        return Envelope.Ok(new JsonObject
+        var data = new JsonObject
         {
             ["editors"] = editors,
             ["daemon"] = new JsonObject
@@ -284,7 +322,14 @@ public sealed class UnityMcpTools
                 ["profile"] = Profiles.Name(_options.Profile),
                 ["tools"] = ToolCatalog.All.Length
             }
-        }).ToJsonString();
+        };
+
+        // Discovery is opt-in because it touches the filesystem and the Hub's database, and
+        // because a list of 40 projects is not what a caller asking "is Unity alive" wants.
+        var fleet = _fleet.List(includeKnownProjects: discover, includeInstalls: discover);
+        foreach (var (k, v) in fleet.ToArray()) { fleet.Remove(k); data[k] = v; }
+
+        return Envelope.Ok(data).ToJsonString();
     }
 
     string Health(AgentSession s, long? tickAge)

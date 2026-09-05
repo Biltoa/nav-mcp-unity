@@ -90,7 +90,7 @@ Or via the shim, which starts the daemon on demand:
 
 ## The MCP surface
 
-Six tools, ~904 tokens at baseline. The 51 Editor tools are reached through them rather than
+Six tools, ~910 tokens at baseline. The 54 Editor tools are reached through them rather than
 exposed individually — the surface being replaced costs ~56,800 tokens before the model does
 anything.
 
@@ -101,7 +101,7 @@ anything.
 | `unity_script` | C# executed in the Editor, returning only its conclusion (`full` profile only) |
 | `unity_find` | BM25 search across tools and skills |
 | `unity_skill` | a domain's guidance plus its tools' schemas; also one tool's schema |
-| `unity_projects` | connected editors, their health, and the default target |
+| `unity_projects` | editors, their health, the default target, and the fleet: open, close, restart |
 
 ### The mirror
 
@@ -126,6 +126,22 @@ Both sides compute selectors and hashes from the same two source files
 (`SceneSelector.cs`, `MirrorHash.cs`), compiled into the Unity package and linked into the daemon —
 a second copy would drift, and a drifting hash makes reconcile meaningless.
 
+### The fleet
+
+One daemon, one port, many editors, each identified by a GUID in `ProjectSettings/UnityMCP.json` —
+never by a port number. `unity_projects` opens a project (installing the agent package into its
+manifest first, because Unity resolves the manifest at startup but a running Editor only re-resolves
+on window focus), closes one from inside the Editor, and restarts one — including one that has
+already died.
+
+`unity_projects(open:)` reads the launched process's own command line back out of the OS to prove
+`-projectPath` arrived intact: passed unquoted, a path with spaces reaches Unity as several
+arguments and Unity exits with code 0 without opening anything.
+
+Auto-restart is opt-in per project and bounded to two restarts in ten minutes. Killing an Editor
+does not touch the daemon: there is no parent-PID watchdog anywhere, and an operation issued while
+the Editor is dead is held and replayed when it comes back.
+
 ### The skill tree
 
 `unity_skill()` returns a ~400-token map of domains. `unity_skill("material")` returns that domain's
@@ -145,7 +161,8 @@ Content lives in `src/Umcp.Daemon/Skills/*.md` and is embedded in the binary.
 | `standard` | mutations, but not arbitrary code or irreversible writes |
 | `full` | everything |
 
-`unity.script`, `assets.delete`, `scene.save`, `scene.create` and `editor.stall` require `full`.
+`unity.script`, `assets.delete`, `scene.save`, `scene.create`, `editor.stall` and `editor.quit`
+require `full`.
 This is a second lock: the first is that both listeners bind `127.0.0.1` and every request carries a
 bearer token.
 

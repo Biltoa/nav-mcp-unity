@@ -20,6 +20,10 @@ var only = Arg("--only");
 var jsonOut = Arg("--json");
 var reloads = ArgInt("--reloads", 5);
 var soakSeconds = ArgInt("--soak", 0);
+var fleet = Environment.GetCommandLineArgs().Contains("--fleet");
+var fleetRoot = Arg("--fleet-root") ?? @"D:\umcp-fleet-scratch";
+var fleetProjects = ArgInt("--fleet-projects", 3);
+var fleetClean = Environment.GetCommandLineArgs().Contains("--fleet-clean");
 var token = Arg("--token") ?? Environment.GetEnvironmentVariable("UMCP_TOKEN") ?? ReadTokenFile();
 
 var transport = new HttpClientTransport(new HttpClientTransportOptions
@@ -30,6 +34,10 @@ var transport = new HttpClientTransport(new HttpClientTransportOptions
 
 await using var client = await McpClient.CreateAsync(transport);
 var bench = new Bench(client);
+
+bench.FleetRoot = fleetRoot;
+bench.FleetProjects = fleetProjects;
+bench.FleetKeep = !fleetClean;
 
 var results = new JsonArray();
 var focus = await bench.FocusStateAsync();
@@ -57,9 +65,26 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("cleanup", bench.CleanupAsync)
 };
 
+// The fleet run is opt-in: it launches real Editors, which costs minutes and gigabytes. It
+// replaces the single-editor suite rather than joining it, because half of it is about killing
+// an Editor and the other half assumes one that is alive.
+if (fleet)
+{
+    var defaultProject = await bench.DefaultProjectIdAsync();
+    all = new (string name, Func<Task<JsonObject>> run)[]
+    {
+        ("fleet-discovery", bench.FleetDiscoveryAsync),
+        ("fleet-prepare", bench.FleetPrepareAsync),
+        ("fleet-open", bench.FleetOpenAsync),
+        ("fleet-isolation", () => bench.FleetIsolationAsync()),
+        ("fleet-crash-restart", bench.FleetCrashRestartAsync),
+        ("fleet-cleanup", () => bench.FleetCleanupAsync(defaultProject))
+    };
+}
+
 // The soak is opt-in: it is the proxy for "no drift over a long editing session",
 // and it takes as long as you give it.
-if (soakSeconds > 0)
+if (soakSeconds > 0 && !fleet)
     all = all.Take(all.Length - 1)
              .Append(("mirror-soak", (Func<Task<JsonObject>>)(() => bench.SoakAsync(soakSeconds))))
              .Append(("cleanup", (Func<Task<JsonObject>>)bench.CleanupAsync))
@@ -122,7 +147,7 @@ static string? ReadTokenFile()
     return File.Exists(p) ? File.ReadAllText(p).Trim() : null;
 }
 
-sealed class Bench(McpClient client)
+sealed partial class Bench(McpClient client)
 {
     const string Prefix = "__UMCP_BENCH_";
 

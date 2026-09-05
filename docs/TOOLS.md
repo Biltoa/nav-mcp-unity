@@ -2,7 +2,7 @@
 
 # Tool reference
 
-53 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
+54 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
 
 ## assets
 
@@ -221,6 +221,7 @@ Set serialized properties on a component.
 | `editor.assemblies` | no | n/a | List loaded Editor assemblies and their file paths. Code mode uses this to build its reference set. |
 | `editor.compile` | yes | — *Compilation is not an undoable operation.* | Request a script recompilation. Triggers a domain reload. |
 | `editor.ping` | no | n/a | Round-trip liveness probe. Executes on the Editor main thread. |
+| `editor.quit` | yes | — *Quitting the Editor is not an undoable operation.* | Quit this Editor. Saves first when asked; refuses on unsaved changes otherwise. |
 | `editor.selection.get` | no | n/a | Read the current Editor selection. |
 | `editor.selection.set` | yes | — *Selection is editor UI state, not object state.* | Set the Editor selection. |
 | `editor.stall` | no | n/a | Diagnostic: block the Editor main thread for N seconds, reproducing a modal dialog's effect. |
@@ -290,6 +291,19 @@ Round-trip liveness probe. Executes on the Editor main thread.
 
 ```json
 { }
+```
+
+### `editor.quit`
+
+Quit this Editor. Saves first when asked; refuses on unsaved changes otherwise.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `save` | `bool` | no | `false` | Save open scenes and assets before quitting |
+| `force` | `bool` | no | `false` | Quit even with unsaved changes, discarding them |
+
+```json
+{ "save": true }
 ```
 
 ### `editor.selection.get`

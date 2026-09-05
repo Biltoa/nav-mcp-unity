@@ -1,0 +1,50 @@
+name: ci
+
+# What can be checked without a Unity licence, checked on every push.
+#
+# The parts that need a real Editor — the batch-mode smoke run over the whole catalog and the
+# fleet measurements — are run locally with `umcp-bench --smoke` / `--fleet`, because a licensed
+# Editor in CI is a cost this project's G3 requirement (no extra spend) rules out. The job below
+# is honest about that rather than pretending a green tick covers it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+
+      - name: Restore
+        run: dotnet restore UnityMcpTool.sln
+
+      - name: Build
+        run: dotnet build UnityMcpTool.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test UnityMcpTool.sln -c Release --no-build --logger "console;verbosity=normal"
+
+      # One source of truth, enforced. The dispatch table, the daemon catalog and docs/TOOLS.md are
+      # generated from the [UnityTool] methods; a commit that edits a tool without regenerating
+      # them is drift, and drift between layers is the specific failure this design exists to
+      # prevent.
+      - name: Tool generation is up to date
+        run: |
+          dotnet run --project src/Umcp.ToolGen -c Release --no-build
+          git diff --exit-code -- unity/com.umcp.agent/Editor/Generated src/Umcp.Daemon/Generated docs/TOOLS.md
+
+      # Every tool's examples must validate against that tool's own generated schema, every tool
+      # must belong to a skill node, and no tool may be reachable without one. These are unit
+      # tests, but they are the ones that keep the catalog honest, so they are named here.
+      - name: Catalog quality gates
+        run: dotnet test UnityMcpTool.sln -c Release --no-build --filter "FullyQualifiedName~CatalogTests|FullyQualifiedName~EnvelopeTests"

@@ -30,6 +30,7 @@ namespace Umcp.Agent
             "editor.assemblies",
             "editor.compile",
             "editor.ping",
+            "editor.quit",
             "editor.selection.get",
             "editor.selection.set",
             "editor.stall",
@@ -87,6 +88,7 @@ namespace Umcp.Agent
             { "editor.assemblies", new ToolMeta { Id = "editor.assemblies", Skill = "diagnostics", Summary = "List loaded Editor assemblies and their file paths. Code mode uses this to build its reference set.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "editor.compile", new ToolMeta { Id = "editor.compile", Skill = "diagnostics", Summary = "Request a script recompilation. Triggers a domain reload.", Mutating = true, Retry = "Compile", Cost = "Expensive", Undo = null, NoUndoReason = "Compilation is not an undoable operation." } },
             { "editor.ping", new ToolMeta { Id = "editor.ping", Skill = "diagnostics", Summary = "Round-trip liveness probe. Executes on the Editor main thread.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
+            { "editor.quit", new ToolMeta { Id = "editor.quit", Skill = "diagnostics", Summary = "Quit this Editor. Saves first when asked; refuses on unsaved changes otherwise.", Mutating = true, Retry = "None", Cost = "Expensive", Undo = null, NoUndoReason = "Quitting the Editor is not an undoable operation." } },
             { "editor.selection.get", new ToolMeta { Id = "editor.selection.get", Skill = "diagnostics", Summary = "Read the current Editor selection.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "editor.selection.set", new ToolMeta { Id = "editor.selection.set", Skill = "diagnostics", Summary = "Set the Editor selection.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Selection is editor UI state, not object state." } },
             { "editor.stall", new ToolMeta { Id = "editor.stall", Skill = "diagnostics", Summary = "Diagnostic: block the Editor main thread for N seconds, reproducing a modal dialog's effect.", Mutating = false, Retry = "None", Cost = "Expensive", Undo = null, NoUndoReason = "A diagnostic stall changes no state." } },
@@ -170,6 +172,8 @@ namespace Umcp.Agent
                     return EditorTools.Compile();
                 case "editor.ping":
                     return EditorTools.Ping();
+                case "editor.quit":
+                    return EditorTools.Quit(Bind.Bool(a, "save", false, false), Bind.Bool(a, "force", false, false));
                 case "editor.selection.get":
                     return EditorTools.SelectionGet(Bind.Int(a, "limit", false, 100));
                 case "editor.selection.set":
