@@ -56,6 +56,35 @@ namespace Umcp.Agent
             return t.ToObject<float>();
         }
 
+        // Optional value types. "Absent" and "zero" are different answers — a transition
+        // condition of "greater than 0" is not the same as no condition at all — so a nullable
+        // parameter binds to null rather than to a default that reads as a real value.
+        public static int? IntOpt(JObject a, string name, bool required)
+        {
+            var t = Get(a, name, required);
+            if (t == null) return null;
+            if (t.Type != JTokenType.Integer && t.Type != JTokenType.Float && t.Type != JTokenType.String)
+                throw Bad(name, t, "an integer");
+            return t.ToObject<int>();
+        }
+
+        public static float? FltOpt(JObject a, string name, bool required)
+        {
+            var t = Get(a, name, required);
+            if (t == null) return null;
+            if (t.Type != JTokenType.Integer && t.Type != JTokenType.Float && t.Type != JTokenType.String)
+                throw Bad(name, t, "a number");
+            return t.ToObject<float>();
+        }
+
+        public static bool? BoolOpt(JObject a, string name, bool required)
+        {
+            var t = Get(a, name, required);
+            if (t == null) return null;
+            if (t.Type != JTokenType.Boolean && t.Type != JTokenType.String) throw Bad(name, t, "a boolean");
+            return t.ToObject<bool>();
+        }
+
         public static bool Bool(JObject a, string name, bool required, bool dflt = false)
         {
             var t = Get(a, name, required);

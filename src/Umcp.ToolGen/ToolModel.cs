@@ -25,9 +25,9 @@ internal sealed class ParamModel
         var (type, items) = CsType switch
         {
             "string" => ("string", null),
-            "int" => ("integer", null),
-            "float" or "double" => ("number", null),
-            "bool" => ("boolean", null),
+            "int" or "int?" => ("integer", null),
+            "float" or "double" or "float?" or "double?" => ("number", null),
+            "bool" or "bool?" => ("boolean", null),
             "string[]" => ("array", "string"),
             "float[]" or "double[]" => ("array", "number"),
             "int[]" => ("array", "integer"),
@@ -72,6 +72,11 @@ internal sealed class ParamModel
             "float" => $"Bind.Flt(a, \"{Name}\", {req}{(Default is null ? "" : ", " + FloatLit(d))})",
             "double" => $"(double)Bind.Flt(a, \"{Name}\", {req}{(Default is null ? "" : ", " + FloatLit(d))})",
             "bool" => $"Bind.Bool(a, \"{Name}\", {req}{(Default is null ? "" : ", " + d)})",
+            // A nullable parameter has no default to pass: null is the default, and it means
+            // "the caller did not say", which is a different thing from any value.
+            "int?" => $"Bind.IntOpt(a, \"{Name}\", {req})",
+            "float?" or "double?" => $"Bind.FltOpt(a, \"{Name}\", {req})",
+            "bool?" => $"Bind.BoolOpt(a, \"{Name}\", {req})",
             "string[]" => $"Bind.StrArr(a, \"{Name}\", {req})",
             "float[]" or "double[]" => $"Bind.FltArr(a, \"{Name}\", {req})",
             "int[]" => $"Bind.IntArr(a, \"{Name}\", {req})",

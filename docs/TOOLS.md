@@ -2,7 +2,45 @@
 
 # Tool reference
 
-63 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
+80 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
+
+## animation
+
+| Tool | Mutating | Undo | Summary |
+|---|---|---|---|
+| `animator.controller` | yes | — *AnimatorController edits are asset writes; Unity's animation editors do not register them with Undo.* | Animator controllers: read, create, add states, parameters and transitions. action: info | create | addState | addParameter | addTransition | setDefault. |
+
+### `animator.controller`
+
+Animator controllers: read, create, add states, parameters and transitions. action: info | create | addState | addParameter | addTransition | setDefault.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `action` | `string` | yes | — | info | create | addState | addParameter | addTransition | setDefault |
+| `path` | `string` | yes | — | Controller asset path, e.g. Assets/Animation/Player.controller |
+| `state` | `string` | no | `null` | State name, for addState / setDefault |
+| `clip` | `string` | no | `null` | Clip asset path, for addState |
+| `layer` | `string` | no | `null` | Layer name. Defaults to the first layer. |
+| `parameter` | `string` | no | `null` | Parameter name, for addParameter and addTransition conditions |
+| `parameterType` | `string` | no | `"Float"` | Parameter type: Float, Int, Bool, Trigger |
+| `from` | `string` | no | `null` | Source state, for addTransition |
+| `to` | `string` | no | `null` | Destination state, for addTransition |
+| `greaterThan` | `float?` | no | `null` | Condition: parameter greater than this (Float/Int) |
+| `lessThan` | `float?` | no | `null` | Condition: parameter less than this (Float/Int) |
+| `equals` | `bool?` | no | `null` | Condition: Bool parameter equals this, or Trigger when true |
+| `duration` | `float` | no | `0.25f` | Transition duration in seconds (default 0.25) |
+
+```json
+{ "action": "info", "path": "Assets/Animation/Player.controller" }
+```
+
+```json
+{ "action": "addState", "path": "Assets/Animation/Player.controller", "state": "Run", "clip": "Assets/Animation/Run.anim" }
+```
+
+```json
+{ "action": "addTransition", "path": "Assets/Animation/Player.controller", "from": "Idle", "to": "Run", "parameter": "Speed", "greaterThan": 0.1 }
+```
 
 ## assets
 
@@ -181,11 +219,105 @@ Which assets changed recently, in VCS terms: modified files under Assets/, and g
 { "sinceMinutes": 60 }
 ```
 
+## audio
+
+| Tool | Mutating | Undo | Summary |
+|---|---|---|---|
+| `audio.clips` | no | n/a | List audio clips with the import settings that decide memory and quality: load type, compression, sample rate. |
+| `audio.setImportSettings` | yes | — *Import settings are asset metadata; the AssetDatabase does not participate in Unity's undo stack.* | Set audio import settings on one clip or a whole folder, optionally as a platform override. |
+| `audio.settings` | no | n/a | Project audio configuration: output rate, DSP buffer, virtual and real voices, spatializer. |
+
+### `audio.clips`
+
+List audio clips with the import settings that decide memory and quality: load type, compression, sample rate.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `folder` | `string` | no | `null` | Restrict to this folder |
+| `platform` | `string` | no | `null` | Report the override for this platform, e.g. WebGL, Android. Default: the default settings. |
+| `limit` | `int` | no | `50` | Maximum clips (default 50) |
+
+```json
+{ "limit": 25 }
+```
+
+```json
+{ "folder": "Assets/Audio/Music", "platform": "WebGL" }
+```
+
+### `audio.setImportSettings`
+
+Set audio import settings on one clip or a whole folder, optionally as a platform override.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `path` | `string` | yes | — | Clip path, or a folder to apply to every clip inside it |
+| `loadType` | `string` | no | `null` | DecompressOnLoad | CompressedInMemory | Streaming |
+| `compression` | `string` | no | `null` | PCM | Vorbis | ADPCM | MP3 | AAC |
+| `quality` | `float?` | no | `null` | Compression quality, 0-1 |
+| `overrideSampleRate` | `int?` | no | `null` | Pin the sample rate to this value, in Hz. Use for WebGL loops. |
+| `platform` | `string` | no | `null` | Apply as an override for this platform, e.g. WebGL |
+| `forceToMono` | `bool?` | no | `null` | Force to mono |
+| `limit` | `int` | no | `200` | Maximum clips to touch (default 200) |
+
+```json
+{ "path": "Assets/Audio/Music", "loadType": "Streaming", "compression": "Vorbis" }
+```
+
+```json
+{ "path": "Assets/Audio/SFX/Engine.wav", "platform": "WebGL", "overrideSampleRate": 44100 }
+```
+
+### `audio.settings`
+
+Project audio configuration: output rate, DSP buffer, virtual and real voices, spatializer.
+
+```json
+{ }
+```
+
 ## build
 
 | Tool | Mutating | Undo | Summary |
 |---|---|---|---|
+| `build.lastReport` | no | n/a | Summarise the last build: result, duration, size, and the largest content by category. |
+| `build.scenes` | yes | — *EditorBuildSettings is project configuration, not object state, and is not on the undo stack.* | Change the build scene list: add, remove, enable or disable a scene. action: add | remove | enable | disable. |
+| `build.settings` | no | n/a | Read the build scene list, target, and the player settings that matter for a build. |
 | `build.validateTarget` | no | n/a | Check a build target for the platform failures that are statically detectable: audio resampling, shader model, small SDF text, emissive clipping, build scenes. |
+
+### `build.lastReport`
+
+Summarise the last build: result, duration, size, and the largest content by category.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `limit` | `int` | no | `12` | How many size categories to return (default 12) |
+
+```json
+{ }
+```
+
+### `build.scenes`
+
+Change the build scene list: add, remove, enable or disable a scene. action: add | remove | enable | disable.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `action` | `string` | yes | — | add | remove | enable | disable |
+| `path` | `string` | yes | — | Scene asset path |
+| `index` | `int` | no | `-1` | Insert at this index when adding. Default: append. |
+
+```json
+{ "action": "add", "path": "Assets/Scenes/Main.unity" }
+```
+
+### `build.settings`
+
+Read the build scene list, target, and the player settings that matter for a build.
+
+```json
+{ }
+```
 
 ### `build.validateTarget`
 
@@ -632,6 +764,53 @@ Set a GameObject's tag.
 { "target": "Player", "tag": "Player" }
 ```
 
+## lighting
+
+| Tool | Mutating | Undo | Summary |
+|---|---|---|---|
+| `lighting.bake` | yes | — *A bake writes lightmap assets and clears the previous ones; Unity does not undo it.* | Start or cancel an asynchronous lightmap bake, or report the running one. action: start | cancel | status. |
+| `lighting.settings` | no | n/a | Read the active scene's lighting settings: ambient, fog, lightmapper, bake state, light count. |
+| `setup.litInterior` | yes | Set up interior lighting | Light an interior: a key light, two fills, and a reflection probe, all sized and placed from the room's own bounds. |
+
+### `lighting.bake`
+
+Start or cancel an asynchronous lightmap bake, or report the running one. action: start | cancel | status.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `action` | `string` | no | `"status"` | start | cancel | status (default status) |
+
+```json
+{ "action": "status" }
+```
+
+```json
+{ "action": "start" }
+```
+
+### `lighting.settings`
+
+Read the active scene's lighting settings: ambient, fog, lightmapper, bake state, light count.
+
+```json
+{ }
+```
+
+### `setup.litInterior`
+
+Light an interior: a key light, two fills, and a reflection probe, all sized and placed from the room's own bounds.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `room` | `string` | yes | — | The room object; its renderer bounds decide placement |
+| `intensity` | `float` | no | `1.2f` | Key light intensity (default 1.2) |
+| `kelvin` | `float` | no | `4000f` | Colour temperature in kelvin (default 4000, warm interior) |
+| `bakeMode` | `string` | no | `"Mixed"` | Bake mode: Realtime, Mixed or Baked (default Mixed) |
+
+```json
+{ "room": "Level/Kitchen" }
+```
+
 ## material
 
 | Tool | Mutating | Undo | Summary |
@@ -666,6 +845,101 @@ Set shader properties on a material asset.
 
 ```json
 { "path": "Assets/Materials/Rock.mat", "floats": { "_Metallic": 0.2 } }
+```
+
+## navmesh
+
+| Tool | Mutating | Undo | Summary |
+|---|---|---|---|
+| `navmesh.bake` | yes | — *A bake writes navmesh data assets; Unity does not put it on the undo stack.* | Bake the NavMeshSurface components in the open scenes. Requires the AI Navigation package. |
+| `navmesh.info` | no | n/a | What navigation data the open scenes actually contain: triangulation size, areas, agent types, surfaces. |
+| `navmesh.path` | no | n/a | Whether a path exists between two world points on the baked navmesh, and how long it is. |
+
+### `navmesh.bake`
+
+Bake the NavMeshSurface components in the open scenes. Requires the AI Navigation package.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `target` | `string` | no | `null` | Only this surface (path or #id). Omit to bake them all. |
+
+```json
+{ }
+```
+
+### `navmesh.info`
+
+What navigation data the open scenes actually contain: triangulation size, areas, agent types, surfaces.
+
+```json
+{ }
+```
+
+### `navmesh.path`
+
+Whether a path exists between two world points on the baked navmesh, and how long it is.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `from` | `float[]` | yes | — | Start point [x, y, z] |
+| `to` | `float[]` | yes | — | End point [x, y, z] |
+| `snapDistance` | `float` | no | `2f` | How far from each point to look for the navmesh (default 2) |
+| `corners` | `bool` | no | `false` | Return the corner positions as well as the summary |
+
+```json
+{ "from": [0, 0, 0], "to": [10, 0, 12] }
+```
+
+## physics
+
+| Tool | Mutating | Undo | Summary |
+|---|---|---|---|
+| `physics.overlap` | no | n/a | Find colliders overlapping a sphere or box in the Editor scene. |
+| `physics.raycast` | no | n/a | Cast a ray in the Editor scene and return what it hits. Does not enter Play mode. |
+| `physics.settings` | no | n/a | Read the project's 3D physics settings: gravity, layer collision matrix, solver, contact offsets. |
+
+### `physics.overlap`
+
+Find colliders overlapping a sphere or box in the Editor scene.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `center` | `float[]` | yes | — | World-space centre [x, y, z] |
+| `radius` | `float` | no | `0f` | Sphere radius. Give this or halfExtents. |
+| `halfExtents` | `float[]` | no | `null` | Box half-extents [x, y, z]. Give this or radius. |
+| `limit` | `int` | no | `50` | Maximum results (default 50) |
+
+```json
+{ "center": [0, 1, 0], "radius": 5 }
+```
+
+### `physics.raycast`
+
+Cast a ray in the Editor scene and return what it hits. Does not enter Play mode.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `origin` | `float[]` | yes | — | World-space origin [x, y, z] |
+| `direction` | `float[]` | yes | — | Direction [x, y, z]; normalised for you |
+| `maxDistance` | `float` | no | `1000f` | Maximum distance (default 1000) |
+| `layers` | `string[]` | no | `null` | Layer names to hit. Omit for all layers. |
+| `all` | `bool` | no | `false` | Return every hit along the ray, not just the first |
+| `limit` | `int` | no | `20` | Maximum hits when all is true (default 20) |
+
+```json
+{ "origin": [0, 10, 0], "direction": [0, -1, 0], "maxDistance": 50 }
+```
+
+### `physics.settings`
+
+Read the project's 3D physics settings: gravity, layer collision matrix, solver, contact offsets.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `layerMatrix` | `bool` | no | `false` | Include the full 32x32 layer collision matrix |
+
+```json
+{ }
 ```
 
 ## scene
@@ -955,7 +1229,23 @@ Move a GameObject by a delta.
 
 | Tool | Mutating | Undo | Summary |
 |---|---|---|---|
+| `setup.uiScreen` | yes | Set up UI screen | Create a working UI screen: canvas, scaler, raycaster, EventSystem if missing, a root panel, and the elements you name. |
 | `ui.layoutReport` | no | n/a | Geometric UI problems on a canvas: off-screen rects, zero-size elements, overlapping siblings, low-contrast text, unsafe-area content. |
+
+### `setup.uiScreen`
+
+Create a working UI screen: canvas, scaler, raycaster, EventSystem if missing, a root panel, and the elements you name.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `name` | `string` | yes | — | Screen name; the canvas takes it |
+| `elements` | `string[]` | no | `null` | Elements, each "kind:Label" where kind is text, button, image or panel |
+| `referenceResolution` | `float[]` | no | `null` | Reference resolution [width, height] (default [1920, 1080]) |
+| `sortOrder` | `int` | no | `0` | Sort order, when several canvases overlap |
+
+```json
+{ "name": "PauseMenu", "elements": ["text:Paused", "button:Resume", "button:Quit"] }
+```
 
 ### `ui.layoutReport`
 

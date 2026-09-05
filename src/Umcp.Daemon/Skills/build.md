@@ -1,6 +1,7 @@
 title: Build targets and pre-build validation
 covers: checking a platform before building, build scenes, graphics APIs, platform-specific asset traps
 excludes: making a build (not exposed), player settings editing (not exposed)
+tools: build.validateTarget, build.settings, build.scenes, build.lastReport
 
 # Build
 
@@ -47,3 +48,18 @@ The report includes the target's graphics API list, because half the checks depe
 `OpenGLES3` is in the list for Android, the shader-model check applies; drop GLES3 (Vulkan only)
 and it does not. That is a real choice with device-support consequences — the tool states the
 trade-off and leaves it to you.
+
+## The build list and the last build
+
+`build.settings` reads the target, the scripting backend, the colour space and the scene list, with
+each scene's `enabled` flag and whether the file still exists on disk. `build.scenes` edits that
+list — `add`, `remove`, `enable`, `disable`.
+
+`build.lastReport` summarises the most recent build from `Library/LastBuild.buildreport`: result,
+duration, total size, and the largest content grouped by file extension. That last number is the one
+worth acting on — it is usually textures, and usually two or three of them.
+
+The report is copied out of `Library/` to be imported and **deleted again immediately**, because
+nothing this tool writes may stay under `Assets/`: Unity's importer will try to read a file while it
+is still being written, which is exactly the "Amount of processed bytes does not match file size"
+failure recorded in the plan.

@@ -13,6 +13,7 @@ namespace Umcp.Agent
     {
         public static readonly string[] Ids =
         {
+            "animator.controller",
             "assets.addressables",
             "assets.createFolder",
             "assets.delete",
@@ -20,6 +21,12 @@ namespace Umcp.Agent
             "assets.info",
             "assets.move",
             "assets.refresh",
+            "audio.clips",
+            "audio.setImportSettings",
+            "audio.settings",
+            "build.lastReport",
+            "build.scenes",
+            "build.settings",
             "build.validateTarget",
             "compile.errors",
             "component.add",
@@ -47,10 +54,18 @@ namespace Umcp.Agent
             "gameobject.setLayer",
             "gameobject.setParent",
             "gameobject.setTag",
+            "lighting.bake",
+            "lighting.settings",
             "material.create",
             "material.set",
             "mirror.hashes",
             "mirror.snapshot",
+            "navmesh.bake",
+            "navmesh.info",
+            "navmesh.path",
+            "physics.overlap",
+            "physics.raycast",
+            "physics.settings",
             "prefab.create",
             "prefab.instantiate",
             "prefab.overrides",
@@ -69,6 +84,8 @@ namespace Umcp.Agent
             "scene.save",
             "scene.setActive",
             "scene.validate",
+            "setup.litInterior",
+            "setup.uiScreen",
             "transform.get",
             "transform.lookAt",
             "transform.rotate",
@@ -80,6 +97,7 @@ namespace Umcp.Agent
 
         static readonly Dictionary<string, ToolMeta> _meta = new Dictionary<string, ToolMeta>
         {
+            { "animator.controller", new ToolMeta { Id = "animator.controller", Skill = "animation", Summary = "Animator controllers: read, create, add states, parameters and transitions. action: info | create | addState | addParameter | addTransition | setDefault.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "AnimatorController edits are asset writes; Unity's animation editors do not register them with Undo." } },
             { "assets.addressables", new ToolMeta { Id = "assets.addressables", Skill = "assets", Summary = "Addressables settings, groups and entries. action: status | groups | entries.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "assets.createFolder", new ToolMeta { Id = "assets.createFolder", Skill = "assets", Summary = "Create a folder, creating intermediate folders as needed.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "AssetDatabase folder creation is not undoable." } },
             { "assets.delete", new ToolMeta { Id = "assets.delete", Skill = "assets", Summary = "Delete an asset. Destructive.", Mutating = true, Retry = "None", Cost = "Cheap", Undo = null, NoUndoReason = "AssetDatabase deletion is not undoable." } },
@@ -87,6 +105,12 @@ namespace Umcp.Agent
             { "assets.info", new ToolMeta { Id = "assets.info", Skill = "assets", Summary = "Read one asset's identity, type and direct dependencies.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "assets.move", new ToolMeta { Id = "assets.move", Skill = "assets", Summary = "Move or rename an asset, preserving its GUID.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "AssetDatabase moves are not undoable." } },
             { "assets.refresh", new ToolMeta { Id = "assets.refresh", Skill = "assets", Summary = "Refresh the AssetDatabase. May trigger a compile and a domain reload.", Mutating = true, Retry = "Compile", Cost = "Expensive", Undo = null, NoUndoReason = "An import is not an undoable operation." } },
+            { "audio.clips", new ToolMeta { Id = "audio.clips", Skill = "audio", Summary = "List audio clips with the import settings that decide memory and quality: load type, compression, sample rate.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
+            { "audio.setImportSettings", new ToolMeta { Id = "audio.setImportSettings", Skill = "audio", Summary = "Set audio import settings on one clip or a whole folder, optionally as a platform override.", Mutating = true, Retry = "Write", Cost = "Moderate", Undo = null, NoUndoReason = "Import settings are asset metadata; the AssetDatabase does not participate in Unity's undo stack." } },
+            { "audio.settings", new ToolMeta { Id = "audio.settings", Skill = "audio", Summary = "Project audio configuration: output rate, DSP buffer, virtual and real voices, spatializer.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
+            { "build.lastReport", new ToolMeta { Id = "build.lastReport", Skill = "build", Summary = "Summarise the last build: result, duration, size, and the largest content by category.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
+            { "build.scenes", new ToolMeta { Id = "build.scenes", Skill = "build", Summary = "Change the build scene list: add, remove, enable or disable a scene. action: add | remove | enable | disable.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "EditorBuildSettings is project configuration, not object state, and is not on the undo stack." } },
+            { "build.settings", new ToolMeta { Id = "build.settings", Skill = "build", Summary = "Read the build scene list, target, and the player settings that matter for a build.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "build.validateTarget", new ToolMeta { Id = "build.validateTarget", Skill = "build", Summary = "Check a build target for the platform failures that are statically detectable: audio resampling, shader model, small SDF text, emissive clipping, build scenes.", Mutating = false, Retry = "Read", Cost = "Expensive", Undo = null, NoUndoReason = null } },
             { "compile.errors", new ToolMeta { Id = "compile.errors", Skill = "diagnostics", Summary = "Structured compile errors and warnings: file, line, column, message.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "component.add", new ToolMeta { Id = "component.add", Skill = "component", Summary = "Add a component to a GameObject.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Add Component", NoUndoReason = null } },
@@ -114,10 +138,18 @@ namespace Umcp.Agent
             { "gameobject.setLayer", new ToolMeta { Id = "gameobject.setLayer", Skill = "gameobject", Summary = "Set a GameObject's layer, optionally recursively.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set Layer", NoUndoReason = null } },
             { "gameobject.setParent", new ToolMeta { Id = "gameobject.setParent", Skill = "gameobject", Summary = "Reparent a GameObject.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set Parent", NoUndoReason = null } },
             { "gameobject.setTag", new ToolMeta { Id = "gameobject.setTag", Skill = "gameobject", Summary = "Set a GameObject's tag.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set Tag", NoUndoReason = null } },
+            { "lighting.bake", new ToolMeta { Id = "lighting.bake", Skill = "lighting", Summary = "Start or cancel an asynchronous lightmap bake, or report the running one. action: start | cancel | status.", Mutating = true, Retry = "None", Cost = "Expensive", Undo = null, NoUndoReason = "A bake writes lightmap assets and clears the previous ones; Unity does not undo it." } },
+            { "lighting.settings", new ToolMeta { Id = "lighting.settings", Skill = "lighting", Summary = "Read the active scene's lighting settings: ambient, fog, lightmapper, bake state, light count.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "material.create", new ToolMeta { Id = "material.create", Skill = "material", Summary = "Create a material asset. Defaults to the project's active pipeline shader.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Asset creation is not undoable." } },
             { "material.set", new ToolMeta { Id = "material.set", Skill = "material", Summary = "Set shader properties on a material asset.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set Material Properties", NoUndoReason = null } },
             { "mirror.hashes", new ToolMeta { Id = "mirror.hashes", Skill = "diagnostics", Summary = "Per-root subtree hashes, for reconciling the daemon's mirror against the live hierarchy.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "mirror.snapshot", new ToolMeta { Id = "mirror.snapshot", Skill = "diagnostics", Summary = "Full compact hierarchy snapshot. Used by the daemon to seed its mirror; rarely useful directly.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
+            { "navmesh.bake", new ToolMeta { Id = "navmesh.bake", Skill = "navmesh", Summary = "Bake the NavMeshSurface components in the open scenes. Requires the AI Navigation package.", Mutating = true, Retry = "None", Cost = "Expensive", Undo = null, NoUndoReason = "A bake writes navmesh data assets; Unity does not put it on the undo stack." } },
+            { "navmesh.info", new ToolMeta { Id = "navmesh.info", Skill = "navmesh", Summary = "What navigation data the open scenes actually contain: triangulation size, areas, agent types, surfaces.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
+            { "navmesh.path", new ToolMeta { Id = "navmesh.path", Skill = "navmesh", Summary = "Whether a path exists between two world points on the baked navmesh, and how long it is.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
+            { "physics.overlap", new ToolMeta { Id = "physics.overlap", Skill = "physics", Summary = "Find colliders overlapping a sphere or box in the Editor scene.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
+            { "physics.raycast", new ToolMeta { Id = "physics.raycast", Skill = "physics", Summary = "Cast a ray in the Editor scene and return what it hits. Does not enter Play mode.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
+            { "physics.settings", new ToolMeta { Id = "physics.settings", Skill = "physics", Summary = "Read the project's 3D physics settings: gravity, layer collision matrix, solver, contact offsets.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "prefab.create", new ToolMeta { Id = "prefab.create", Skill = "assets", Summary = "Save a scene GameObject as a prefab asset.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Create Prefab", NoUndoReason = null } },
             { "prefab.instantiate", new ToolMeta { Id = "prefab.instantiate", Skill = "assets", Summary = "Instantiate a prefab into the active scene.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Instantiate Prefab", NoUndoReason = null } },
             { "prefab.overrides", new ToolMeta { Id = "prefab.overrides", Skill = "assets", Summary = "List, apply or revert a prefab instance's overrides. action: list | apply | revert.", Mutating = true, Retry = "Write", Cost = "Moderate", Undo = "Prefab overrides", NoUndoReason = null } },
@@ -136,6 +168,8 @@ namespace Umcp.Agent
             { "scene.save", new ToolMeta { Id = "scene.save", Skill = "scene", Summary = "Save an open scene. Refuses to overwrite unless asked explicitly.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Writing a file is not undoable." } },
             { "scene.setActive", new ToolMeta { Id = "scene.setActive", Skill = "scene", Summary = "Make an open scene the active scene.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Active-scene selection is editor state, not object state." } },
             { "scene.validate", new ToolMeta { Id = "scene.validate", Skill = "scene", Summary = "Find broken things in the open scenes: missing scripts, missing prefab assets, dangling object references, missing materials.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
+            { "setup.litInterior", new ToolMeta { Id = "setup.litInterior", Skill = "lighting", Summary = "Light an interior: a key light, two fills, and a reflection probe, all sized and placed from the room's own bounds.", Mutating = true, Retry = "Write", Cost = "Moderate", Undo = "Set up interior lighting", NoUndoReason = null } },
+            { "setup.uiScreen", new ToolMeta { Id = "setup.uiScreen", Skill = "ui", Summary = "Create a working UI screen: canvas, scaler, raycaster, EventSystem if missing, a root panel, and the elements you name.", Mutating = true, Retry = "Write", Cost = "Moderate", Undo = "Set up UI screen", NoUndoReason = null } },
             { "transform.get", new ToolMeta { Id = "transform.get", Skill = "transform", Summary = "Read a GameObject's transform in local and world space.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "transform.lookAt", new ToolMeta { Id = "transform.lookAt", Skill = "transform", Summary = "Aim a GameObject at another GameObject or a world point.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Look At", NoUndoReason = null } },
             { "transform.rotate", new ToolMeta { Id = "transform.rotate", Skill = "transform", Summary = "Rotate a GameObject by euler angles.", Mutating = true, Retry = "None", Cost = "Cheap", Undo = "Rotate", NoUndoReason = null } },
@@ -156,6 +190,8 @@ namespace Umcp.Agent
         {
             switch (id)
             {
+                case "animator.controller":
+                    return AnimatorTools.Controller(Bind.Str(a, "action", true), Bind.Str(a, "path", true), Bind.Str(a, "state", false), Bind.Str(a, "clip", false), Bind.Str(a, "layer", false), Bind.Str(a, "parameter", false), Bind.Str(a, "parameterType", false, "Float"), Bind.Str(a, "from", false), Bind.Str(a, "to", false), Bind.FltOpt(a, "greaterThan", false), Bind.FltOpt(a, "lessThan", false), Bind.BoolOpt(a, "equals", false), Bind.Flt(a, "duration", false, 0.25f));
                 case "assets.addressables":
                     return AddressableTools.Addressables(Bind.Str(a, "action", false, "status"), Bind.Str(a, "group", false), Bind.Int(a, "limit", false, 100));
                 case "assets.createFolder":
@@ -170,6 +206,18 @@ namespace Umcp.Agent
                     return AssetTools.Move(Bind.Str(a, "from", true), Bind.Str(a, "to", true));
                 case "assets.refresh":
                     return AssetTools.Refresh(Bind.Bool(a, "force", false, false));
+                case "audio.clips":
+                    return AudioTools.Clips(Bind.Str(a, "folder", false), Bind.Str(a, "platform", false), Bind.Int(a, "limit", false, 50));
+                case "audio.setImportSettings":
+                    return AudioTools.SetImportSettings(Bind.Str(a, "path", true), Bind.Str(a, "loadType", false), Bind.Str(a, "compression", false), Bind.FltOpt(a, "quality", false), Bind.IntOpt(a, "overrideSampleRate", false), Bind.Str(a, "platform", false), Bind.BoolOpt(a, "forceToMono", false), Bind.Int(a, "limit", false, 200));
+                case "audio.settings":
+                    return AudioTools.Settings();
+                case "build.lastReport":
+                    return LightingTools.LastReport(Bind.Int(a, "limit", false, 12));
+                case "build.scenes":
+                    return LightingTools.BuildScenes(Bind.Str(a, "action", true), Bind.Str(a, "path", true), Bind.Int(a, "index", false, -1));
+                case "build.settings":
+                    return LightingTools.BuildSettings();
                 case "build.validateTarget":
                     return BuildTools.ValidateTarget(Bind.Str(a, "platform", false), Bind.StrArr(a, "checks", false), Bind.Int(a, "limit", false, 25));
                 case "compile.errors":
@@ -224,6 +272,10 @@ namespace Umcp.Agent
                     return GameObjectTools.SetParent(Bind.Str(a, "target", true), Bind.Str(a, "parent", false), Bind.Bool(a, "worldPositionStays", false, true));
                 case "gameobject.setTag":
                     return GameObjectTools.SetTag(Bind.Str(a, "target", true), Bind.Str(a, "tag", true));
+                case "lighting.bake":
+                    return LightingTools.Bake(Bind.Str(a, "action", false, "status"));
+                case "lighting.settings":
+                    return LightingTools.Settings();
                 case "material.create":
                     return AssetTools.MaterialCreate(Bind.Str(a, "path", true), Bind.Str(a, "shader", false), Bind.FltArr(a, "color", false));
                 case "material.set":
@@ -232,6 +284,18 @@ namespace Umcp.Agent
                     return MirrorTools.Hashes();
                 case "mirror.snapshot":
                     return MirrorTools.Snapshot();
+                case "navmesh.bake":
+                    return NavTools.Bake(Bind.Str(a, "target", false));
+                case "navmesh.info":
+                    return NavTools.Info();
+                case "navmesh.path":
+                    return NavTools.Path(Bind.FltArr(a, "from", true), Bind.FltArr(a, "to", true), Bind.Flt(a, "snapDistance", false, 2f), Bind.Bool(a, "corners", false, false));
+                case "physics.overlap":
+                    return PhysicsTools.Overlap(Bind.FltArr(a, "center", true), Bind.Flt(a, "radius", false, 0f), Bind.FltArr(a, "halfExtents", false), Bind.Int(a, "limit", false, 50));
+                case "physics.raycast":
+                    return PhysicsTools.Raycast(Bind.FltArr(a, "origin", true), Bind.FltArr(a, "direction", true), Bind.Flt(a, "maxDistance", false, 1000f), Bind.StrArr(a, "layers", false), Bind.Bool(a, "all", false, false), Bind.Int(a, "limit", false, 20));
+                case "physics.settings":
+                    return PhysicsTools.Settings(Bind.Bool(a, "layerMatrix", false, false));
                 case "prefab.create":
                     return AssetTools.PrefabCreate(Bind.Str(a, "target", true), Bind.Str(a, "path", true), Bind.Bool(a, "connect", false, true));
                 case "prefab.instantiate":
@@ -268,6 +332,10 @@ namespace Umcp.Agent
                     return SceneTools.SetActive(Bind.Str(a, "scene", true));
                 case "scene.validate":
                     return InspectTools.Validate(Bind.StrArr(a, "checks", false), Bind.Str(a, "root", false), Bind.Int(a, "limit", false, 100));
+                case "setup.litInterior":
+                    return SetupTools.LitInterior(Bind.Str(a, "room", true), Bind.Flt(a, "intensity", false, 1.2f), Bind.Flt(a, "kelvin", false, 4000f), Bind.Str(a, "bakeMode", false, "Mixed"));
+                case "setup.uiScreen":
+                    return SetupTools.UiScreen(Bind.Str(a, "name", true), Bind.StrArr(a, "elements", false), Bind.FltArr(a, "referenceResolution", false), Bind.Int(a, "sortOrder", false, 0));
                 case "transform.get":
                     return TransformTools.Get(Bind.Str(a, "target", true));
                 case "transform.lookAt":
@@ -296,6 +364,23 @@ namespace Umcp.Agent
         {
             switch (id)
             {
+                case "animator.controller":
+                {
+                    var __action = Bind.Str(a, "action", true);
+                    var __path = Bind.Str(a, "path", true);
+                    var __state = Bind.Str(a, "state", false);
+                    var __clip = Bind.Str(a, "clip", false);
+                    var __layer = Bind.Str(a, "layer", false);
+                    var __parameter = Bind.Str(a, "parameter", false);
+                    var __parameterType = Bind.Str(a, "parameterType", false, "Float");
+                    var __from = Bind.Str(a, "from", false);
+                    var __to = Bind.Str(a, "to", false);
+                    var __greaterThan = Bind.FltOpt(a, "greaterThan", false);
+                    var __lessThan = Bind.FltOpt(a, "lessThan", false);
+                    var __equals = Bind.BoolOpt(a, "equals", false);
+                    var __duration = Bind.Flt(a, "duration", false, 0.25f);
+                    return;
+                }
                 case "assets.addressables":
                 {
                     var __action = Bind.Str(a, "action", false, "status");
@@ -337,6 +422,45 @@ namespace Umcp.Agent
                 case "assets.refresh":
                 {
                     var __force = Bind.Bool(a, "force", false, false);
+                    return;
+                }
+                case "audio.clips":
+                {
+                    var __folder = Bind.Str(a, "folder", false);
+                    var __platform = Bind.Str(a, "platform", false);
+                    var __limit = Bind.Int(a, "limit", false, 50);
+                    return;
+                }
+                case "audio.setImportSettings":
+                {
+                    var __path = Bind.Str(a, "path", true);
+                    var __loadType = Bind.Str(a, "loadType", false);
+                    var __compression = Bind.Str(a, "compression", false);
+                    var __quality = Bind.FltOpt(a, "quality", false);
+                    var __overrideSampleRate = Bind.IntOpt(a, "overrideSampleRate", false);
+                    var __platform = Bind.Str(a, "platform", false);
+                    var __forceToMono = Bind.BoolOpt(a, "forceToMono", false);
+                    var __limit = Bind.Int(a, "limit", false, 200);
+                    return;
+                }
+                case "audio.settings":
+                {
+                    return;
+                }
+                case "build.lastReport":
+                {
+                    var __limit = Bind.Int(a, "limit", false, 12);
+                    return;
+                }
+                case "build.scenes":
+                {
+                    var __action = Bind.Str(a, "action", true);
+                    var __path = Bind.Str(a, "path", true);
+                    var __index = Bind.Int(a, "index", false, -1);
+                    return;
+                }
+                case "build.settings":
+                {
                     return;
                 }
                 case "build.validateTarget":
@@ -506,6 +630,15 @@ namespace Umcp.Agent
                     var __tag = Bind.Str(a, "tag", true);
                     return;
                 }
+                case "lighting.bake":
+                {
+                    var __action = Bind.Str(a, "action", false, "status");
+                    return;
+                }
+                case "lighting.settings":
+                {
+                    return;
+                }
                 case "material.create":
                 {
                     var __path = Bind.Str(a, "path", true);
@@ -527,6 +660,46 @@ namespace Umcp.Agent
                 }
                 case "mirror.snapshot":
                 {
+                    return;
+                }
+                case "navmesh.bake":
+                {
+                    var __target = Bind.Str(a, "target", false);
+                    return;
+                }
+                case "navmesh.info":
+                {
+                    return;
+                }
+                case "navmesh.path":
+                {
+                    var __from = Bind.FltArr(a, "from", true);
+                    var __to = Bind.FltArr(a, "to", true);
+                    var __snapDistance = Bind.Flt(a, "snapDistance", false, 2f);
+                    var __corners = Bind.Bool(a, "corners", false, false);
+                    return;
+                }
+                case "physics.overlap":
+                {
+                    var __center = Bind.FltArr(a, "center", true);
+                    var __radius = Bind.Flt(a, "radius", false, 0f);
+                    var __halfExtents = Bind.FltArr(a, "halfExtents", false);
+                    var __limit = Bind.Int(a, "limit", false, 50);
+                    return;
+                }
+                case "physics.raycast":
+                {
+                    var __origin = Bind.FltArr(a, "origin", true);
+                    var __direction = Bind.FltArr(a, "direction", true);
+                    var __maxDistance = Bind.Flt(a, "maxDistance", false, 1000f);
+                    var __layers = Bind.StrArr(a, "layers", false);
+                    var __all = Bind.Bool(a, "all", false, false);
+                    var __limit = Bind.Int(a, "limit", false, 20);
+                    return;
+                }
+                case "physics.settings":
+                {
+                    var __layerMatrix = Bind.Bool(a, "layerMatrix", false, false);
                     return;
                 }
                 case "prefab.create":
@@ -640,6 +813,22 @@ namespace Umcp.Agent
                     var __checks = Bind.StrArr(a, "checks", false);
                     var __root = Bind.Str(a, "root", false);
                     var __limit = Bind.Int(a, "limit", false, 100);
+                    return;
+                }
+                case "setup.litInterior":
+                {
+                    var __room = Bind.Str(a, "room", true);
+                    var __intensity = Bind.Flt(a, "intensity", false, 1.2f);
+                    var __kelvin = Bind.Flt(a, "kelvin", false, 4000f);
+                    var __bakeMode = Bind.Str(a, "bakeMode", false, "Mixed");
+                    return;
+                }
+                case "setup.uiScreen":
+                {
+                    var __name = Bind.Str(a, "name", true);
+                    var __elements = Bind.StrArr(a, "elements", false);
+                    var __referenceResolution = Bind.FltArr(a, "referenceResolution", false);
+                    var __sortOrder = Bind.Int(a, "sortOrder", false, 0);
                     return;
                 }
                 case "transform.get":

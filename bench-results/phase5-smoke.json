@@ -1,14 +1,14 @@
 {
-  "when": "2026-09-06T01:50:54.5061447\u002B03:00",
+  "when": "2026-09-06T02:03:00.0577023\u002B03:00",
   "focus": "unfocused",
   "results": [
     {
-      "catalogTools": 63,
-      "reachedViaSkills": 63,
+      "catalogTools": 80,
+      "reachedViaSkills": 80,
       "unreachable": 0,
-      "ran": 61,
-      "live": 30,
-      "dryRun": 31,
+      "ran": 78,
+      "live": 40,
+      "dryRun": 38,
       "skipped": [
         {
           "tool": "editor.quit",
@@ -70,14 +70,14 @@
         }
       ],
       "toolDefects": 0,
-      "seconds": 6.2,
+      "seconds": 8.4,
       "slowest": {
-        "tool": "vcs.touched",
-        "ms": 317
+        "tool": "build.lastReport",
+        "ms": 428
       },
       "pass": true,
       "name": "smoke-catalog",
-      "harnessMs": 8558,
+      "harnessMs": 11746,
       "focus": "unfocused"
     },
     {

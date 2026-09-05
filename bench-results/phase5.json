@@ -1,5 +1,5 @@
 {
-  "when": "2026-09-06T01:52:56.8442729\u002B03:00",
+  "when": "2026-09-06T02:05:11.1192779\u002B03:00",
   "focus": "unfocused",
   "results": [
     {
@@ -9,17 +9,17 @@
       "target": "\u003C1000 tokens",
       "pass": true,
       "name": "toolsurface",
-      "harnessMs": 12,
+      "harnessMs": 13,
       "focus": "unfocused"
     },
     {
       "ops": 16,
-      "msPerOp": 99.6,
+      "msPerOp": 99.5,
       "p50": 100,
       "min": 99,
       "max": 100,
       "name": "ping-sequential",
-      "harnessMs": 1674,
+      "harnessMs": 1632,
       "focus": "unfocused"
     },
     {
@@ -28,39 +28,39 @@
       "msPerOp": 3.16,
       "ok": 32,
       "name": "ping-concurrent-32",
-      "harnessMs": 194,
+      "harnessMs": 195,
       "focus": "unfocused"
     },
     {
       "ops": 32,
-      "batchMs": 116,
-      "msPerOp": 3.62,
+      "batchMs": 134,
+      "msPerOp": 4.19,
       "created": 32,
-      "responseBytes": 477,
+      "responseBytes": 478,
       "target": "\u003C=150ms",
       "pass": true,
       "name": "batch-32",
-      "harnessMs": 215,
+      "harnessMs": 232,
       "focus": "unfocused"
     },
     {
       "ops": 4,
-      "batchMs": 171,
+      "batchMs": 159,
       "ok": true,
       "count": 4,
       "error": null,
       "name": "batch-dependent",
-      "harnessMs": 171,
+      "harnessMs": 160,
       "focus": "unfocused"
     },
     {
-      "sceneInfoBytes": 1077,
-      "find500Bytes": 10573,
+      "sceneInfoBytes": 1078,
+      "find500Bytes": 10574,
       "objectsInScene": 119,
       "cap": 32768,
       "pass": true,
       "name": "payload-scene-info",
-      "harnessMs": 114,
+      "harnessMs": 111,
       "focus": "unfocused"
     },
     {
@@ -68,60 +68,60 @@
       "visibleErrors": 0,
       "heldOps": 2,
       "replayedOps": 0,
-      "sequenceMs": 11295,
+      "sequenceMs": 11924,
       "errors": [],
       "pass": true,
       "name": "reload-hold-replay",
-      "harnessMs": 11296,
+      "harnessMs": 11925,
       "focus": "unfocused"
     },
     {
-      "mapTokens": 589,
+      "mapTokens": 802,
       "perSkillTokens": {
         "material": 1182,
         "scene.query": 362,
         "gameobject": 2477
       },
-      "typicalTaskTokens": 5270,
+      "typicalTaskTokens": 5483,
       "findTop": "material",
       "baseline": 56800,
       "pass": true,
       "name": "skill-tree",
-      "harnessMs": 155,
+      "harnessMs": 157,
       "focus": "unfocused"
     },
     {
-      "dumpBytes": 39442,
+      "dumpBytes": 39443,
       "dumpTruncated": false,
-      "queryBytes": 4353,
-      "queryMs": 20,
-      "countBytes": 152,
+      "queryBytes": 4354,
+      "queryMs": 18,
+      "countBytes": 153,
       "objectsMatched": 49,
-      "overviewBytes": 1269,
+      "overviewBytes": 1270,
       "baselineOverviewBytes": 138205,
       "target": "scene overview \u003C 2048 B (was 138,205 B)",
       "pass": true,
       "name": "scene-query-vs-dump",
-      "harnessMs": 337,
+      "harnessMs": 367,
       "focus": "unfocused"
     },
     {
-      "batchMs": 115,
-      "batchBytes": 381,
-      "scriptMs": 1290,
-      "scriptBytes": 290,
+      "batchMs": 120,
+      "batchBytes": 382,
+      "scriptMs": 1285,
+      "scriptBytes": 291,
       "bytesRatio": 1.3,
       "scriptOk": true,
       "scriptCode": null,
-      "queryFirstMs": 86,
+      "queryFirstMs": 84,
       "queryCachedMs": 98,
-      "queryBytes": 218,
+      "queryBytes": 219,
       "compileMsFirst": 42,
       "compileMsCached": 0,
       "rendererCount": 49,
       "pass": true,
       "name": "code-mode",
-      "harnessMs": 1592,
+      "harnessMs": 1590,
       "focus": "unfocused"
     },
     {
@@ -129,15 +129,15 @@
       "verifySource": "live",
       "mirrorMsMean": 0.35,
       "mirrorMsMax": 1,
-      "liveMsMean": 97.5,
-      "staleMs": 218,
+      "liveMsMean": 97.8,
+      "staleMs": 220,
       "mirrorMatches": 167,
       "liveMatches": 167,
       "agree": true,
       "target": "served from mirror, agrees with live, mean \u003C 10 ms",
       "pass": true,
       "name": "mirror-latency",
-      "harnessMs": 1101,
+      "harnessMs": 1105,
       "focus": "unfocused"
     },
     {
@@ -150,7 +150,7 @@
       "target": "zero drift after a mixed mutation workload",
       "pass": true,
       "name": "mirror-reconcile",
-      "harnessMs": 1003,
+      "harnessMs": 1008,
       "focus": "unfocused"
     },
     {
@@ -159,13 +159,13 @@
       "readFailures": 0,
       "fromMirror": 60,
       "fromLive": 0,
-      "flaggedStale": 21,
-      "seconds": 56,
+      "flaggedStale": 22,
+      "seconds": 59,
       "failures": [],
       "target": "zero read failures across every reload",
       "pass": true,
       "name": "reads-through-reloads",
-      "harnessMs": 56831,
+      "harnessMs": 59590,
       "focus": "unfocused"
     },
     {
@@ -178,7 +178,7 @@
       "changedNothing": true,
       "pass": true,
       "name": "dry-run",
-      "harnessMs": 330,
+      "harnessMs": 341,
       "focus": "unfocused"
     },
     {
@@ -189,11 +189,11 @@
       "bytes": 568,
       "pass": true,
       "name": "scene-diff",
-      "harnessMs": 413,
+      "harnessMs": 412,
       "focus": "unfocused"
     },
     {
-      "ms": 307,
+      "ms": 287,
       "platform": "WebGL",
       "graphicsApis": "OpenGLES3",
       "errors": 8,
@@ -202,24 +202,24 @@
       "bytes": 14154,
       "pass": true,
       "name": "validate-target",
-      "harnessMs": 309,
+      "harnessMs": 289,
       "focus": "unfocused"
     },
     {
       "outcome": "cancelled",
-      "cancelMs": 412,
+      "cancelMs": 401,
       "objectsCreated": 0,
       "mutationPrevented": true,
       "pass": true,
       "name": "cancel-queued",
-      "harnessMs": 7532,
+      "harnessMs": 7526,
       "focus": "unfocused"
     },
     {
       "controlChannel": "ok",
       "msSinceTick": 3,
       "health": "ok",
-      "lastRoundTripMs": 7,
+      "lastRoundTripMs": 6,
       "pass": true,
       "name": "blocked-detection",
       "harnessMs": 2,
@@ -227,9 +227,9 @@
     },
     {
       "code": "E_EDITOR_BLOCKED",
-      "detectMs": 7030,
+      "detectMs": 7031,
       "message": "No main-thread tick for 8.4 s while 1 operation(s) are queued.",
-      "recoveredMs": 3074,
+      "recoveredMs": 3077,
       "target": "E_EDITOR_BLOCKED within 15000ms",
       "pass": true,
       "name": "blocked-under-stall",
@@ -243,7 +243,7 @@
       "remaining": 0,
       "pass": true,
       "name": "cleanup",
-      "harnessMs": 631,
+      "harnessMs": 629,
       "focus": "unfocused"
     }
   ]
