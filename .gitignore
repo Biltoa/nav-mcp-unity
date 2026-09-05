@@ -1,0 +1,53 @@
+# ---- .NET ----
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+artifacts/
+publish/
+*.nupkg
+.vs/
+.idea/
+
+# ---- Unity (package dev) ----
+Library/
+Temp/
+Obj/
+Build/
+Builds/
+Logs/
+UserSettings/
+MemoryCaptures/
+*.csproj
+*.unityproj
+*.sln
+*.pidb
+*.booproj
+*.svd
+*.pdb.meta
+*.apk
+*.aab
+*.unitypackage
+sysinfo.txt
+
+# ---- Runtime / local state ----
+# The daemon writes to %LOCALAPPDATA%/UnityMCP, never into the repo,
+# but keep these guards in case a run is misconfigured.
+*.log
+logs/
+token
+*.token
+local.settings.json
+.env
+
+# ---- Benchmarks / scratch ----
+bench-results/
+scratch/
+*.tmp
+
+# ---- OS ----
+Thumbs.db
+desktop.ini
+.DS_Store
