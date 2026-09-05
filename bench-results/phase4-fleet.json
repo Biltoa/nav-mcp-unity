@@ -1,17 +1,17 @@
 {
-  "when": "2026-09-06T01:19:39.7267357\u002B03:00",
+  "when": "2026-09-06T02:26:46.9663103\u002B03:00",
   "focus": "unfocused",
   "results": [
     {
-      "ms": 10,
+      "ms": 23,
       "installs": 3,
       "versions": "6000.3.10f1|6000.3.0f1|6000.0.58f2",
-      "knownProjects": 10,
+      "knownProjects": 7,
       "connected": 1,
       "connectedAlsoListed": 1,
       "pass": true,
       "name": "fleet-discovery",
-      "harnessMs": 12,
+      "harnessMs": 25,
       "focus": "unfocused"
     },
     {
@@ -21,7 +21,7 @@
       "seconds": 0,
       "pass": true,
       "name": "fleet-prepare",
-      "harnessMs": 7,
+      "harnessMs": 6,
       "focus": "unfocused"
     },
     {
@@ -33,39 +33,39 @@
           "path": "D:\\umcp-fleet-scratch\\p1",
           "ok": true,
           "projectId": "99158de3cdd14ecea185fe62c5fbaa17",
-          "pid": 260528,
+          "pid": 299768,
           "argsVerified": true,
           "handshake": "connected",
-          "startupSec": 7.9
+          "startupSec": 11
         },
         {
           "path": "D:\\umcp-fleet-scratch\\p2",
           "ok": true,
           "projectId": "27b4ba1263ae4be496b5727d01fd80de",
-          "pid": 241232,
+          "pid": 291428,
           "argsVerified": true,
           "handshake": "connected",
-          "startupSec": 8.4
+          "startupSec": 9.4
         },
         {
           "path": "D:\\umcp-fleet-scratch\\p3",
           "ok": true,
           "projectId": "b2a21b9bfa0d4d1a82431cbef8890b60",
-          "pid": 155024,
+          "pid": 265104,
           "argsVerified": true,
           "handshake": "connected",
-          "startupSec": 8.4
+          "startupSec": 9.4
         }
       ],
       "pass": true,
       "name": "fleet-open",
-      "harnessMs": 24711,
+      "harnessMs": 29832,
       "focus": "unfocused"
     },
     {
       "editors": 3,
       "opsSent": 24,
-      "seconds": 1.2,
+      "seconds": 1.6,
       "ownObjects": 24,
       "crossTalk": 0,
       "detail": [
@@ -87,29 +87,29 @@
       ],
       "pass": true,
       "name": "fleet-isolation",
-      "harnessMs": 1250,
+      "harnessMs": 1586,
       "focus": "unfocused"
     },
     {
-      "killedPid": 155024,
-      "daemonPidBefore": 200264,
-      "daemonPidAfter": 200264,
+      "killedPid": 265104,
+      "daemonPidBefore": 271568,
+      "daemonPidAfter": 271568,
       "daemonSurvived": true,
       "inFlightOk": true,
       "inFlightCode": null,
-      "inFlightMs": 333,
+      "inFlightMs": 340,
       "duringDownOk": true,
       "duringDownCode": null,
-      "duringDownMs": 9000,
+      "duringDownMs": 8879,
       "autoRestartSec": 0,
-      "newPid": 100852,
+      "newPid": 304632,
       "pidChanged": true,
       "epochBefore": 1,
       "epochAfter": 1,
       "resumedOk": true,
       "pass": true,
       "name": "fleet-crash-restart",
-      "harnessMs": 9422,
+      "harnessMs": 9265,
       "focus": "unfocused"
     },
     {
@@ -119,7 +119,7 @@
       "root": "D:\\umcp-fleet-scratch",
       "pass": true,
       "name": "fleet-cleanup",
-      "harnessMs": 6066,
+      "harnessMs": 6087,
       "focus": "unfocused"
     }
   ]
