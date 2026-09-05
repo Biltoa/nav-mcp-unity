@@ -1,14 +1,14 @@
 {
-  "when": "2026-09-06T02:03:00.0577023\u002B03:00",
+  "when": "2026-09-06T02:11:12.3140777\u002B03:00",
   "focus": "unfocused",
   "results": [
     {
-      "catalogTools": 80,
-      "reachedViaSkills": 80,
+      "catalogTools": 89,
+      "reachedViaSkills": 89,
       "unreachable": 0,
-      "ran": 78,
-      "live": 40,
-      "dryRun": 38,
+      "ran": 87,
+      "live": 45,
+      "dryRun": 42,
       "skipped": [
         {
           "tool": "editor.quit",
@@ -33,6 +33,12 @@
           "kind": "example does not fit this project"
         },
         {
+          "tool": "cinemachine.cameras",
+          "code": "E_PACKAGE_MISSING",
+          "message": "Cinemachine is not installed in this project.",
+          "kind": "example does not fit this project"
+        },
+        {
           "tool": "component.get",
           "code": "E_TARGET_NOT_FOUND",
           "message": "No GameObject matched \u0027Player\u0027.",
@@ -48,6 +54,12 @@
           "tool": "gameobject.get",
           "code": "E_TARGET_NOT_FOUND",
           "message": "No GameObject matched \u0027Player\u0027.",
+          "kind": "example does not fit this project"
+        },
+        {
+          "tool": "particles.info",
+          "code": "E_TARGET_NOT_FOUND",
+          "message": "No GameObject matched \u0027Fire\u0027.",
           "kind": "example does not fit this project"
         },
         {
@@ -67,17 +79,23 @@
           "code": "E_TARGET_NOT_FOUND",
           "message": "No GameObject matched \u0027Player\u0027.",
           "kind": "example does not fit this project"
+        },
+        {
+          "tool": "vfx.info",
+          "code": "E_TARGET_NOT_FOUND",
+          "message": "No GameObject matched \u0027Sparks\u0027.",
+          "kind": "example does not fit this project"
         }
       ],
       "toolDefects": 0,
-      "seconds": 8.4,
+      "seconds": 9.2,
       "slowest": {
         "tool": "build.lastReport",
-        "ms": 428
+        "ms": 414
       },
       "pass": true,
       "name": "smoke-catalog",
-      "harnessMs": 11746,
+      "harnessMs": 13158,
       "focus": "unfocused"
     },
     {
@@ -87,7 +105,7 @@
       "remaining": 0,
       "pass": true,
       "name": "cleanup",
-      "harnessMs": 106,
+      "harnessMs": 198,
       "focus": "unfocused"
     }
   ]

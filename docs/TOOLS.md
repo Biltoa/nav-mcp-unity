@@ -2,7 +2,7 @@
 
 # Tool reference
 
-80 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
+89 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
 
 ## animation
 
@@ -337,6 +337,52 @@ Check a build target for the platform failures that are statically detectable: a
 { "platform": "Android", "checks": ["shader", "emissive"], "limit": 20 }
 ```
 
+## cinematics
+
+| Tool | Mutating | Undo | Summary |
+|---|---|---|---|
+| `cinemachine.cameras` | no | n/a | List the Cinemachine virtual cameras with their priority, follow and look-at targets, and which one is live. |
+| `cinemachine.setPriority` | yes | Set camera priority | Set a Cinemachine virtual camera's priority, which is what decides the live camera. |
+| `timeline.info` | no | n/a | Read the Timelines in the scene: directors, their assets, tracks, clips and bindings. |
+
+### `cinemachine.cameras`
+
+List the Cinemachine virtual cameras with their priority, follow and look-at targets, and which one is live.
+
+```json
+{ }
+```
+
+### `cinemachine.setPriority`
+
+Set a Cinemachine virtual camera's priority, which is what decides the live camera.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `target` | `string` | yes | — | The virtual camera GameObject |
+| `priority` | `int` | yes | — | New priority; higher wins |
+
+```json
+{ "target": "CM vcam Follow", "priority": 20 }
+```
+
+### `timeline.info`
+
+Read the Timelines in the scene: directors, their assets, tracks, clips and bindings.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `target` | `string` | no | `null` | A GameObject with a PlayableDirector. Omit to list every director. |
+| `limit` | `int` | no | `20` | Maximum clips per track (default 20) |
+
+```json
+{ }
+```
+
+```json
+{ "target": "CutsceneDirector" }
+```
+
 ## component
 
 | Tool | Mutating | Undo | Summary |
@@ -594,6 +640,74 @@ Project identity: name, path, Unity version, pipeline, package count.
 
 ```json
 { }
+```
+
+## effects
+
+| Tool | Mutating | Undo | Summary |
+|---|---|---|---|
+| `particles.info` | no | n/a | Read a ParticleSystem: emission, shape, lifetime, speed, size, colour, and which modules are on. |
+| `particles.set` | yes | Set particle properties | Set the common ParticleSystem properties: rate, lifetime, speed, size, colour, looping, max particles. |
+| `vfx.info` | no | n/a | Read a VisualEffect component: its asset, its exposed parameters and their current values. |
+| `vfx.set` | yes | Set VFX parameter | Set one exposed parameter on a VisualEffect: float, int, bool, Vector2/3/4 or colour. |
+
+### `particles.info`
+
+Read a ParticleSystem: emission, shape, lifetime, speed, size, colour, and which modules are on.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `target` | `string` | yes | — | GameObject with a ParticleSystem: path, name or #id |
+
+```json
+{ "target": "Fire" }
+```
+
+### `particles.set`
+
+Set the common ParticleSystem properties: rate, lifetime, speed, size, colour, looping, max particles.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `target` | `string` | yes | — | GameObject with a ParticleSystem |
+| `rateOverTime` | `float?` | no | `null` | Emission rate per second |
+| `startLifetime` | `float?` | no | `null` | Particle lifetime in seconds |
+| `startSpeed` | `float?` | no | `null` | Initial speed |
+| `startSize` | `float?` | no | `null` | Initial size |
+| `startColor` | `float[]` | no | `null` | Start colour [r, g, b, a], 0-1 |
+| `gravityModifier` | `float?` | no | `null` | Gravity modifier |
+| `looping` | `bool?` | no | `null` | Loop the system |
+| `maxParticles` | `int?` | no | `null` | Hard cap on live particles |
+
+```json
+{ "target": "Fire", "rateOverTime": 40, "startLifetime": 2.5 }
+```
+
+### `vfx.info`
+
+Read a VisualEffect component: its asset, its exposed parameters and their current values.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `target` | `string` | no | `null` | GameObject with a VisualEffect component. Omit to list them all. |
+
+```json
+{ "target": "Sparks" }
+```
+
+### `vfx.set`
+
+Set one exposed parameter on a VisualEffect: float, int, bool, Vector2/3/4 or colour.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `target` | `string` | yes | — | GameObject with a VisualEffect component |
+| `parameter` | `string` | yes | — | Exposed parameter name, exactly as the graph publishes it |
+| `value` | `float?` | no | `null` | Numeric value, for float, int or bool parameters |
+| `vector` | `float[]` | no | `null` | Vector or colour value, 2-4 numbers |
+
+```json
+{ "target": "Sparks", "parameter": "Rate", "value": 250 }
 ```
 
 ## gameobject
@@ -1139,6 +1253,44 @@ Find broken things in the open scenes: missing scripts, missing prefab assets, d
 
 ```json
 { "checks": ["scripts", "references"], "limit": 50 }
+```
+
+## terrain
+
+| Tool | Mutating | Undo | Summary |
+|---|---|---|---|
+| `terrain.info` | no | n/a | Read the terrains in the open scenes: size, resolutions, layers, trees, details, and the draw settings that cost performance. |
+| `terrain.setDrawSettings` | yes | Set terrain draw settings | Set a terrain's performance dials: pixel error, basemap and tree distances, detail density, instancing. |
+
+### `terrain.info`
+
+Read the terrains in the open scenes: size, resolutions, layers, trees, details, and the draw settings that cost performance.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `target` | `string` | no | `null` | A specific terrain object. Omit for all of them. |
+
+```json
+{ }
+```
+
+### `terrain.setDrawSettings`
+
+Set a terrain's performance dials: pixel error, basemap and tree distances, detail density, instancing.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `target` | `string` | yes | — | The terrain object |
+| `pixelError` | `float?` | no | `null` | Heightmap pixel error, 1-200. Higher is cheaper and coarser. |
+| `basemapDistance` | `float?` | no | `null` | Distance at which the basemap replaces per-layer shading |
+| `treeDistance` | `float?` | no | `null` | Distance at which trees stop drawing |
+| `billboardStart` | `float?` | no | `null` | Distance at which trees become billboards |
+| `detailDistance` | `float?` | no | `null` | Distance at which detail meshes stop drawing |
+| `detailDensity` | `float?` | no | `null` | Detail density, 0-1 |
+| `drawInstanced` | `bool?` | no | `null` | Draw the terrain with GPU instancing |
+
+```json
+{ "target": "Terrain", "pixelError": 5, "treeDistance": 2000 }
 ```
 
 ## transform

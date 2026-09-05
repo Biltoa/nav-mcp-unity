@@ -28,6 +28,8 @@ namespace Umcp.Agent
             "build.scenes",
             "build.settings",
             "build.validateTarget",
+            "cinemachine.cameras",
+            "cinemachine.setPriority",
             "compile.errors",
             "component.add",
             "component.get",
@@ -63,6 +65,8 @@ namespace Umcp.Agent
             "navmesh.bake",
             "navmesh.info",
             "navmesh.path",
+            "particles.info",
+            "particles.set",
             "physics.overlap",
             "physics.raycast",
             "physics.settings",
@@ -86,6 +90,9 @@ namespace Umcp.Agent
             "scene.validate",
             "setup.litInterior",
             "setup.uiScreen",
+            "terrain.info",
+            "terrain.setDrawSettings",
+            "timeline.info",
             "transform.get",
             "transform.lookAt",
             "transform.rotate",
@@ -93,6 +100,8 @@ namespace Umcp.Agent
             "transform.translate",
             "ui.layoutReport",
             "vcs.touched",
+            "vfx.info",
+            "vfx.set",
         };
 
         static readonly Dictionary<string, ToolMeta> _meta = new Dictionary<string, ToolMeta>
@@ -112,6 +121,8 @@ namespace Umcp.Agent
             { "build.scenes", new ToolMeta { Id = "build.scenes", Skill = "build", Summary = "Change the build scene list: add, remove, enable or disable a scene. action: add | remove | enable | disable.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "EditorBuildSettings is project configuration, not object state, and is not on the undo stack." } },
             { "build.settings", new ToolMeta { Id = "build.settings", Skill = "build", Summary = "Read the build scene list, target, and the player settings that matter for a build.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "build.validateTarget", new ToolMeta { Id = "build.validateTarget", Skill = "build", Summary = "Check a build target for the platform failures that are statically detectable: audio resampling, shader model, small SDF text, emissive clipping, build scenes.", Mutating = false, Retry = "Read", Cost = "Expensive", Undo = null, NoUndoReason = null } },
+            { "cinemachine.cameras", new ToolMeta { Id = "cinemachine.cameras", Skill = "cinematics", Summary = "List the Cinemachine virtual cameras with their priority, follow and look-at targets, and which one is live.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
+            { "cinemachine.setPriority", new ToolMeta { Id = "cinemachine.setPriority", Skill = "cinematics", Summary = "Set a Cinemachine virtual camera's priority, which is what decides the live camera.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set camera priority", NoUndoReason = null } },
             { "compile.errors", new ToolMeta { Id = "compile.errors", Skill = "diagnostics", Summary = "Structured compile errors and warnings: file, line, column, message.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "component.add", new ToolMeta { Id = "component.add", Skill = "component", Summary = "Add a component to a GameObject.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Add Component", NoUndoReason = null } },
             { "component.get", new ToolMeta { Id = "component.get", Skill = "component", Summary = "Read a component's serialized properties.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
@@ -147,6 +158,8 @@ namespace Umcp.Agent
             { "navmesh.bake", new ToolMeta { Id = "navmesh.bake", Skill = "navmesh", Summary = "Bake the NavMeshSurface components in the open scenes. Requires the AI Navigation package.", Mutating = true, Retry = "None", Cost = "Expensive", Undo = null, NoUndoReason = "A bake writes navmesh data assets; Unity does not put it on the undo stack." } },
             { "navmesh.info", new ToolMeta { Id = "navmesh.info", Skill = "navmesh", Summary = "What navigation data the open scenes actually contain: triangulation size, areas, agent types, surfaces.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "navmesh.path", new ToolMeta { Id = "navmesh.path", Skill = "navmesh", Summary = "Whether a path exists between two world points on the baked navmesh, and how long it is.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
+            { "particles.info", new ToolMeta { Id = "particles.info", Skill = "effects", Summary = "Read a ParticleSystem: emission, shape, lifetime, speed, size, colour, and which modules are on.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
+            { "particles.set", new ToolMeta { Id = "particles.set", Skill = "effects", Summary = "Set the common ParticleSystem properties: rate, lifetime, speed, size, colour, looping, max particles.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set particle properties", NoUndoReason = null } },
             { "physics.overlap", new ToolMeta { Id = "physics.overlap", Skill = "physics", Summary = "Find colliders overlapping a sphere or box in the Editor scene.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "physics.raycast", new ToolMeta { Id = "physics.raycast", Skill = "physics", Summary = "Cast a ray in the Editor scene and return what it hits. Does not enter Play mode.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "physics.settings", new ToolMeta { Id = "physics.settings", Skill = "physics", Summary = "Read the project's 3D physics settings: gravity, layer collision matrix, solver, contact offsets.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
@@ -170,6 +183,9 @@ namespace Umcp.Agent
             { "scene.validate", new ToolMeta { Id = "scene.validate", Skill = "scene", Summary = "Find broken things in the open scenes: missing scripts, missing prefab assets, dangling object references, missing materials.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "setup.litInterior", new ToolMeta { Id = "setup.litInterior", Skill = "lighting", Summary = "Light an interior: a key light, two fills, and a reflection probe, all sized and placed from the room's own bounds.", Mutating = true, Retry = "Write", Cost = "Moderate", Undo = "Set up interior lighting", NoUndoReason = null } },
             { "setup.uiScreen", new ToolMeta { Id = "setup.uiScreen", Skill = "ui", Summary = "Create a working UI screen: canvas, scaler, raycaster, EventSystem if missing, a root panel, and the elements you name.", Mutating = true, Retry = "Write", Cost = "Moderate", Undo = "Set up UI screen", NoUndoReason = null } },
+            { "terrain.info", new ToolMeta { Id = "terrain.info", Skill = "terrain", Summary = "Read the terrains in the open scenes: size, resolutions, layers, trees, details, and the draw settings that cost performance.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
+            { "terrain.setDrawSettings", new ToolMeta { Id = "terrain.setDrawSettings", Skill = "terrain", Summary = "Set a terrain's performance dials: pixel error, basemap and tree distances, detail density, instancing.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set terrain draw settings", NoUndoReason = null } },
+            { "timeline.info", new ToolMeta { Id = "timeline.info", Skill = "cinematics", Summary = "Read the Timelines in the scene: directors, their assets, tracks, clips and bindings.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "transform.get", new ToolMeta { Id = "transform.get", Skill = "transform", Summary = "Read a GameObject's transform in local and world space.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "transform.lookAt", new ToolMeta { Id = "transform.lookAt", Skill = "transform", Summary = "Aim a GameObject at another GameObject or a world point.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Look At", NoUndoReason = null } },
             { "transform.rotate", new ToolMeta { Id = "transform.rotate", Skill = "transform", Summary = "Rotate a GameObject by euler angles.", Mutating = true, Retry = "None", Cost = "Cheap", Undo = "Rotate", NoUndoReason = null } },
@@ -177,6 +193,8 @@ namespace Umcp.Agent
             { "transform.translate", new ToolMeta { Id = "transform.translate", Skill = "transform", Summary = "Move a GameObject by a delta.", Mutating = true, Retry = "None", Cost = "Cheap", Undo = "Translate", NoUndoReason = null } },
             { "ui.layoutReport", new ToolMeta { Id = "ui.layoutReport", Skill = "ui", Summary = "Geometric UI problems on a canvas: off-screen rects, zero-size elements, overlapping siblings, low-contrast text, unsafe-area content.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "vcs.touched", new ToolMeta { Id = "vcs.touched", Skill = "assets", Summary = "Which assets changed recently, in VCS terms: modified files under Assets/, and git status when the project is a repository.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
+            { "vfx.info", new ToolMeta { Id = "vfx.info", Skill = "effects", Summary = "Read a VisualEffect component: its asset, its exposed parameters and their current values.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
+            { "vfx.set", new ToolMeta { Id = "vfx.set", Skill = "effects", Summary = "Set one exposed parameter on a VisualEffect: float, int, bool, Vector2/3/4 or colour.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set VFX parameter", NoUndoReason = null } },
         };
 
         public static ToolMeta Meta(string id)
@@ -220,6 +238,10 @@ namespace Umcp.Agent
                     return LightingTools.BuildSettings();
                 case "build.validateTarget":
                     return BuildTools.ValidateTarget(Bind.Str(a, "platform", false), Bind.StrArr(a, "checks", false), Bind.Int(a, "limit", false, 25));
+                case "cinemachine.cameras":
+                    return CinematicTools.Cameras();
+                case "cinemachine.setPriority":
+                    return CinematicTools.SetPriority(Bind.Str(a, "target", true), Bind.Int(a, "priority", true));
                 case "compile.errors":
                     return EditorTools.CompileErrors(Bind.Bool(a, "warnings", false, false));
                 case "component.add":
@@ -290,6 +312,10 @@ namespace Umcp.Agent
                     return NavTools.Info();
                 case "navmesh.path":
                     return NavTools.Path(Bind.FltArr(a, "from", true), Bind.FltArr(a, "to", true), Bind.Flt(a, "snapDistance", false, 2f), Bind.Bool(a, "corners", false, false));
+                case "particles.info":
+                    return EffectTools.ParticlesInfo(Bind.Str(a, "target", true));
+                case "particles.set":
+                    return EffectTools.ParticlesSet(Bind.Str(a, "target", true), Bind.FltOpt(a, "rateOverTime", false), Bind.FltOpt(a, "startLifetime", false), Bind.FltOpt(a, "startSpeed", false), Bind.FltOpt(a, "startSize", false), Bind.FltArr(a, "startColor", false), Bind.FltOpt(a, "gravityModifier", false), Bind.BoolOpt(a, "looping", false), Bind.IntOpt(a, "maxParticles", false));
                 case "physics.overlap":
                     return PhysicsTools.Overlap(Bind.FltArr(a, "center", true), Bind.Flt(a, "radius", false, 0f), Bind.FltArr(a, "halfExtents", false), Bind.Int(a, "limit", false, 50));
                 case "physics.raycast":
@@ -336,6 +362,12 @@ namespace Umcp.Agent
                     return SetupTools.LitInterior(Bind.Str(a, "room", true), Bind.Flt(a, "intensity", false, 1.2f), Bind.Flt(a, "kelvin", false, 4000f), Bind.Str(a, "bakeMode", false, "Mixed"));
                 case "setup.uiScreen":
                     return SetupTools.UiScreen(Bind.Str(a, "name", true), Bind.StrArr(a, "elements", false), Bind.FltArr(a, "referenceResolution", false), Bind.Int(a, "sortOrder", false, 0));
+                case "terrain.info":
+                    return TerrainTools.Info(Bind.Str(a, "target", false));
+                case "terrain.setDrawSettings":
+                    return TerrainTools.SetDrawSettings(Bind.Str(a, "target", true), Bind.FltOpt(a, "pixelError", false), Bind.FltOpt(a, "basemapDistance", false), Bind.FltOpt(a, "treeDistance", false), Bind.FltOpt(a, "billboardStart", false), Bind.FltOpt(a, "detailDistance", false), Bind.FltOpt(a, "detailDensity", false), Bind.BoolOpt(a, "drawInstanced", false));
+                case "timeline.info":
+                    return CinematicTools.TimelineInfo(Bind.Str(a, "target", false), Bind.Int(a, "limit", false, 20));
                 case "transform.get":
                     return TransformTools.Get(Bind.Str(a, "target", true));
                 case "transform.lookAt":
@@ -350,6 +382,10 @@ namespace Umcp.Agent
                     return UiTools.LayoutReport(Bind.Str(a, "canvas", false), Bind.StrArr(a, "checks", false), Bind.Flt(a, "safeAreaInset", false, 0f), Bind.Int(a, "limit", false, 50));
                 case "vcs.touched":
                     return InspectTools.Touched(Bind.Int(a, "sinceMinutes", false, 60), Bind.Int(a, "limit", false, 100));
+                case "vfx.info":
+                    return EffectTools.VfxInfo(Bind.Str(a, "target", false));
+                case "vfx.set":
+                    return EffectTools.VfxSet(Bind.Str(a, "target", true), Bind.Str(a, "parameter", true), Bind.FltOpt(a, "value", false), Bind.FltArr(a, "vector", false));
                 default:
                     throw new UmcpToolException("E_TOOL_NOT_FOUND", "No tool named '" + id + "'.", "tool", id);
             }
@@ -468,6 +504,16 @@ namespace Umcp.Agent
                     var __platform = Bind.Str(a, "platform", false);
                     var __checks = Bind.StrArr(a, "checks", false);
                     var __limit = Bind.Int(a, "limit", false, 25);
+                    return;
+                }
+                case "cinemachine.cameras":
+                {
+                    return;
+                }
+                case "cinemachine.setPriority":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __priority = Bind.Int(a, "priority", true);
                     return;
                 }
                 case "compile.errors":
@@ -679,6 +725,24 @@ namespace Umcp.Agent
                     var __corners = Bind.Bool(a, "corners", false, false);
                     return;
                 }
+                case "particles.info":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    return;
+                }
+                case "particles.set":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __rateOverTime = Bind.FltOpt(a, "rateOverTime", false);
+                    var __startLifetime = Bind.FltOpt(a, "startLifetime", false);
+                    var __startSpeed = Bind.FltOpt(a, "startSpeed", false);
+                    var __startSize = Bind.FltOpt(a, "startSize", false);
+                    var __startColor = Bind.FltArr(a, "startColor", false);
+                    var __gravityModifier = Bind.FltOpt(a, "gravityModifier", false);
+                    var __looping = Bind.BoolOpt(a, "looping", false);
+                    var __maxParticles = Bind.IntOpt(a, "maxParticles", false);
+                    return;
+                }
                 case "physics.overlap":
                 {
                     var __center = Bind.FltArr(a, "center", true);
@@ -831,6 +895,29 @@ namespace Umcp.Agent
                     var __sortOrder = Bind.Int(a, "sortOrder", false, 0);
                     return;
                 }
+                case "terrain.info":
+                {
+                    var __target = Bind.Str(a, "target", false);
+                    return;
+                }
+                case "terrain.setDrawSettings":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __pixelError = Bind.FltOpt(a, "pixelError", false);
+                    var __basemapDistance = Bind.FltOpt(a, "basemapDistance", false);
+                    var __treeDistance = Bind.FltOpt(a, "treeDistance", false);
+                    var __billboardStart = Bind.FltOpt(a, "billboardStart", false);
+                    var __detailDistance = Bind.FltOpt(a, "detailDistance", false);
+                    var __detailDensity = Bind.FltOpt(a, "detailDensity", false);
+                    var __drawInstanced = Bind.BoolOpt(a, "drawInstanced", false);
+                    return;
+                }
+                case "timeline.info":
+                {
+                    var __target = Bind.Str(a, "target", false);
+                    var __limit = Bind.Int(a, "limit", false, 20);
+                    return;
+                }
                 case "transform.get":
                 {
                     var __target = Bind.Str(a, "target", true);
@@ -878,6 +965,19 @@ namespace Umcp.Agent
                 {
                     var __sinceMinutes = Bind.Int(a, "sinceMinutes", false, 60);
                     var __limit = Bind.Int(a, "limit", false, 100);
+                    return;
+                }
+                case "vfx.info":
+                {
+                    var __target = Bind.Str(a, "target", false);
+                    return;
+                }
+                case "vfx.set":
+                {
+                    var __target = Bind.Str(a, "target", true);
+                    var __parameter = Bind.Str(a, "parameter", true);
+                    var __value = Bind.FltOpt(a, "value", false);
+                    var __vector = Bind.FltArr(a, "vector", false);
                     return;
                 }
                 default:
