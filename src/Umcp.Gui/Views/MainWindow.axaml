@@ -62,12 +62,14 @@
              a ScrollViewer sizes to its content and would pin the hero to the top. -->
         <views:OverviewPanel Grid.Row="0" IsVisible="{Binding IsOverview}" />
 
+        <!-- Margin on the content, not Padding on the scroller. ScrollViewer padding is applied
+             outside the presenter: the content is measured against the full viewport and then
+             shifted right, so the last 22 px of every card fell off the edge. -->
         <ScrollViewer Grid.Row="0" IsVisible="{Binding NotOverview}"
                       HorizontalScrollBarVisibility="Disabled"
-                      VerticalScrollBarVisibility="Auto" Padding="28,24,22,24">
-          <Grid>
+                      VerticalScrollBarVisibility="Auto">
+          <Grid Margin="28,24,28,28">
             <StackPanel Spacing="18" IsVisible="{Binding IsProjects}">
-              <views:ServerCard />
               <views:ProjectsPanel />
             </StackPanel>
 

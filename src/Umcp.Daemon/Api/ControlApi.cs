@@ -1,6 +1,8 @@
 using System.Text.Json.Nodes;
 using Umcp.Daemon.Agent;
 using Umcp.Daemon.Fleet;
+using Umcp.Daemon.Generated;
+using Umcp.Daemon.Security;
 
 namespace Umcp.Daemon.Api;
 
@@ -144,6 +146,41 @@ public static class ControlApi
             });
         });
 
+        // ---------------------------------------------------------------- permissions
+
+        // The catalog, with what a person needs to decide: what it is called, what it does, which
+        // domain it belongs to, whether it changes anything, and whether it is on.
+        group.MapGet("/tools", (ToolPolicy policy) =>
+        {
+            var tools = new JsonArray();
+            foreach (var tool in ToolCatalog.All.OrderBy(t => t.Skill, StringComparer.Ordinal)
+                                                .ThenBy(t => t.Id, StringComparer.Ordinal))
+                tools.Add(new JsonObject
+                {
+                    ["id"] = tool.Id,
+                    ["domain"] = tool.Skill,
+                    ["summary"] = tool.Summary,
+                    ["mutating"] = tool.Mutating,
+                    ["allowed"] = policy.IsAllowed(tool.Id)
+                });
+
+            return Results.Json(new JsonObject { ["ok"] = true, ["tools"] = tools });
+        });
+
+        // The disabled set is what is stored, not the allowed set: tools arrive with every
+        // release, and a saved allow-list would silently deny each new one to anybody who had
+        // ever opened this panel.
+        group.MapPost("/tools", (ToolsRequest body, ToolPolicy policy) =>
+        {
+            policy.Set(body.Disabled ?? Array.Empty<string>());
+            return Results.Json(new JsonObject
+            {
+                ["ok"] = true,
+                ["disabled"] = policy.Disabled.Count,
+                ["allowed"] = ToolCatalog.All.Length - policy.Disabled.Count
+            });
+        });
+
         // ---------------------------------------------------------------- linking
 
         // Linking is the whole point of the GUI: it writes the file: dependency into the project's
@@ -163,6 +200,9 @@ public static class ControlApi
             if (package is null)
                 return Bad("Cannot find com.umcp.agent next to this daemon. Reinstall, or start umcpd with --package-path.");
 
+            var alreadyLinked = linked.All().Any(e =>
+                string.Equals(e.Path, EditorInstalls.Normalise(path), StringComparison.OrdinalIgnoreCase));
+
             var (changed, detail) = AgentPackage.Ensure(path, package);
             var entry = linked.Add(path);
 
@@ -174,7 +214,9 @@ public static class ControlApi
             {
                 ["ok"] = true,
                 ["path"] = entry.Path,
+                ["name"] = Path.GetFileName(entry.Path.TrimEnd('/')),
                 ["changed"] = changed,
+                ["alreadyLinked"] = alreadyLinked,
                 ["detail"] = detail,
                 ["editorOpen"] = open,
                 ["nextStep"] = open
@@ -283,4 +325,5 @@ public static class ControlApi
     public sealed record CloseRequest(string? Project, bool? Save, bool? Force);
     public sealed record AutoRestartRequest(string? Project, bool? On);
     public sealed record PauseRequest(bool? On);
+    public sealed record ToolsRequest(string[]? Disabled);
 }

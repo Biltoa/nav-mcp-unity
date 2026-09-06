@@ -39,9 +39,6 @@ public sealed class ControlClient
     public Task<JsonObject?> LogsAsync(int tail = 200, CancellationToken ct = default) =>
         GetAsync($"/api/logs?tail={tail}", ct);
 
-    public Task<JsonObject?> ActivityAsync(int limit = 40, CancellationToken ct = default) =>
-        GetAsync($"/api/activity?limit={limit}", ct);
-
     public Task<JsonObject?> LinkAsync(string path, CancellationToken ct = default) =>
         PostAsync("/api/projects/link", new JsonObject { ["path"] = path }, ct);
 
@@ -59,6 +56,14 @@ public sealed class ControlClient
 
     public Task<JsonObject?> AutoRestartAsync(string project, bool on, CancellationToken ct = default) =>
         PostAsync("/api/projects/autorestart", new JsonObject { ["project"] = project, ["on"] = on }, ct);
+
+    public Task<JsonObject?> ToolsAsync(CancellationToken ct = default) => GetAsync("/api/tools", ct);
+
+    public Task<JsonObject?> SetToolsAsync(IEnumerable<string> disabled, CancellationToken ct = default) =>
+        PostAsync("/api/tools", new JsonObject
+        {
+            ["disabled"] = new JsonArray(disabled.Select(d => (JsonNode)d!).ToArray())
+        }, ct);
 
     public Task<JsonObject?> PauseAsync(bool on, CancellationToken ct = default) =>
         PostAsync("/api/pause", new JsonObject { ["on"] = on }, ct);

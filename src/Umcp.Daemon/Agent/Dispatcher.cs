@@ -39,14 +39,16 @@ public sealed class Dispatcher
     readonly DaemonState _state;
     readonly ScriptCompiler _compiler;
     readonly MirrorService _mirror;
+    readonly ToolPolicy _policy;
     readonly ILogger<Dispatcher> _log;
 
     // Reference paths change only when the AppDomain does, so they are cached per (project, epoch).
     readonly ConcurrentDictionary<string, string[]> _referenceCache = new();
 
     public Dispatcher(EditorRegistry registry, DaemonOptions options, AuditLog audit, DaemonState state,
-                      ScriptCompiler compiler, MirrorService mirror, ILogger<Dispatcher> log)
+                      ScriptCompiler compiler, MirrorService mirror, ToolPolicy policy, ILogger<Dispatcher> log)
     {
+        _policy = policy;
         _mirror = mirror;
         _registry = registry;
         _options = options;
@@ -72,6 +74,13 @@ public sealed class Dispatcher
         if (denied is not null)
             return Task.FromResult(Envelope.Error("E_PROFILE_DENIED", denied,
                 hint: "Restart the daemon with --profile full if this is intended."));
+
+        // Per-tool permission, set by a person in the app. Checked next to the profile because it
+        // is the same kind of answer: allowed or not, before anything is validated or dispatched.
+        var switchedOff = _policy.Denies(entry.Id);
+        if (switchedOff is not null)
+            return Task.FromResult(Envelope.Error("E_TOOL_DISABLED", switchedOff,
+                hint: "Settings, Permissions in the NAV MCP app turns it back on. Do not retry until then."));
 
         var validation = SchemaCheck.Validate(entry, args);
         if (validation is not null) return Task.FromResult(validation);
@@ -130,6 +139,14 @@ public sealed class Dispatcher
                     return Task.FromResult(Envelope.Error("E_PROFILE_DENIED", opDenied,
                         hint: "Restart the daemon with --profile full if this is intended."));
 
+                // The whole batch is refused rather than the one operation: a batch is one undo
+                // group and one tick, and half of it applying is worse than none of it.
+                var opOff = _policy.Denies(e.Id);
+                if (opOff is not null)
+                    return Task.FromResult(Envelope.Error("E_TOOL_DISABLED", opOff,
+                        hint: "Settings, Permissions in the NAV MCP app turns it back on. " +
+                              "The batch was refused whole; nothing in it ran."));
+
                 if (e.Retry == "Compile") timeout = _options.CompileTimeout;
             }
         }
@@ -170,6 +187,11 @@ public sealed class Dispatcher
     /// </summary>
     public async Task<JsonObject> RunScriptAsync(string code, string? projectId, CancellationToken ct)
     {
+        var switchedOff = _policy.Denies("unity.script");
+        if (switchedOff is not null)
+            return Envelope.Error("E_TOOL_DISABLED", switchedOff,
+                hint: "Settings, Permissions in the NAV MCP app turns it back on.");
+
         var denied = Profiles.Denies(_options.Profile, "unity.script", mutating: true);
         if (denied is not null)
             return Envelope.Error("E_PROFILE_DENIED", denied,

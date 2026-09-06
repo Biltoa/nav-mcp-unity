@@ -223,6 +223,7 @@ static void AddCore(IServiceCollection services, DaemonOptions options)
     services.AddHostedService<AgentServer>();
     services.AddSingleton<DaemonState>();
     services.AddSingleton<Umcp.Daemon.Api.LinkedProjects>();
+    services.AddSingleton<Umcp.Daemon.Security.ToolPolicy>();
     services.AddSingleton<Umcp.Daemon.Script.ScriptCompiler>();
     services.AddHostedService<Umcp.Daemon.Script.ScriptCacheJanitor>();
     services.AddSingleton<SkillTree>();

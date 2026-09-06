@@ -4,25 +4,27 @@
              x:Class="Umcp.Gui.Views.SettingsPanel"
              x:DataType="vm:MainViewModel">
 
-  <StackPanel Spacing="16">
+  <StackPanel Spacing="18">
+
     <Border Classes="card">
-      <StackPanel Spacing="18">
+      <StackPanel Spacing="20">
         <StackPanel Spacing="6">
           <TextBlock Classes="h2" Text="Settings" />
-          <TextBlock Classes="muted" Text="The port and the profile apply the next time the server starts." />
+          <TextBlock Classes="muted" Text="The port and the mode apply the next time the server starts." />
         </StackPanel>
 
-        <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto" >
-          <TextBlock Classes="h3" Text="Port" VerticalAlignment="Center" Margin="0,0,0,14" />
-          <StackPanel Grid.Column="1" Spacing="4" Margin="0,0,0,14">
+        <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto">
+          <TextBlock Classes="h3" Text="Port" VerticalAlignment="Center" Margin="0,0,16,18" />
+          <StackPanel Grid.Column="1" Spacing="6" Margin="0,0,0,18">
             <NumericUpDown Minimum="1024" Maximum="65535" Increment="1" FormatString="0"
                            Width="150" HorizontalAlignment="Left" Value="{Binding Port}" />
             <TextBlock Classes="faint" Text="Loopback only — 127.0.0.1. The Unity agent uses the next port up." />
           </StackPanel>
 
-          <TextBlock Grid.Row="1" Classes="h3" Text="What the AI may do" VerticalAlignment="Top"
-                     Margin="0,6,0,14" />
-          <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6" Margin="0,0,0,14">
+          <!-- "Mode" rather than "What the AI may do": it is a named setting people will look
+               for again, and the three values are what explain it. -->
+          <TextBlock Grid.Row="1" Classes="h3" Text="Mode" VerticalAlignment="Top" Margin="0,6,16,18" />
+          <StackPanel Grid.Row="1" Grid.Column="1" Spacing="8" Margin="0,0,0,18">
             <ComboBox Width="200" HorizontalAlignment="Left"
                       ItemsSource="{Binding Profiles}" SelectedItem="{Binding Profile}" />
             <TextBlock Classes="faint" Text="readonly — look, never touch." />
@@ -30,12 +32,10 @@
             <TextBlock Classes="faint" Text="full — everything, including running C# in the Editor and deleting assets." />
           </StackPanel>
 
-          <TextBlock Grid.Row="2" Classes="h3" Text="Behaviour" VerticalAlignment="Top" Margin="0,4,0,0" />
-          <StackPanel Grid.Row="2" Grid.Column="1" Spacing="10">
-            <CheckBox Content="Start the server when this app opens"
-                      IsChecked="{Binding StartServerOnLaunch}" />
-            <CheckBox Content="Stop the server when this app quits"
-                      IsChecked="{Binding StopServerOnExit}" />
+          <TextBlock Grid.Row="2" Classes="h3" Text="Behaviour" VerticalAlignment="Top" Margin="0,4,16,0" />
+          <StackPanel Grid.Row="2" Grid.Column="1" Spacing="12">
+            <CheckBox Content="Start the server when this app opens" IsChecked="{Binding StartServerOnLaunch}" />
+            <CheckBox Content="Stop the server when this app quits" IsChecked="{Binding StopServerOnExit}" />
             <TextBlock Classes="faint"
                        Text="Left off, the server keeps running after you quit — which is the point of it being a server. Unity stays connected either way." />
           </StackPanel>
@@ -43,27 +43,72 @@
       </StackPanel>
     </Border>
 
+    <!-- ================================================================ permissions -->
+    <!-- Mode decides what class of thing is allowed. This decides which individual tools are,
+         which is the only way to say "build scenes, but never touch my audio". Enforced in the
+         daemon's dispatcher, not here: a permission that lives in a window is a suggestion. -->
     <Border Classes="card">
-      <StackPanel Spacing="14">
+      <StackPanel Spacing="16">
+        <StackPanel Spacing="6">
+          <TextBlock Classes="h2" Text="Permissions" />
+          <TextBlock Classes="muted"
+                     Text="Every Editor tool an AI can reach through this server. Unticking one refuses it at the server, immediately, with no restart." />
+        </StackPanel>
+
+        <Grid ColumnDefinitions="*,Auto,Auto">
+          <TextBox Watermark="Search tools…" Text="{Binding ToolQuery}" Margin="0,0,10,0" />
+          <Button Grid.Column="1" Classes="link" Content="Allow all" Command="{Binding AllowAllCommand}" />
+          <Button Grid.Column="2" Classes="link" Content="Allow none" Command="{Binding AllowNoneCommand}" />
+        </Grid>
+
+        <TextBlock Classes="faint" Text="{Binding ToolSummary}" />
+
+        <!-- Fixed height with its own scroller: 92 rows inside the page's scroller would push
+             everything else out of reach. -->
+        <Border BorderBrush="{DynamicResource Divider}" BorderThickness="1" CornerRadius="8"
+                Background="#12171F" Height="320">
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Tools}" Margin="14,12,14,12">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ToolRow">
+                  <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,10">
+                    <CheckBox IsChecked="{Binding Allowed}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <StackPanel Grid.Column="1" Spacing="2">
+                      <TextBlock Text="{Binding Id}" FontFamily="Consolas,Menlo,monospace" FontSize="13" />
+                      <TextBlock Classes="faint" Text="{Binding Summary}" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Kind}"
+                               VerticalAlignment="Center" Margin="12,0,4,0" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+      </StackPanel>
+    </Border>
+
+    <Border Classes="card">
+      <StackPanel Spacing="16">
         <TextBlock Classes="h2" Text="This install" />
         <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto">
-          <TextBlock Classes="h3" Text="Version" Margin="0,0,0,10" />
-          <TextBlock Grid.Column="1" Classes="muted" Text="{Binding VersionLine}" Margin="0,0,0,10" />
+          <TextBlock Classes="h3" Text="Version" Margin="0,0,16,12" />
+          <TextBlock Grid.Column="1" Classes="muted" Text="{Binding VersionLine}" Margin="0,0,0,12" />
 
-          <TextBlock Grid.Row="1" Classes="h3" Text="Access token" Margin="0,0,0,10" />
-          <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4" Margin="0,0,0,10">
+          <TextBlock Grid.Row="1" Classes="h3" Text="Access token" Margin="0,0,16,12" />
+          <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4" Margin="0,0,0,12">
             <TextBlock Classes="muted" Text="{Binding TokenPath}" />
             <TextBlock Classes="faint"
                        Text="Minted fresh on every server start, readable only by your account. The Connect buttons avoid it entirely." />
           </StackPanel>
 
-          <TextBlock Grid.Row="2" Classes="h3" Text="Logs" Margin="0,0,0,10" />
-          <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+          <TextBlock Grid.Row="2" Classes="h3" Text="Logs" Margin="0,0,16,12" />
+          <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12">
             <Button Classes="link" Content="Open log folder" Command="{Binding OpenLogFolderCommand}" />
             <Button Classes="link" Content="Copy token" Click="OnCopyToken" />
           </StackPanel>
 
-          <TextBlock Grid.Row="3" Classes="h3" Text="Unity package" />
+          <TextBlock Grid.Row="3" Classes="h3" Text="Unity package" Margin="0,0,16,0" />
           <TextBlock Grid.Row="3" Grid.Column="1" Classes="muted" Text="{Binding PackagePath}" />
         </Grid>
       </StackPanel>
