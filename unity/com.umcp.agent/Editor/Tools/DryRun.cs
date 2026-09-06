@@ -41,6 +41,27 @@ namespace Umcp.Agent
             foreach (var name in new[] { "path", "folder", "to", "scriptFolder" })
                 ConfinePath(args, name, problems);
 
+            // Stop here when a path is out of bounds. The per-tool predictions below ask the
+            // AssetDatabase about the path, and asking it about "C:/Windows/System32/evil.cs"
+            // makes Unity log "Invalid AssetDatabase path" into the user's console — noise
+            // produced by a call that was already refused.
+            if (problems.Any(IsPathProblem))
+                return new
+                {
+                    dryRun = true,
+                    tool,
+                    mutating = meta.Mutating,
+                    effect = "Would fail: the path is outside the project. Asset paths must resolve under " +
+                             "Assets/ or Packages/.",
+                    undo = meta.Undo,
+                    undoable = meta.Undo != null,
+                    noUndoReason = meta.NoUndoReason,
+                    resolved = resolved.ToArray(),
+                    problems = problems.ToArray(),
+                    wouldSucceed = false,
+                    note = "Nothing was applied, and nothing was looked up: the path was refused first."
+                };
+
             string effect;
             switch (tool)
             {
@@ -211,9 +232,6 @@ namespace Umcp.Agent
                     break;
             }
 
-            if (problems.Any(p => (p.GetType().GetProperty("code")?.GetValue(p) as string) is "E_PATH_ESCAPE" or "E_PATH_OUTSIDE_PROJECT"))
-                effect = "Would fail: the path is outside the project. Asset paths must resolve under Assets/ or Packages/.";
-
             return new
             {
                 dryRun = true,
@@ -232,6 +250,12 @@ namespace Umcp.Agent
         }
 
         // ---------------------------------------------------------------- helpers
+
+        static bool IsPathProblem(object problem)
+        {
+            var code = problem.GetType().GetProperty("code")?.GetValue(problem) as string;
+            return code == "E_PATH_ESCAPE" || code == "E_PATH_OUTSIDE_PROJECT";
+        }
 
         /// <summary>Run the same confinement the tools run, and report a failure as a problem.</summary>
         static void ConfinePath(JObject args, string field, List<object> problems)
