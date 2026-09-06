@@ -7,11 +7,7 @@
   <!-- The first thing anyone looks at, so it answers the only question they have: is it on. -->
   <Border Classes="card">
     <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
-      <Ellipse Classes="dot" Grid.Row="0" Grid.Column="0" Margin="0,0,14,0" VerticalAlignment="Center">
-        <Ellipse.Fill>
-          <SolidColorBrush Color="{Binding ServerDot}" />
-        </Ellipse.Fill>
-      </Ellipse>
+      <Ellipse Classes="dot" Grid.Row="0" Grid.Column="0" Margin="0,0,14,0" VerticalAlignment="Center" Fill="{Binding ServerDotBrush}" />
 
       <TextBlock Grid.Row="0" Grid.Column="1" Classes="h1" Text="{Binding ServerHeadline}"
                  VerticalAlignment="Center" />

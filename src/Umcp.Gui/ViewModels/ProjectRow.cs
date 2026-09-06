@@ -30,7 +30,10 @@ public sealed class ProjectRow : INotifyPropertyChanged
     public string Status { get => _status; private set => Set(ref _status, value); }
     public string Detail { get => _detail; private set => Set(ref _detail, value); }
     /// <summary>Colour of the status dot. Grey means "nothing wrong, nothing running".</summary>
-    public string Badge { get => _badge; private set => Set(ref _badge, value); }
+    public string Badge { get => _badge; private set { if (Set(ref _badge, value)) Raise(nameof(BadgeBrush)); } }
+
+    /// <summary>The dot itself. Bound to Fill directly — a brush inside Ellipse.Fill has no DataContext.</summary>
+    public Avalonia.Media.IBrush BadgeBrush => Brushes.Of(_badge);
     public bool Connected { get => _connected; private set => Set(ref _connected, value); }
     public bool IsOpen { get => _isOpen; private set => Set(ref _isOpen, value); }
     public bool CanOpen { get => _canOpen; private set => Set(ref _canOpen, value); }
@@ -127,7 +130,9 @@ public sealed class ProjectRow : INotifyPropertyChanged
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return false;
         field = value;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        Raise(name);
         return true;
     }
+
+    void Raise(string? name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }

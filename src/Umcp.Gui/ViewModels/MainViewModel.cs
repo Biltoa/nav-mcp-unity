@@ -63,7 +63,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     int _activityTick;
     string _serverMeta = "";
 
-    public bool Running { get => _running; private set { if (Set(ref _running, value)) { Raise(nameof(NotRunning)); Raise(nameof(ServerDot)); Raise(nameof(EditorSummary)); Refresh(ToggleServerCommand, PauseCommand); } } }
+    public bool Running { get => _running; private set { if (Set(ref _running, value)) { Raise(nameof(NotRunning)); Raise(nameof(ServerDotBrush)); Raise(nameof(EditorSummary)); Refresh(ToggleServerCommand, PauseCommand); } } }
     public bool NotRunning => !Running;
 
     // ---- which page the sidebar is showing. Radio buttons bind two-way, so setting one
@@ -89,11 +89,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Raise(nameof(IsSettings));
         Raise(nameof(NotOverview));
     }
-    /// <summary>Green when it is up, grey when it is not: the first thing a person looks at.</summary>
-    public string ServerDot => Running ? (Paused ? "#F59E0B" : "#10B981") : "#6B7280";
+    /// <summary>
+    /// Green when it is up, amber when paused, grey when it is not — the first thing a person
+    /// looks at.
+    ///
+    /// A brush, not a hex string. A <c>SolidColorBrush</c> written inside <c>Ellipse.Fill</c> is
+    /// not in the visual tree, so it never inherits a DataContext and a binding on its Color
+    /// resolves to nothing at all: the dot keeps its space in the layout and is simply never
+    /// painted, which is a hard bug to see and an easy one to avoid.
+    /// </summary>
+    public Avalonia.Media.IBrush ServerDotBrush =>
+        Brushes.Of(Running ? (Paused ? "#FF8723" : "#3FB950") : "#5A6472");
     public bool HasNoProjects => Projects.Count == 0;
     public bool Busy { get => _busy; private set { if (Set(ref _busy, value)) Refresh(ToggleServerCommand); } }
-    public bool Paused { get => _paused; private set { if (Set(ref _paused, value)) { Raise(nameof(ServerDot)); Raise(nameof(PauseLabel)); } } }
+    public bool Paused { get => _paused; private set { if (Set(ref _paused, value)) { Raise(nameof(ServerDotBrush)); Raise(nameof(PauseLabel)); } } }
     public string ServerHeadline { get => _serverHeadline; private set => Set(ref _serverHeadline, value); }
     public string ServerDetail { get => _serverDetail; private set => Set(ref _serverDetail, value); }
     public string Message { get => _message; private set => Set(ref _message, value); }

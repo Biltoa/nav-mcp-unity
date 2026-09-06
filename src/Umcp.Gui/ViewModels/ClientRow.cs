@@ -25,14 +25,15 @@ public sealed class ClientRow : INotifyPropertyChanged
     public string Detail { get => _detail; private set => Set(ref _detail, value); }
 
     /// <summary>Green when wired up, orange when it is here and waiting, grey when absent.</summary>
-    public string Dot => Connected ? "#3FB950" : Installed ? "#FF8723" : "#5A6472";
+    public Avalonia.Media.IBrush DotBrush =>
+        Brushes.Of(Connected ? "#3FB950" : Installed ? "#FF8723" : "#5A6472");
 
     public void Refresh(string? shimPath, int port)
     {
         Installed = Client.DirectoryExists || Client.ConfigExists;
         Connected = shimPath is not null && ClientRegistrations.IsRegistered(Client, shimPath, port);
 
-        Raise(nameof(Dot));
+        Raise(nameof(DotBrush));
 
         Detail = Connected
             ? $"Connected on port {port}. {Client.Hint}"

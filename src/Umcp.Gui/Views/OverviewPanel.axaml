@@ -18,11 +18,7 @@
            dot to its left pushes the pair right by half the dot — which is exactly what it
            looked like. -->
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="16">
-        <Ellipse Width="14" Height="14" VerticalAlignment="Center">
-          <Ellipse.Fill>
-            <SolidColorBrush Color="{Binding ServerDot}" />
-          </Ellipse.Fill>
-        </Ellipse>
+        <Ellipse Width="14" Height="14" VerticalAlignment="Center" Fill="{Binding ServerDotBrush}" />
         <TextBlock Text="{Binding ServerHeadline}" FontSize="34" FontWeight="Bold"
                    VerticalAlignment="Center" />
       </StackPanel>

@@ -97,6 +97,10 @@
     <!-- ================================================================ buttons -->
 
     <Style Selector="Button.primary">
+      <!-- Fluent's Button aligns its content left by default; a fixed-width action button with
+           left-aligned text reads as a broken layout, not as a style choice. -->
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
       <Setter Property="Background" Value="{DynamicResource Accent}" />
       <Setter Property="Foreground" Value="{DynamicResource AccentInk}" />
       <Setter Property="Padding" Value="22,11" />
@@ -118,6 +122,10 @@
     </Style>
 
     <Style Selector="Button.outline">
+      <!-- Fluent's Button aligns its content left by default; a fixed-width action button with
+           left-aligned text reads as a broken layout, not as a style choice. -->
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Foreground" Value="{DynamicResource Accent}" />
       <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
