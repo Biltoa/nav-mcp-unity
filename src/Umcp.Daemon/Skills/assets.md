@@ -51,3 +51,21 @@ When a batch contains two or more asset-writing operations it is automatically w
 minutes. It is deliberately **not** applied to smaller or mixed batches, because deferring imports
 breaks any operation that reads back an asset an earlier operation just wrote. The batch result
 reports `assetEditing` so this is never invisible.
+
+## Auditing assets
+
+`assets.validate` is `scene.validate`'s counterpart for things that are not in a scene: prefabs with
+missing scripts, dead references or empty material slots; ScriptableObjects whose script is gone;
+materials with no usable shader.
+
+```
+unity_run("assets.validate", { folder: "Assets/Prefabs", kinds: ["prefabs"], limit: 50 })
+```
+
+It opens assets, which is the expensive part, so it takes a `scan` budget (400 by default) and says
+when it hit it rather than pretending it saw everything. Prefabs are inspected as **loaded assets,
+not opened contents**: `PrefabUtility.LoadPrefabContents` hands back an editable copy that has to be
+unloaded again, and a tool that leaks one per call leaves the Editor holding scenes nobody can see.
+
+A *dangling* reference — one whose target existed and no longer does — is a finding. An unset field
+is not, because an unset field is not a defect.

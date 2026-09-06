@@ -2,7 +2,7 @@
 
 # Tool reference
 
-90 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
+92 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
 
 ## animation
 
@@ -53,6 +53,7 @@ Animator controllers: read, create, add states, parameters and transitions. acti
 | `assets.info` | no | n/a | Read one asset's identity, type and direct dependencies. |
 | `assets.move` | yes | — *AssetDatabase moves are not undoable.* | Move or rename an asset, preserving its GUID. |
 | `assets.refresh` | yes | — *An import is not an undoable operation.* | Refresh the AssetDatabase. May trigger a compile and a domain reload. |
+| `assets.validate` | no | n/a | Find broken things in assets, not just open scenes: prefabs with missing scripts or dead references, ScriptableObjects with no script, materials with no usable shader. |
 | `prefab.create` | yes | Create Prefab | Save a scene GameObject as a prefab asset. |
 | `prefab.instantiate` | yes | Instantiate Prefab | Instantiate a prefab into the active scene. |
 | `prefab.overrides` | yes | Prefab overrides | List, apply or revert a prefab instance's overrides. action: list | apply | revert. |
@@ -156,6 +157,25 @@ Refresh the AssetDatabase. May trigger a compile and a domain reload.
 
 ```json
 { }
+```
+
+### `assets.validate`
+
+Find broken things in assets, not just open scenes: prefabs with missing scripts or dead references, ScriptableObjects with no script, materials with no usable shader.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `folder` | `string` | no | `null` | Restrict to this folder |
+| `kinds` | `string[]` | no | `null` | Which kinds: prefabs, scriptableObjects, materials. Default all. |
+| `limit` | `int` | no | `100` | Maximum findings (default 100) |
+| `scan` | `int` | no | `400` | Maximum assets to open (default 400). Opening an asset is the expensive part. |
+
+```json
+{ "limit": 25 }
+```
+
+```json
+{ "folder": "Assets/Prefabs", "kinds": ["prefabs"] }
 ```
 
 ### `prefab.create`
@@ -724,6 +744,7 @@ Set one exposed parameter on a VisualEffect: float, int, bool, Vector2/3/4 or co
 | `gameobject.setLayer` | yes | Set Layer | Set a GameObject's layer, optionally recursively. |
 | `gameobject.setParent` | yes | Set Parent | Reparent a GameObject. |
 | `gameobject.setTag` | yes | Set Tag | Set a GameObject's tag. |
+| `setup.thirdPersonController` | yes | Set up third-person controller | Create a third-person controller: character, camera rig and movement script. Two calls — the first writes the script, the second builds the rig after the reload. |
 
 ### `gameobject.create`
 
@@ -876,6 +897,27 @@ Set a GameObject's tag.
 
 ```json
 { "target": "Player", "tag": "Player" }
+```
+
+### `setup.thirdPersonController`
+
+Create a third-person controller: character, camera rig and movement script. Two calls — the first writes the script, the second builds the rig after the reload.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `name` | `string` | no | `"Player"` | Name for the character object |
+| `position` | `float[]` | no | `null` | World position [x, y, z] (default [0, 1, 0]) |
+| `moveSpeed` | `float` | no | `4f` | Walk speed in m/s (default 4) |
+| `sprintSpeed` | `float` | no | `7f` | Sprint speed in m/s (default 7) |
+| `jumpHeight` | `float` | no | `1.2f` | Jump height in metres (default 1.2) |
+| `scriptFolder` | `string` | no | `"Assets/Scripts/Generated"` | Where the generated script goes |
+
+```json
+{ "name": "Player" }
+```
+
+```json
+{ "name": "Player", "position": [0, 1, 0], "moveSpeed": 6 }
 ```
 
 ## lighting

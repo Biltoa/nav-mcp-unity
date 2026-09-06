@@ -137,10 +137,20 @@ namespace Umcp.Agent
         /// </summary>
         static IEnumerable<object> DanglingReferences(GameObject go, string path, int budget)
         {
+            return DanglingIn(go.GetComponents<Component>(), path, budget);
+        }
+
+        /// <summary>
+        /// The same walk over any set of objects — components on a scene object, components inside
+        /// a prefab asset, or a ScriptableObject. One implementation, because "what counts as a
+        /// broken reference" must not have two definitions.
+        /// </summary>
+        static IEnumerable<object> DanglingIn(Object[] targets, string path, int budget)
+        {
             if (budget <= 0) yield break;
             int found = 0;
 
-            foreach (var component in go.GetComponents<Component>())
+            foreach (var component in targets)
             {
                 if (component == null) continue;   // already reported as a missing script
                 SerializedObject so;
@@ -170,6 +180,145 @@ namespace Umcp.Agent
                 }
                 so.Dispose();
             }
+        }
+
+        // ---------------------------------------------------------------- assets
+
+        [UnityTool(Skill = "assets", Id = "assets.validate",
+            Summary = "Find broken things in assets, not just open scenes: prefabs with missing scripts or dead references, ScriptableObjects with no script, materials with no usable shader.",
+            Retry = RetryClass.Read, Cost = Cost.Expensive)]
+        [Example("{ \"limit\": 25 }")]
+        [Example("{ \"folder\": \"Assets/Prefabs\", \"kinds\": [\"prefabs\"] }")]
+        public static object ValidateAssets(
+            [Doc("Restrict to this folder")] string folder = null,
+            [Doc("Which kinds: prefabs, scriptableObjects, materials. Default all.")] string[] kinds = null,
+            [Doc("Maximum findings (default 100)")] int limit = 100,
+            [Doc("Maximum assets to open (default 400). Opening an asset is the expensive part.")] int scan = 400)
+        {
+            int cap = Bounds.Limit(limit);
+            int budget = scan <= 0 ? 400 : (scan > 5000 ? 5000 : scan);
+            var wanted = new HashSet<string>(kinds == null || kinds.Length == 0
+                ? new[] { "prefabs", "scriptableobjects", "materials" }
+                : kinds.Select(k => (k ?? "").ToLowerInvariant()));
+
+            var folders = string.IsNullOrEmpty(folder) ? null : new[] { folder.Replace('\\', '/') };
+            var findings = new List<object>();
+            int scanned = 0;
+
+            if (wanted.Contains("prefabs"))
+                foreach (var path in Find("t:Prefab", folders, budget - scanned))
+                {
+                    scanned++;
+                    if (findings.Count >= cap) break;
+
+                    // The prefab asset is loaded read-only. LoadPrefabContents would give an
+                    // editable copy and *must* be unloaded again; a tool that leaks one of those
+                    // per call leaves the Editor holding a scene nobody can see.
+                    var root = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                    if (root == null) continue;
+
+                    foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+                    {
+                        if (findings.Count >= cap) break;
+                        var go = transform.gameObject;
+                        var where = path + " :: " + Resolve.Path(transform);
+
+                        var components = go.GetComponents<Component>();
+                        for (int i = 0; i < components.Length; i++)
+                            if (components[i] == null)
+                                findings.Add(new
+                                {
+                                    severity = "error",
+                                    code = "MISSING_SCRIPT",
+                                    subject = where,
+                                    detail = "Component slot " + i + " has no script asset.",
+                                    fix = "Restore the script, or remove the component from the prefab."
+                                });
+
+                        foreach (var f in DanglingIn(components, where, cap - findings.Count)) findings.Add(f);
+
+                        var renderer = go.GetComponent<Renderer>();
+                        if (renderer == null) continue;
+                        var materials = renderer.sharedMaterials;
+                        for (int i = 0; i < materials.Length; i++)
+                            if (materials[i] == null)
+                                findings.Add(new
+                                {
+                                    severity = "warning",
+                                    code = "MISSING_MATERIAL",
+                                    subject = where,
+                                    detail = "Material slot " + i + " is empty; it renders magenta.",
+                                    fix = "Assign a material to slot " + i + "."
+                                });
+                    }
+                }
+
+            if (wanted.Contains("scriptableobjects"))
+                foreach (var path in Find("t:ScriptableObject", folders, budget - scanned))
+                {
+                    scanned++;
+                    if (findings.Count >= cap) break;
+
+                    var asset = AssetDatabase.LoadAssetAtPath<ScriptableObject>(path);
+                    if (asset == null)
+                    {
+                        // An asset file that exists but will not load is almost always a
+                        // ScriptableObject whose script was deleted or renamed.
+                        if (AssetDatabase.LoadAssetAtPath<Object>(path) == null)
+                            findings.Add(new
+                            {
+                                severity = "error",
+                                code = "MISSING_SCRIPT",
+                                subject = path,
+                                detail = "The asset exists but no script loads it.",
+                                fix = "Restore the ScriptableObject's script, or delete the asset."
+                            });
+                        continue;
+                    }
+
+                    foreach (var f in DanglingIn(new Object[] { asset }, path, cap - findings.Count)) findings.Add(f);
+                }
+
+            if (wanted.Contains("materials"))
+                foreach (var path in Find("t:Material", folders, budget - scanned))
+                {
+                    scanned++;
+                    if (findings.Count >= cap) break;
+
+                    var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+                    if (material == null) continue;
+                    if (material.shader == null || material.shader.name == "Hidden/InternalErrorShader")
+                        findings.Add(new
+                        {
+                            severity = "error",
+                            code = "BROKEN_SHADER",
+                            subject = path,
+                            detail = "This material has no usable shader; anything using it renders magenta.",
+                            fix = "Reassign the shader, or fix its compile errors (see compile.errors)."
+                        });
+                }
+
+            var list = findings.Take(cap).ToArray();
+            return new
+            {
+                scanned,
+                scanBudget = budget,
+                kinds = wanted.ToArray(),
+                folder,
+                count = list.Length,
+                findings = list,
+                _truncated = findings.Count > list.Length || scanned >= budget,
+                _hint = scanned >= budget
+                    ? "Hit the scan budget; narrow with folder, or raise scan."
+                    : list.Length == 0 ? "Nothing broken in the kinds that were scanned." : null
+            };
+        }
+
+        static IEnumerable<string> Find(string filter, string[] folders, int take)
+        {
+            if (take <= 0) return new string[0];
+            var guids = folders == null ? AssetDatabase.FindAssets(filter) : AssetDatabase.FindAssets(filter, folders);
+            return guids.Take(take).Select(AssetDatabase.GUIDToAssetPath).Where(p => !string.IsNullOrEmpty(p));
         }
 
         // ---------------------------------------------------------------- mark and diff

@@ -62,6 +62,26 @@ if (dupes.Length > 0)
 
 tools = tools.OrderBy(t => t.Id, StringComparer.Ordinal).ToList();
 
+// A parameter default is copied verbatim into generated code and into the JSON schema, so it has
+// to be a literal. A named constant compiles in the tool's own file and then fails to resolve in
+// the generated dispatch — 200 lines away, in a file nobody edits.
+var badDefaults = new List<string>();
+foreach (var tool in tools)
+    foreach (var p in tool.Params)
+    {
+        var d = p.Default;
+        if (d is null or "null") continue;
+        var literal = d.StartsWith('"') || d is "true" or "false" ||
+                      d.All(c => char.IsDigit(c) || c is '.' or '-' or '+' or 'f' or 'F' or 'd' or 'D' or 'm' or 'M');
+        if (!literal) badDefaults.Add($"{tool.Id}.{p.Name} = {d}");
+    }
+if (badDefaults.Count > 0)
+{
+    foreach (var b in badDefaults)
+        Console.Error.WriteLine("toolgen: parameter default must be a literal, not a named constant - " + b);
+    return 1;
+}
+
 // Every generated schema must parse as JSON, checked here rather than discovered by whatever
 // tries to read it. A C# `0f` default produced a schema that failed to parse two layers away,
 // in the daemon's skill index, as a JsonReaderException with no tool name in it.

@@ -94,3 +94,66 @@ namespace X {
         return dir?.FullName ?? Directory.GetCurrentDirectory();
     }
 }
+
+/// <summary>
+/// The cross-type case: a callback handed to a type that owns a thread runs on that thread, and
+/// the check has to know it. This is the exact shape of the agent's own
+/// UmcpConnection(port, inbox, OnSocketConnected).
+/// </summary>
+public class MainThreadCallbackTests
+{
+    static string WriteSources(params (string name, string code)[] files)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "umcp-mtc-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        foreach (var (name, code) in files) File.WriteAllText(Path.Combine(dir, name + ".cs"), code);
+        return dir;
+    }
+
+    const string ThreadedType = @"
+namespace X {
+  class Pump {
+    System.Action _onReady;
+    public Pump(System.Action onReady) { _onReady = onReady; }
+    public void Start() { var t = new Thread(Loop); t.Start(); }
+    void Loop() { _onReady(); }
+  }
+}";
+
+    [Fact]
+    public void A_callback_given_to_a_threaded_type_is_treated_as_off_thread()
+    {
+        var dir = WriteSources(
+            ("Pump", ThreadedType),
+            ("Owner", @"
+namespace X {
+  class Owner {
+    void Start() { var p = new Pump(OnReady); p.Start(); }
+    void OnReady() { var name = Application.productName; }
+  }
+}"));
+        try
+        {
+            var findings = Checker.Run(dir);
+            Assert.Contains(findings, f => f.Method == "Owner.OnReady" && f.Expression.Contains("Application.productName"));
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
+    public void The_same_callback_setting_a_flag_is_clean()
+    {
+        var dir = WriteSources(
+            ("Pump", ThreadedType),
+            ("Owner", @"
+namespace X {
+  class Owner {
+    volatile bool _pending;
+    void Start() { var p = new Pump(OnReady); }
+    void OnReady() { _pending = true; }
+  }
+}"));
+        try { Assert.Empty(Checker.Run(dir)); }
+        finally { Directory.Delete(dir, true); }
+    }
+}

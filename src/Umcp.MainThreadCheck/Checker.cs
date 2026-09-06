@@ -18,18 +18,19 @@ public sealed record Finding(string File, int Line, int Column, string Method, s
 /// reconnected forever, with no log line and no visible cause. Nothing about that failure was
 /// obvious from reading the method.
 ///
-/// The check is deliberately syntactic and deliberately narrow:
+/// The check is syntactic, and works in three steps:
 ///
-///   * **Seeds** are the entry points that provably run off the main thread — a method named in
-///     <c>new Thread(...)</c>, <c>Task.Run(...)</c>, <c>ThreadPool.QueueUserWorkItem(...)</c>, or
-///     subscribed to Unity's own threaded log callback.
-///   * From each seed it follows calls to other methods **in the same type**, which is where this
-///     agent's threading actually lives.
-///   * Inside that closure, any use of a known Unity API root is a finding.
+///   1. **Seeds.** A method handed to <c>new Thread(...)</c>, <c>Task.Run</c>,
+///      <c>ThreadPool.QueueUserWorkItem</c>, or subscribed to Unity's threaded log callback.
+///   2. **Callbacks into threaded types.** A method group passed to the constructor of a type that
+///      itself owns a thread is a seed too — that is how this agent's own
+///      <c>UmcpConnection(port, inbox, OnSocketConnected)</c> callback reaches the socket thread,
+///      and a check that missed it would miss the shape of the original bug.
+///   3. **Closure.** From every seed, calls to other methods of the same type.
 ///
-/// It will not catch a Unity call made through an interface or a delegate hop across types. It
-/// catches the class of mistake that has actually happened here, at zero runtime cost, and it fails
-/// the build rather than producing a warning nobody reads.
+/// Inside that closure, any use of a known Unity API root is a finding. It will not catch a call
+/// reached through an interface or an event added at runtime; it catches the class of mistake that
+/// has actually happened here, at zero runtime cost, and it fails the build.
 /// </summary>
 public static class Checker
 {
@@ -54,92 +55,140 @@ public static class Checker
         ["Debug.unityLogger"] = "The logger object itself is thread-safe to read."
     };
 
+    sealed class TypeModel
+    {
+        public required string Name { get; init; }
+        public required string File { get; init; }
+        public required TypeDeclarationSyntax Syntax { get; init; }
+        public required Dictionary<string, MethodDeclarationSyntax> Methods { get; init; }
+        public HashSet<string> Seeds { get; } = new(StringComparer.Ordinal);
+    }
+
     public static IReadOnlyList<Finding> Run(string sourceDirectory)
     {
-        var findings = new List<Finding>();
-        var files = Directory.GetFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories)
-                             .Where(f => !f.Contains("Generated", StringComparison.OrdinalIgnoreCase))
-                             .OrderBy(f => f, StringComparer.Ordinal)
-                             .ToArray();
+        var types = Parse(sourceDirectory);
 
-        foreach (var file in files)
+        foreach (var type in types.Values)
+            foreach (var seed in LocalSeeds(type))
+                type.Seeds.Add(seed);
+
+        // A type that owns a thread makes every callback handed to it off-thread as well. Repeat
+        // until nothing new appears: a threaded type can be constructed by another one.
+        var threaded = new HashSet<string>(types.Values.Where(t => t.Seeds.Count > 0).Select(t => t.Name), StringComparer.Ordinal);
+        for (var pass = 0; pass < 4; pass++)
         {
-            var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file), path: file);
-            var root = tree.GetCompilationUnitRoot();
+            var added = false;
+            foreach (var type in types.Values)
+                foreach (var seed in CallbackSeeds(type, threaded))
+                    added |= type.Seeds.Add(seed);
+            if (!added) break;
+        }
 
-            foreach (var type in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
+        var findings = new List<Finding>();
+        foreach (var type in types.Values.OrderBy(t => t.File, StringComparer.Ordinal))
+        {
+            if (type.Seeds.Count == 0) continue;
+            foreach (var name in Closure(type).OrderBy(n => n, StringComparer.Ordinal))
             {
-                // Overloads share a name, so the first declaration wins. That is enough for a
-                // reachability walk: the point is which *names* run off the main thread.
-                var methods = new Dictionary<string, MethodDeclarationSyntax>(StringComparer.Ordinal);
-                foreach (var m in type.Members.OfType<MethodDeclarationSyntax>())
-                    if (!methods.ContainsKey(m.Identifier.Text)) methods[m.Identifier.Text] = m;
-
-                var offThread = SeedMethods(type, methods);
-                if (offThread.Count == 0) continue;
-
-                // Follow calls within the type: a seed that delegates its work to a private helper
-                // has moved the problem, not solved it.
-                var closure = new HashSet<string>(offThread, StringComparer.Ordinal);
-                var queue = new Queue<string>(offThread);
-                while (queue.Count > 0)
-                {
-                    var current = queue.Dequeue();
-                    if (!methods.TryGetValue(current, out var method) || method.Body is null) continue;
-
-                    foreach (var invocation in method.DescendantNodes().OfType<InvocationExpressionSyntax>())
-                    {
-                        if (invocation.Expression is not IdentifierNameSyntax called) continue;
-                        if (!methods.ContainsKey(called.Identifier.Text)) continue;
-                        if (closure.Add(called.Identifier.Text)) queue.Enqueue(called.Identifier.Text);
-                    }
-                }
-
-                foreach (var name in closure.OrderBy(n => n, StringComparer.Ordinal))
-                {
-                    if (!methods.TryGetValue(name, out var method)) continue;
-                    findings.AddRange(UnityCallsIn(method, file, type.Identifier.Text + "." + name));
-                }
+                if (!type.Methods.TryGetValue(name, out var method)) continue;
+                findings.AddRange(UnityCallsIn(method, type.File, type.Name + "." + name));
             }
         }
 
         return findings;
     }
 
-    /// <summary>Methods this type provably hands to another thread.</summary>
-    static List<string> SeedMethods(TypeDeclarationSyntax type, Dictionary<string, MethodDeclarationSyntax> methods)
+    static Dictionary<string, TypeModel> Parse(string sourceDirectory)
     {
-        var seeds = new List<string>();
+        var types = new Dictionary<string, TypeModel>(StringComparer.Ordinal);
 
-        foreach (var creation in type.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
+        var files = Directory.GetFiles(sourceDirectory, "*.cs", SearchOption.AllDirectories)
+                             .Where(f => !f.Contains("Generated", StringComparison.OrdinalIgnoreCase))
+                             .OrderBy(f => f, StringComparer.Ordinal);
+
+        foreach (var file in files)
+        {
+            var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file), path: file);
+            foreach (var syntax in tree.GetCompilationUnitRoot().DescendantNodes().OfType<TypeDeclarationSyntax>())
+            {
+                // Overloads share a name; the first declaration is enough for a reachability walk,
+                // because the question is which *names* run off the main thread.
+                var methods = new Dictionary<string, MethodDeclarationSyntax>(StringComparer.Ordinal);
+                foreach (var method in syntax.Members.OfType<MethodDeclarationSyntax>())
+                    if (!methods.ContainsKey(method.Identifier.Text)) methods[method.Identifier.Text] = method;
+
+                var name = syntax.Identifier.Text;
+                if (!types.ContainsKey(name))
+                    types[name] = new TypeModel { Name = name, File = file, Syntax = syntax, Methods = methods };
+            }
+        }
+
+        return types;
+    }
+
+    static IEnumerable<string> LocalSeeds(TypeModel type)
+    {
+        foreach (var creation in type.Syntax.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
         {
             if (NameOf(creation.Type) is not ("Thread" or "System.Threading.Thread")) continue;
             foreach (var argument in creation.ArgumentList?.Arguments ?? default)
-                if (argument.Expression is IdentifierNameSyntax id && methods.ContainsKey(id.Identifier.Text))
-                    seeds.Add(id.Identifier.Text);
+                if (argument.Expression is IdentifierNameSyntax id && type.Methods.ContainsKey(id.Identifier.Text))
+                    yield return id.Identifier.Text;
         }
 
-        foreach (var invocation in type.DescendantNodes().OfType<InvocationExpressionSyntax>())
+        foreach (var invocation in type.Syntax.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
-            var target = invocation.Expression.ToString();
-            var isHandoff = target is "Task.Run" or "ThreadPool.QueueUserWorkItem" or "Task.Factory.StartNew";
-            if (!isHandoff) continue;
-
+            if (invocation.Expression.ToString() is not ("Task.Run" or "ThreadPool.QueueUserWorkItem" or "Task.Factory.StartNew"))
+                continue;
             foreach (var argument in invocation.ArgumentList.Arguments)
-                if (argument.Expression is IdentifierNameSyntax id && methods.ContainsKey(id.Identifier.Text))
-                    seeds.Add(id.Identifier.Text);
+                if (argument.Expression is IdentifierNameSyntax id && type.Methods.ContainsKey(id.Identifier.Text))
+                    yield return id.Identifier.Text;
         }
 
         // Unity raises this one off the main thread by design, which is exactly why a handler for
         // it must not touch the Unity API.
-        foreach (var assignment in type.DescendantNodes().OfType<AssignmentExpressionSyntax>())
+        foreach (var assignment in type.Syntax.DescendantNodes().OfType<AssignmentExpressionSyntax>())
         {
             if (!assignment.Left.ToString().EndsWith("logMessageReceivedThreaded", StringComparison.Ordinal)) continue;
-            if (assignment.Right is IdentifierNameSyntax handler && methods.ContainsKey(handler.Identifier.Text))
-                seeds.Add(handler.Identifier.Text);
+            if (assignment.Right is IdentifierNameSyntax handler && type.Methods.ContainsKey(handler.Identifier.Text))
+                yield return handler.Identifier.Text;
+        }
+    }
+
+    /// <summary>Methods handed as callbacks to a type that owns a thread.</summary>
+    static IEnumerable<string> CallbackSeeds(TypeModel type, IReadOnlySet<string> threadedTypes)
+    {
+        foreach (var creation in type.Syntax.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
+        {
+            var created = NameOf(creation.Type);
+            var simple = created.Contains('.') ? created[(created.LastIndexOf('.') + 1)..] : created;
+            if (!threadedTypes.Contains(simple)) continue;
+
+            foreach (var argument in creation.ArgumentList?.Arguments ?? default)
+                if (argument.Expression is IdentifierNameSyntax id && type.Methods.ContainsKey(id.Identifier.Text))
+                    yield return id.Identifier.Text;
+        }
+    }
+
+    static HashSet<string> Closure(TypeModel type)
+    {
+        var closure = new HashSet<string>(type.Seeds, StringComparer.Ordinal);
+        var queue = new Queue<string>(type.Seeds);
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            if (!type.Methods.TryGetValue(current, out var method)) continue;
+
+            foreach (var invocation in method.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                if (invocation.Expression is not IdentifierNameSyntax called) continue;
+                if (!type.Methods.ContainsKey(called.Identifier.Text)) continue;
+                if (closure.Add(called.Identifier.Text)) queue.Enqueue(called.Identifier.Text);
+            }
         }
 
-        return seeds.Distinct(StringComparer.Ordinal).ToList();
+        return closure;
     }
 
     static IEnumerable<Finding> UnityCallsIn(MethodDeclarationSyntax method, string file, string qualifiedName)

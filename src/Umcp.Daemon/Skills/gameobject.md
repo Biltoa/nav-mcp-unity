@@ -62,3 +62,28 @@ first and address by id.
 - `gameobject.delete` removes children with it, and it is undoable — but a batch's undo group
   collapses everything into one step, which is usually what you want.
 - Creating objects does not dirty a saved scene until the user saves. Do not save on their behalf.
+
+## setup.thirdPersonController
+
+A composite that needs a script, and is therefore **two calls**:
+
+```
+unity_run("setup.thirdPersonController", { name: "Player" })   -> phase: "compiling"
+... the Editor reloads ...
+unity_run("setup.thirdPersonController", { name: "Player" })   -> phase: "built"
+```
+
+The first call writes `UmcpThirdPersonController.cs` into the project and asks for a recompile; the
+second builds the rig, because a MonoBehaviour type cannot be attached until it exists. There is no
+way around this that is not worse: attaching a type that has not compiled, or blocking an Editor
+tick until the compile finishes — which every health check in this system reads as a wedged Editor.
+
+What the second call builds: a CharacterController with a capsule body, a camera pivot, the
+controller script, and a camera. If the project has Cinemachine it makes a virtual camera and adds
+a brain to the Main Camera; if it does not, it makes a plain camera **disabled**, because two
+enabled cameras with no explicit depth is a rendering coin toss and silently disabling somebody's
+Main Camera is worse.
+
+The generated script compiles against either input system — it branches on `ENABLE_INPUT_SYSTEM` —
+because a project's input choice is not a tool's decision. It is a normal script in the project:
+editable, and nothing regenerates it.

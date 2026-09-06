@@ -21,6 +21,7 @@ namespace Umcp.Agent
             "assets.info",
             "assets.move",
             "assets.refresh",
+            "assets.validate",
             "audio.clips",
             "audio.setImportSettings",
             "audio.settings",
@@ -89,6 +90,7 @@ namespace Umcp.Agent
             "scene.setActive",
             "scene.validate",
             "setup.litInterior",
+            "setup.thirdPersonController",
             "setup.uiScreen",
             "shader.info",
             "terrain.info",
@@ -115,6 +117,7 @@ namespace Umcp.Agent
             { "assets.info", new ToolMeta { Id = "assets.info", Skill = "assets", Summary = "Read one asset's identity, type and direct dependencies.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "assets.move", new ToolMeta { Id = "assets.move", Skill = "assets", Summary = "Move or rename an asset, preserving its GUID.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "AssetDatabase moves are not undoable." } },
             { "assets.refresh", new ToolMeta { Id = "assets.refresh", Skill = "assets", Summary = "Refresh the AssetDatabase. May trigger a compile and a domain reload.", Mutating = true, Retry = "Compile", Cost = "Expensive", Undo = null, NoUndoReason = "An import is not an undoable operation." } },
+            { "assets.validate", new ToolMeta { Id = "assets.validate", Skill = "assets", Summary = "Find broken things in assets, not just open scenes: prefabs with missing scripts or dead references, ScriptableObjects with no script, materials with no usable shader.", Mutating = false, Retry = "Read", Cost = "Expensive", Undo = null, NoUndoReason = null } },
             { "audio.clips", new ToolMeta { Id = "audio.clips", Skill = "audio", Summary = "List audio clips with the import settings that decide memory and quality: load type, compression, sample rate.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "audio.setImportSettings", new ToolMeta { Id = "audio.setImportSettings", Skill = "audio", Summary = "Set audio import settings on one clip or a whole folder, optionally as a platform override.", Mutating = true, Retry = "Write", Cost = "Moderate", Undo = null, NoUndoReason = "Import settings are asset metadata; the AssetDatabase does not participate in Unity's undo stack." } },
             { "audio.settings", new ToolMeta { Id = "audio.settings", Skill = "audio", Summary = "Project audio configuration: output rate, DSP buffer, virtual and real voices, spatializer.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
@@ -183,6 +186,7 @@ namespace Umcp.Agent
             { "scene.setActive", new ToolMeta { Id = "scene.setActive", Skill = "scene", Summary = "Make an open scene the active scene.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Active-scene selection is editor state, not object state." } },
             { "scene.validate", new ToolMeta { Id = "scene.validate", Skill = "scene", Summary = "Find broken things in the open scenes: missing scripts, missing prefab assets, dangling object references, missing materials.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "setup.litInterior", new ToolMeta { Id = "setup.litInterior", Skill = "lighting", Summary = "Light an interior: a key light, two fills, and a reflection probe, all sized and placed from the room's own bounds.", Mutating = true, Retry = "Write", Cost = "Moderate", Undo = "Set up interior lighting", NoUndoReason = null } },
+            { "setup.thirdPersonController", new ToolMeta { Id = "setup.thirdPersonController", Skill = "gameobject", Summary = "Create a third-person controller: character, camera rig and movement script. Two calls — the first writes the script, the second builds the rig after the reload.", Mutating = true, Retry = "Compile", Cost = "Expensive", Undo = "Set up third-person controller", NoUndoReason = null } },
             { "setup.uiScreen", new ToolMeta { Id = "setup.uiScreen", Skill = "ui", Summary = "Create a working UI screen: canvas, scaler, raycaster, EventSystem if missing, a root panel, and the elements you name.", Mutating = true, Retry = "Write", Cost = "Moderate", Undo = "Set up UI screen", NoUndoReason = null } },
             { "shader.info", new ToolMeta { Id = "shader.info", Skill = "material", Summary = "Read a shader: its properties, keywords, passes and shader-model target. Works for .shader and .shadergraph.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "terrain.info", new ToolMeta { Id = "terrain.info", Skill = "terrain", Summary = "Read the terrains in the open scenes: size, resolutions, layers, trees, details, and the draw settings that cost performance.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
@@ -226,6 +230,8 @@ namespace Umcp.Agent
                     return AssetTools.Move(Bind.Str(a, "from", true), Bind.Str(a, "to", true));
                 case "assets.refresh":
                     return AssetTools.Refresh(Bind.Bool(a, "force", false, false));
+                case "assets.validate":
+                    return InspectTools.ValidateAssets(Bind.Str(a, "folder", false), Bind.StrArr(a, "kinds", false), Bind.Int(a, "limit", false, 100), Bind.Int(a, "scan", false, 400));
                 case "audio.clips":
                     return AudioTools.Clips(Bind.Str(a, "folder", false), Bind.Str(a, "platform", false), Bind.Int(a, "limit", false, 50));
                 case "audio.setImportSettings":
@@ -362,6 +368,8 @@ namespace Umcp.Agent
                     return InspectTools.Validate(Bind.StrArr(a, "checks", false), Bind.Str(a, "root", false), Bind.Int(a, "limit", false, 100));
                 case "setup.litInterior":
                     return SetupTools.LitInterior(Bind.Str(a, "room", true), Bind.Flt(a, "intensity", false, 1.2f), Bind.Flt(a, "kelvin", false, 4000f), Bind.Str(a, "bakeMode", false, "Mixed"));
+                case "setup.thirdPersonController":
+                    return ControllerSetup.ThirdPersonController(Bind.Str(a, "name", false, "Player"), Bind.FltArr(a, "position", false), Bind.Flt(a, "moveSpeed", false, 4f), Bind.Flt(a, "sprintSpeed", false, 7f), Bind.Flt(a, "jumpHeight", false, 1.2f), Bind.Str(a, "scriptFolder", false, "Assets/Scripts/Generated"));
                 case "setup.uiScreen":
                     return SetupTools.UiScreen(Bind.Str(a, "name", true), Bind.StrArr(a, "elements", false), Bind.FltArr(a, "referenceResolution", false), Bind.Int(a, "sortOrder", false, 0));
                 case "shader.info":
@@ -462,6 +470,14 @@ namespace Umcp.Agent
                 case "assets.refresh":
                 {
                     var __force = Bind.Bool(a, "force", false, false);
+                    return;
+                }
+                case "assets.validate":
+                {
+                    var __folder = Bind.Str(a, "folder", false);
+                    var __kinds = Bind.StrArr(a, "kinds", false);
+                    var __limit = Bind.Int(a, "limit", false, 100);
+                    var __scan = Bind.Int(a, "scan", false, 400);
                     return;
                 }
                 case "audio.clips":
@@ -889,6 +905,16 @@ namespace Umcp.Agent
                     var __intensity = Bind.Flt(a, "intensity", false, 1.2f);
                     var __kelvin = Bind.Flt(a, "kelvin", false, 4000f);
                     var __bakeMode = Bind.Str(a, "bakeMode", false, "Mixed");
+                    return;
+                }
+                case "setup.thirdPersonController":
+                {
+                    var __name = Bind.Str(a, "name", false, "Player");
+                    var __position = Bind.FltArr(a, "position", false);
+                    var __moveSpeed = Bind.Flt(a, "moveSpeed", false, 4f);
+                    var __sprintSpeed = Bind.Flt(a, "sprintSpeed", false, 7f);
+                    var __jumpHeight = Bind.Flt(a, "jumpHeight", false, 1.2f);
+                    var __scriptFolder = Bind.Str(a, "scriptFolder", false, "Assets/Scripts/Generated");
                     return;
                 }
                 case "setup.uiScreen":
