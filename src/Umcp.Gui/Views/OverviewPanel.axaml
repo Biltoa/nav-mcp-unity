@@ -4,107 +4,44 @@
              x:Class="Umcp.Gui.Views.OverviewPanel"
              x:DataType="vm:MainViewModel">
 
-  <StackPanel Spacing="18">
+  <!-- No card. The one thing this page is for sits in the middle of the space it has, so the
+       emptiness around it reads as margin rather than as content that failed to load. -->
+  <Grid VerticalAlignment="Center" HorizontalAlignment="Center" Margin="40">
+    <StackPanel Spacing="0" HorizontalAlignment="Center">
 
-    <!-- ================================================================ the numbers -->
-    <!-- Four counts, because the questions people actually open this app with are "is it on",
-         "is Unity attached", "can my assistant see it" and "has it been doing anything". -->
-    <Grid ColumnDefinitions="*,*,*,*" >
-      <Border Classes="card" Grid.Column="0" Margin="0,0,7,0" Padding="18,16">
-        <StackPanel Spacing="3">
-          <TextBlock Text="{Binding EditorsTile}" FontSize="30" FontWeight="SemiBold" />
-          <TextBlock Classes="faint" Text="{Binding EditorsTileNote}" />
-        </StackPanel>
-      </Border>
+      <!-- The mark, barely there: it gives the composition a top edge without becoming a
+           second thing to look at. -->
+      <Image Source="/Assets/mark.png" Height="104" Opacity="0.09"
+             HorizontalAlignment="Center" Margin="0,0,0,44" />
 
-      <Border Classes="card" Grid.Column="1" Margin="7,0" Padding="18,16">
-        <StackPanel Spacing="3">
-          <TextBlock Text="{Binding ProjectsTile}" FontSize="30" FontWeight="SemiBold" />
-          <TextBlock Classes="faint" Text="{Binding ProjectsTileNote}" />
-        </StackPanel>
-      </Border>
-
-      <Border Classes="card" Grid.Column="2" Margin="7,0" Padding="18,16">
-        <StackPanel Spacing="3">
-          <TextBlock Text="{Binding ClientsTile}" FontSize="30" FontWeight="SemiBold" />
-          <TextBlock Classes="faint" Text="{Binding ClientsTileNote}" />
-        </StackPanel>
-      </Border>
-
-      <Border Classes="card" Grid.Column="3" Margin="7,0,0,0" Padding="18,16">
-        <StackPanel Spacing="3">
-          <TextBlock Text="{Binding OperationsTile}" FontSize="30" FontWeight="SemiBold"
-                     Foreground="{DynamicResource Accent}" />
-          <TextBlock Classes="faint" Text="{Binding OperationsTileNote}" />
-        </StackPanel>
-      </Border>
-    </Grid>
-
-    <!-- ================================================================ what to do next -->
-    <Border Classes="card">
-      <StackPanel Spacing="14">
-        <StackPanel Spacing="5">
-          <TextBlock Classes="h2" Text="Status" />
-          <TextBlock Classes="muted"
-                     Text="Three things have to be true for an AI to work in your project. Anything that needs you appears here." />
-        </StackPanel>
-
-        <ItemsControl ItemsSource="{Binding Attention}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:AttentionRow">
-              <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,12">
-                <Ellipse Classes="dot" Margin="0,5,12,0" VerticalAlignment="Top">
-                  <Ellipse.Fill>
-                    <SolidColorBrush Color="{Binding Dot}" />
-                  </Ellipse.Fill>
-                </Ellipse>
-                <StackPanel Grid.Column="1" Spacing="3">
-                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" />
-                  <TextBlock Classes="muted" Text="{Binding Detail}" />
-                </StackPanel>
-              </Grid>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+      <!-- Dot and headline centre as one group. Centring the text alone and then placing the
+           dot to its left pushes the pair right by half the dot — which is exactly what it
+           looked like. -->
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="16">
+        <Ellipse Width="14" Height="14" VerticalAlignment="Center">
+          <Ellipse.Fill>
+            <SolidColorBrush Color="{Binding ServerDot}" />
+          </Ellipse.Fill>
+        </Ellipse>
+        <TextBlock Text="{Binding ServerHeadline}" FontSize="34" FontWeight="Bold"
+                   VerticalAlignment="Center" />
       </StackPanel>
-    </Border>
 
-    <!-- ================================================================ the audit trail -->
-    <!-- The question a person asks about a tool that edits their project while they are not
-         looking: what has it been doing. It comes from the daemon's audit log, so it survives
-         a restart and is not something this window has to remember. -->
-    <Border Classes="card">
-      <StackPanel Spacing="14">
-        <StackPanel Spacing="5">
-          <TextBlock Classes="h2" Text="{Binding ActivityHeadline}" />
-          <TextBlock Classes="muted" Text="Every change an AI made through this server, newest first." />
-        </StackPanel>
+      <TextBlock Text="{Binding ServerMeta}" Classes="muted" FontSize="14"
+                 HorizontalAlignment="Center" TextAlignment="Center" Margin="0,18,0,0"
+                 MaxWidth="620" />
 
-        <Border Classes="row" IsVisible="{Binding HasNoActivity}">
-          <TextBlock Classes="muted"
-                     Text="Nothing yet. Once an assistant starts working in a linked project, every operation it runs shows up here." />
-        </Border>
-
-        <ItemsControl ItemsSource="{Binding Activity}" IsVisible="{Binding HasActivity}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:ActivityRow">
-              <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,9">
-                <Ellipse Classes="dot" Width="8" Height="8" Margin="0,0,12,0" VerticalAlignment="Center">
-                  <Ellipse.Fill>
-                    <SolidColorBrush Color="{Binding Dot}" />
-                  </Ellipse.Fill>
-                </Ellipse>
-                <StackPanel Grid.Column="1" Spacing="2">
-                  <TextBlock Text="{Binding Tool}" FontFamily="Consolas,Menlo,monospace" FontSize="13" />
-                  <TextBlock Classes="faint" Text="{Binding Detail}" />
-                </StackPanel>
-                <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Duration}"
-                           VerticalAlignment="Center" />
-              </Grid>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="14"
+                  Margin="0,34,0,0">
+        <Button Classes="outline" Content="{Binding PauseLabel}" Command="{Binding PauseCommand}"
+                IsVisible="{Binding Running}" MinWidth="150" Height="46" />
+        <Button Classes="primary" Content="{Binding ToggleServerLabel}"
+                Command="{Binding ToggleServerCommand}" MinWidth="170" Height="46" />
       </StackPanel>
-    </Border>
-  </StackPanel>
+
+      <TextBlock Text="{Binding ServerFootnote}" Classes="faint"
+                 HorizontalAlignment="Center" TextAlignment="Center" Margin="0,30,0,0"
+                 MaxWidth="520" />
+    </StackPanel>
+  </Grid>
 </UserControl>

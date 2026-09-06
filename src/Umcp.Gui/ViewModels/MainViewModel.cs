@@ -61,6 +61,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     double? _medianMs;
     bool _last24hCapped;
     int _activityTick;
+    string _serverMeta = "";
 
     public bool Running { get => _running; private set { if (Set(ref _running, value)) { Raise(nameof(NotRunning)); Raise(nameof(ServerDot)); Raise(nameof(EditorSummary)); Refresh(ToggleServerCommand, PauseCommand); } } }
     public bool NotRunning => !Running;
@@ -75,6 +76,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool IsConnections { get => _page == Page.Connections; set { if (value) Go(Page.Connections); } }
     public bool IsSettings { get => _page == Page.Settings; set { if (value) Go(Page.Settings); } }
 
+    /// <summary>Overview centres itself in the window, so it lives outside the scroller.</summary>
+    public bool NotOverview => _page != Page.Overview;
+
     void Go(Page page)
     {
         if (_page == page) return;
@@ -83,6 +87,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Raise(nameof(IsProjects));
         Raise(nameof(IsConnections));
         Raise(nameof(IsSettings));
+        Raise(nameof(NotOverview));
     }
     /// <summary>Green when it is up, grey when it is not: the first thing a person looks at.</summary>
     public string ServerDot => Running ? (Paused ? "#F59E0B" : "#10B981") : "#6B7280";
@@ -155,6 +160,26 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string ToggleServerLabel => Running ? "Stop server" : "Start server";
     public string PauseLabel => Paused ? "Resume" : "Pause";
+
+    /// <summary>The line under the headline: where it is listening and what it is carrying.</summary>
+    public string ServerMeta => _serverMeta;
+
+    /// <summary>
+    /// The line under the buttons. Running, it explains that closing the window is safe —
+    /// the question everybody asks once. Stopped, it says what is waiting, so the page reports
+    /// readiness rather than looking broken.
+    /// </summary>
+    public string ServerFootnote
+    {
+        get
+        {
+            if (Running) return "Closing this window leaves the server running.";
+            var linked = Projects.Count;
+            return linked == 0
+                ? "Link a Unity project once the server is up."
+                : $"{linked} project{(linked == 1 ? "" : "s")} linked and waiting.";
+        }
+    }
 
     /// <summary>Shown in the sidebar, so "is anything actually attached" needs no navigation.</summary>
     public string EditorSummary => !Running
@@ -274,6 +299,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 ServerDetail =
                     $"umcpd {(string?)health["daemon"]?["version"]} (process {(int?)health["daemon"]?["pid"]}) is using port " +
                     $"{_settings.HttpPort}, and it is too old for this app to control. Stop it, or move this app to another port in Settings.";
+                _serverMeta = ServerDetail;
+                Raise(nameof(ServerMeta));
+                Raise(nameof(ServerFootnote));
                 foreach (var row in Projects) row.ApplyServerDown();
                 Raise(nameof(ToggleServerLabel));
                 return;
@@ -284,6 +312,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ServerDetail = _settings.StartServerOnLaunch
                 ? "Nothing is listening on port " + _settings.HttpPort + "."
                 : "Press Start server to begin.";
+            _serverMeta = $"Nothing is listening on 127.0.0.1:{_settings.HttpPort}. Your AI assistants cannot reach Unity.";
+            Raise(nameof(ServerMeta));
+            Raise(nameof(ServerFootnote));
             foreach (var row in Projects) row.ApplyServerDown();
             Activity.Clear();
             BuildAttention(new JsonArray());
@@ -311,6 +342,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
             $"profile {(string?)daemon?["profile"]} · " +
             $"{connected} editor{(connected == 1 ? "" : "s")} connected · " +
             $"{(int?)daemon?["memory"]?["workingSetMB"]} MB";
+
+        _serverMeta =
+            $"127.0.0.1:{(int?)daemon?["httpPort"]}   ·   {(int?)daemon?["tools"]} Editor tools   ·   " +
+            $"profile {(string?)daemon?["profile"]}   ·   " +
+            (connected == 0 ? "no editor connected" : $"{connected} editor{(connected == 1 ? "" : "s")} connected");
+        Raise(nameof(ServerMeta));
+        Raise(nameof(ServerFootnote));
 
         MergeProjects(status["projects"] as JsonArray ?? new JsonArray(), editors);
         await RefreshActivityAsync();

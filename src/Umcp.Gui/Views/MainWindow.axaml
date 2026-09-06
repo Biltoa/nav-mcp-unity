@@ -58,17 +58,14 @@
       </Border>
 
       <Grid Grid.Column="1" RowDefinitions="*,Auto">
-        <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Disabled"
+        <!-- Overview centres in whatever space the window has, so it sits outside the scroller:
+             a ScrollViewer sizes to its content and would pin the hero to the top. -->
+        <views:OverviewPanel Grid.Row="0" IsVisible="{Binding IsOverview}" />
+
+        <ScrollViewer Grid.Row="0" IsVisible="{Binding NotOverview}"
+                      HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto" Padding="28,24,22,24">
           <Grid>
-            <!-- Overview answers "what is happening", not "what can I configure": counts, what
-                 still needs doing, and what the AI has actually been doing. The lists themselves
-                 live on their own tabs, where they are not read twice. -->
-            <StackPanel Spacing="18" IsVisible="{Binding IsOverview}">
-              <views:ServerCard />
-              <views:OverviewPanel />
-            </StackPanel>
-
             <StackPanel Spacing="18" IsVisible="{Binding IsProjects}">
               <views:ServerCard />
               <views:ProjectsPanel />
