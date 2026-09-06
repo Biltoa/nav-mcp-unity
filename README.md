@@ -172,6 +172,21 @@ domains costs about 5,000 tokens against a 56,800-token baseline.
 
 Content lives in `src/Umcp.Daemon/Skills/*.md` and is embedded in the binary.
 
+## Running it in earnest
+
+[docs/INSTALL.md](docs/INSTALL.md) is the install guide: the daemon, the Unity package, MCP client
+registration for both transports, a health table, troubleshooting, and how to remove it again.
+
+`scripts/publish.ps1` builds a release drop into `dist/` — and refuses to build one whose generated
+catalog differs from its sources, or whose tests or main-thread check fail.
+
+Operationally: the daemon binds loopback only and mints a token with an owner-only ACL; the audit
+log rotates; one Editor accepts at most 512 queued operations and then answers `E_BUSY`; every tool
+that takes an asset path refuses one that escapes the project, and a benchmark case probes all of
+them; the Roslyn metadata that makes code mode fast is released after ten idle minutes, taking the
+working set from 223 MB back to 110 MB; and `/health` reports working set, managed heap and
+collections, because a number nobody can see is a leak nobody finds.
+
 ## Profiles
 
 `--profile readonly | standard | full`, default `standard`.

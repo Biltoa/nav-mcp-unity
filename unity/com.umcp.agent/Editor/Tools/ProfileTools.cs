@@ -103,6 +103,13 @@ namespace Umcp.Agent
         {
             if (_started) return;
             _started = true;
+
+            // ProfilerRecorder holds a native handle. Unity warns about every one still open at a
+            // domain reload, and an agent that leaks nine of them per reload turns the console
+            // into noise nobody reads — which is where real warnings go to die.
+            AssemblyReloadEvents.beforeAssemblyReload -= StopAll;
+            AssemblyReloadEvents.beforeAssemblyReload += StopAll;
+
             foreach (var counter in Counters)
             {
                 ProfilerRecorder recorder;
@@ -111,6 +118,17 @@ namespace Umcp.Agent
                 _recorders.Add(recorder);
                 _names.Add(counter.name);
             }
+        }
+
+        static void StopAll()
+        {
+            foreach (var recorder in _recorders)
+            {
+                try { if (recorder.Valid) recorder.Dispose(); } catch { }
+            }
+            _recorders.Clear();
+            _names.Clear();
+            _started = false;
         }
     }
 

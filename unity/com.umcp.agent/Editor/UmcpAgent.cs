@@ -192,10 +192,27 @@ namespace Umcp.Agent
                 _opsExecuted++;
                 Interlocked.Exchange(ref _lastOpMs, _clock.ElapsedMilliseconds);
                 Send("{\"t\":\"result\",\"id\":" + JsonConvert.ToString(id) + ",\"ok\":true,\"data\":" + payload +
+                     PlayModeWarning(tool, dryRun) +
                      ",\"ms\":" + sw.ElapsedMilliseconds + "}");
             }
             catch (UmcpToolException te) { SendToolError(id, te, sw); }
             catch (Exception e) { SendError(id, "E_TOOL_FAILED", e.Message, sw, tool); }
+        }
+
+        /// <summary>
+        /// A scene mutation made in Play mode is discarded the moment Play stops, and nothing about
+        /// the result says so. This is the single most common way to "successfully" do work that
+        /// vanishes, so the result says it — as a warning, not as a refusal: editing during play is
+        /// legitimate when you mean it.
+        /// </summary>
+        static string PlayModeWarning(string tool, bool dryRun)
+        {
+            if (dryRun || !EditorApplication.isPlaying) return "";
+            var meta = ToolDispatch.Meta(tool);
+            if (meta == null || !meta.Mutating) return "";
+
+            return ",\"warnings\":[" + JsonConvert.ToString(
+                "The Editor is in Play mode: scene changes made now are discarded when Play stops.") + "]";
         }
 
         internal static object Execute(string tool, JObject args, bool dryRun)

@@ -16,7 +16,6 @@ public static class Paths
     public static string TokenFile => Path.Combine(Root, "token");
     public static string LogDir => Path.Combine(Root, "logs");
     public static string AuditLog => Path.Combine(LogDir, "audit.jsonl");
-    public static string StateFile => Path.Combine(Root, "state.json");
 
     public static void EnsureCreated()
     {

@@ -81,3 +81,75 @@ public class VersionTests
         Assert.Equal(packageVersion, BuildInfo.Version);
     }
 }
+
+/// <summary>
+/// The response boundary: what the Editor says reaches the caller, and what it must not send
+/// reaches nobody.
+/// </summary>
+public class EnvelopeBoundaryTests
+{
+    static JsonObject Wrap(JsonNode agentResult, int maxBytes = 32 * 1024) =>
+        Envelope.FromAgentResult(agentResult, epoch: 7, projectName: "P", heldMs: 0, attempts: 1, maxBytes: maxBytes);
+
+    [Fact]
+    public void A_warning_from_the_editor_reaches_the_caller()
+    {
+        // The Play-mode warning is the one that matters: a scene change made during play is
+        // discarded when play stops, and a result that does not say so is a successful lie.
+        var result = Wrap(new JsonObject
+        {
+            ["ok"] = true,
+            ["data"] = new JsonObject { ["created"] = 1 },
+            ["warnings"] = new JsonArray("The Editor is in Play mode: scene changes made now are discarded when Play stops."),
+            ["ms"] = 4
+        });
+
+        Assert.True((bool?)result["ok"]);
+        var warnings = result["warnings"] as JsonArray;
+        Assert.NotNull(warnings);
+        Assert.Contains("Play mode", (string?)warnings![0]);
+    }
+
+    [Fact]
+    public void A_result_with_no_warnings_carries_no_warnings_field()
+    {
+        var result = Wrap(new JsonObject { ["ok"] = true, ["data"] = new JsonObject(), ["ms"] = 1 });
+        Assert.Null(result["warnings"]);
+    }
+
+    [Fact]
+    public void A_structured_tool_error_survives_the_boundary()
+    {
+        var result = Wrap(new JsonObject
+        {
+            ["ok"] = false,
+            ["error"] = new JsonObject
+            {
+                ["code"] = "E_TARGET_NOT_FOUND",
+                ["message"] = "No GameObject matched 'Palyer'.",
+                ["param"] = "target",
+                ["value"] = "Palyer",
+                ["didYouMean"] = new JsonArray("Player"),
+                ["hint"] = "Names are case-sensitive."
+            }
+        });
+
+        Assert.False((bool?)result["ok"]);
+        Assert.Equal("E_TARGET_NOT_FOUND", (string?)result["code"]);
+        Assert.Equal("Player", (string?)(result["didYouMean"] as JsonArray)?[0]);
+        Assert.Equal("target", (string?)result["param"]);
+    }
+
+    [Fact]
+    public void An_oversized_payload_is_truncated_and_says_so()
+    {
+        var items = new JsonArray();
+        for (var i = 0; i < 5000; i++) items.Add(new JsonObject { ["name"] = "Object_" + i, ["path"] = "/Level/Object_" + i });
+
+        var result = Wrap(new JsonObject { ["ok"] = true, ["data"] = new JsonObject { ["items"] = items }, ["ms"] = 9 }, maxBytes: 4096);
+
+        Assert.True((bool?)result["meta"]?["truncated"]);
+        var kept = (result["data"]?["items"] as JsonArray)?.Count ?? 0;
+        Assert.True(kept is > 0 and < 5000, $"kept {kept} of 5000");
+    }
+}

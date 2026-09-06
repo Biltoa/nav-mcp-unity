@@ -145,3 +145,72 @@ public class ProfileTests
         Assert.Equal(expected, Umcp.Daemon.Security.Profiles.Parse(input));
     }
 }
+
+/// <summary>
+/// The compiler's caches: the one that must not go stale, and the one that must not stay forever.
+/// </summary>
+public class ScriptCacheTests
+{
+    static readonly string[] References = AppDomain.CurrentDomain.GetAssemblies()
+        .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+        .Select(a => a.Location)
+        .ToArray();
+
+    [Fact]
+    public void Metadata_is_kept_while_code_mode_is_in_use()
+    {
+        var compiler = new ScriptCompiler();
+        compiler.Compile("return 1;", References, new[] { "System" });
+
+        Assert.True(compiler.ReferenceCount > 0);
+        Assert.Equal(0, compiler.EvictIfIdle());          // just used, so nothing is released
+        Assert.True(compiler.ReferenceCount > 0);
+    }
+
+    [Fact]
+    public void Metadata_is_released_once_code_mode_goes_quiet()
+    {
+        // ~150 MB of Roslyn metadata for the Editor's assemblies is not something to hold for a
+        // session that compiled one script an hour ago.
+        var compiler = new ScriptCompiler();
+        compiler.Compile("return 2;", References, new[] { "System" });
+        var held = compiler.ReferenceCount;
+        Assert.True(held > 0);
+
+        var freed = compiler.EvictIfIdle(DateTime.UtcNow + ScriptCompiler.DefaultIdleEviction + TimeSpan.FromMinutes(1));
+        Assert.Equal(held, freed);
+        Assert.Equal(0, compiler.ReferenceCount);
+
+        // The compiled assemblies survive: they are what makes a repeated query free.
+        var again = compiler.Compile("return 2;", References, new[] { "System" });
+        Assert.True(again.FromCache);
+    }
+
+    [Fact]
+    public void A_rewritten_assembly_is_not_served_from_the_old_metadata()
+    {
+        // Unity rewrites Library/ScriptAssemblies/*.dll on every recompile. A cache keyed by path
+        // alone would hand Roslyn yesterday's metadata for today's assembly.
+        var dir = Path.Combine(Path.GetTempPath(), "umcp-refs-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var copy = Path.Combine(dir, "Probe.dll");
+
+        try
+        {
+            File.Copy(References.First(r => r.EndsWith("System.Runtime.dll", StringComparison.OrdinalIgnoreCase)
+                                            || r.EndsWith("System.Private.CoreLib.dll", StringComparison.OrdinalIgnoreCase)), copy);
+
+            var compiler = new ScriptCompiler();
+            compiler.Compile("return 3;", References.Append(copy).ToArray(), new[] { "System" });
+            var first = compiler.ReferenceCount;
+
+            // "Recompile": same path, different content and timestamp.
+            File.SetLastWriteTimeUtc(copy, DateTime.UtcNow.AddMinutes(5));
+            compiler.Compile("return 4;", References.Append(copy).ToArray(), new[] { "System" });
+
+            Assert.True(compiler.ReferenceCount > first,
+                "the rewritten assembly should have produced a new metadata entry, not reused the old one");
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+}

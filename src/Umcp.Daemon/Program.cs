@@ -80,7 +80,16 @@ if (options.Stdio)
     stdio.Services.AddMcpServer(o => { o.ServerInfo = new() { Name = BuildInfo.ServerName, Version = BuildInfo.Version }; o.ServerInstructions = Instructions; })
         .WithStdioServerTransport()
         .WithTools<UnityMcpTools>();
-    await stdio.Build().RunAsync();
+    try
+    {
+        await stdio.Build().RunAsync();
+    }
+    catch (Exception e) when (e is System.Net.Sockets.SocketException ||
+                              e.InnerException is System.Net.Sockets.SocketException)
+    {
+        Console.Error.WriteLine($"[umcpd] could not start: {e.Message}");
+        return 3;
+    }
     return 0;
 }
 
@@ -161,6 +170,15 @@ app.MapGet("/health", async (EditorRegistry registry, DaemonOptions opts) =>
             ["pid"] = Environment.ProcessId,
             ["version"] = BuildInfo.Version,
             ["uptimeSec"] = (long)(DateTime.UtcNow - DaemonInfo.StartedUtc).TotalSeconds,
+            // Memory is reported because this process is expected to run for weeks. A number
+            // nobody can see is a leak nobody finds.
+            ["memory"] = new JsonObject
+            {
+                ["workingSetMB"] = Environment.WorkingSet / (1024 * 1024),
+                ["privateMB"] = System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64 / (1024 * 1024),
+                ["managedHeapMB"] = GC.GetTotalMemory(false) / (1024 * 1024),
+                ["gen2Collections"] = GC.CollectionCount(2)
+            },
             ["httpPort"] = opts.HttpPort,
             ["agentPort"] = opts.AgentPort,
             ["tools"] = ToolCatalog.All.Length,
@@ -245,6 +263,7 @@ static void AddCore(IServiceCollection services, DaemonOptions options)
     services.AddHostedService<AgentServer>();
     services.AddSingleton<DaemonState>();
     services.AddSingleton<Umcp.Daemon.Script.ScriptCompiler>();
+    services.AddHostedService<Umcp.Daemon.Script.ScriptCacheJanitor>();
     services.AddSingleton<SkillTree>();
     services.AddSingleton<Umcp.Daemon.Mirror.MirrorService>();
     services.AddHostedService<Umcp.Daemon.Mirror.MirrorReconciler>();

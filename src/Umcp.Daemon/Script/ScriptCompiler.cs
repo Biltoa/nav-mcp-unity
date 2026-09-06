@@ -35,12 +35,49 @@ public sealed record ScriptDiagnostic(string Severity, string Id, int Line, int 
 /// </summary>
 public sealed class ScriptCompiler
 {
+    public ScriptCompiler() { }
+
+    public ScriptCompiler(DaemonOptions options)
+    {
+        if (options.ScriptIdleMinutes > 0) IdleEviction = TimeSpan.FromMinutes(options.ScriptIdleMinutes);
+    }
+
     // Cache compiled assemblies by source hash: the same query re-run costs no compile at all,
     // and this cache lives on the daemon, so a domain reload does not empty it.
     readonly ConcurrentDictionary<string, (byte[] asm, string type)> _cache = new();
     readonly ConcurrentDictionary<string, MetadataReference> _references = new();
 
+    long _lastUseTicks = DateTime.UtcNow.Ticks;
+
     public int CacheCount => _cache.Count;
+    public int ReferenceCount => _references.Count;
+
+    /// <summary>
+    /// How long the reference metadata is kept after the last compile.
+    ///
+    /// Roslyn's metadata for the Editor's ~100 assemblies costs about 150 MB of working set —
+    /// measured, on this project — and code mode is used in bursts and then not at all. Holding
+    /// that for a session that compiled one script an hour ago is the daemon taking memory from
+    /// the Editor it exists to serve. Rebuilding it costs about a second.
+    /// </summary>
+    public static readonly TimeSpan DefaultIdleEviction = TimeSpan.FromMinutes(10);
+
+    /// <summary>Overridable so a test — or a long-running host with tighter memory — can shorten it.</summary>
+    public TimeSpan IdleEviction { get; init; } = DefaultIdleEviction;
+
+    /// <summary>Drop the metadata cache if nothing has compiled recently. Returns what it freed.</summary>
+    public int EvictIfIdle(DateTime? nowUtc = null)
+    {
+        var now = nowUtc ?? DateTime.UtcNow;
+        if (_references.IsEmpty) return 0;
+        if (now - new DateTime(Interlocked.Read(ref _lastUseTicks), DateTimeKind.Utc) < IdleEviction) return 0;
+
+        var freed = _references.Count;
+        _references.Clear();
+        // The compiled assemblies stay: they are bytes, not metadata, and they are what makes a
+        // repeated query free.
+        return freed;
+    }
 
     /// <summary>
     /// Namespaces every script gets for free. Kept as data rather than baked into one string so
@@ -77,6 +114,7 @@ public sealed class ScriptCompiler
                                  IReadOnlyList<string>? usings = null)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
+        Interlocked.Exchange(ref _lastUseTicks, DateTime.UtcNow.Ticks);
         usings ??= UnityUsings;
         var hash = Hash(body + "|" + string.Join(",", usings));
         var typeName = "UmcpScript_" + hash;
@@ -150,12 +188,24 @@ public sealed class ScriptCompiler
 
     MetadataReference? Reference(string path)
     {
-        if (_references.TryGetValue(path, out var cached)) return cached;
+        // Keyed by *file identity*, not by path. Unity rewrites Library/ScriptAssemblies/*.dll on
+        // every recompile: a cache keyed by path alone hands Roslyn yesterday's metadata for
+        // today's assembly, and the caller gets errors about members that exist.
+        FileInfo info;
         try
         {
-            if (!File.Exists(path)) return null;
+            info = new FileInfo(path);
+            if (!info.Exists) return null;
+        }
+        catch { return null; }
+
+        var key = path + "|" + info.Length + "|" + info.LastWriteTimeUtc.Ticks;
+        if (_references.TryGetValue(key, out var cached)) return cached;
+
+        try
+        {
             var r = MetadataReference.CreateFromFile(path);
-            _references[path] = r;
+            _references[key] = r;
             return r;
         }
         catch
@@ -168,5 +218,53 @@ public sealed class ScriptCompiler
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(s));
         return Convert.ToHexString(bytes, 0, 8).ToLowerInvariant();
+    }
+}
+
+/// <summary>
+/// Gives the compiler's metadata back when code mode goes quiet. A timer rather than a check on
+/// the next call, because the memory matters most precisely when nothing is calling.
+/// </summary>
+public sealed class ScriptCacheJanitor : BackgroundService
+{
+    readonly ScriptCompiler _compiler;
+    readonly ILogger<ScriptCacheJanitor> _log;
+
+    public ScriptCacheJanitor(ScriptCompiler compiler, ILogger<ScriptCacheJanitor> log)
+    {
+        _compiler = compiler;
+        _log = log;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                var tick = _compiler.IdleEviction < TimeSpan.FromMinutes(2)
+                    ? TimeSpan.FromSeconds(10)
+                    : TimeSpan.FromMinutes(1);
+                await Task.Delay(tick, ct).ConfigureAwait(false);
+                var freed = _compiler.EvictIfIdle();
+                if (freed == 0) continue;
+
+                // Dropping the references is not enough on its own: Roslyn maps each assembly into
+                // memory, and the process keeps the pages until a compacting collection hands them
+                // back. This runs only when code mode has been idle for ten minutes, so the pause
+                // costs nothing anyone is waiting on.
+                var before = Environment.WorkingSet / (1024 * 1024);
+                GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+                var after = Environment.WorkingSet / (1024 * 1024);
+
+                _log.LogInformation("code mode idle for {Minutes} min: released {Count} reference assemblies, " +
+                                    "working set {Before} -> {After} MB",
+                    _compiler.IdleEviction.TotalMinutes, freed, before, after);
+            }
+            catch (OperationCanceledException) { break; }
+            catch (Exception e) { _log.LogWarning(e, "script cache janitor"); }
+        }
     }
 }

@@ -143,20 +143,38 @@ public sealed class AgentServer : BackgroundService
     readonly EditorRegistry _registry;
     readonly ILogger<AgentServer> _log;
     readonly ILoggerFactory _loggerFactory;
+    readonly IHostApplicationLifetime _lifetime;
     readonly int _port;
 
-    public AgentServer(EditorRegistry registry, ILogger<AgentServer> log, ILoggerFactory loggerFactory, DaemonOptions options)
+    public AgentServer(EditorRegistry registry, ILogger<AgentServer> log, ILoggerFactory loggerFactory,
+                       IHostApplicationLifetime lifetime, DaemonOptions options)
     {
         _registry = registry;
         _log = log;
         _loggerFactory = loggerFactory;
+        _lifetime = lifetime;
         _port = options.AgentPort;
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         var listener = new TcpListener(IPAddress.Loopback, _port);
-        listener.Start();
+        try
+        {
+            listener.Start();
+        }
+        catch (SocketException e)
+        {
+            // Almost always a second daemon. Say so once and shut down cleanly: an unhandled
+            // exception out of a background service takes the host down with a stack trace, which
+            // is the least useful way to say "that port is taken".
+            Console.Error.WriteLine($"[umcpd] agent port {_port} is already in use ({e.SocketErrorCode}).");
+            Console.Error.WriteLine("[umcpd] another daemon is probably running. Use it, or start this one with " +
+                                   "--port <n> --agent-port <n>.");
+            _lifetime.StopApplication();
+            return;
+        }
+
         _log.LogInformation("agent channel listening on 127.0.0.1:{Port}", _port);
         ct.Register(listener.Stop);
 

@@ -55,6 +55,12 @@ public sealed class DaemonOptions
     /// <summary>Where com.umcp.agent lives, when it is not next to the binary.</summary>
     public string? PackagePath { get; init; }
 
+    /// <summary>
+    /// Minutes of code-mode idleness before the compiler's reference metadata is released.
+    /// Zero keeps the default (10). Roslyn's metadata for the Editor's assemblies is ~150 MB.
+    /// </summary>
+    public int ScriptIdleMinutes { get; init; }
+
     public static DaemonOptions Parse(string[] args)
     {
         int Int(string name, int dflt)
@@ -79,7 +85,8 @@ public sealed class DaemonOptions
             Profile = Security.Profiles.Parse(Str("--profile")),
             AutoRestart = args.Contains("--auto-restart"),
             PackagePath = Str("--package-path"),
-            OpenTimeout = TimeSpan.FromSeconds(Int("--open-timeout", 300))
+            OpenTimeout = TimeSpan.FromSeconds(Int("--open-timeout", 300)),
+            ScriptIdleMinutes = Int("--script-idle-minutes", 0)
         };
     }
 }

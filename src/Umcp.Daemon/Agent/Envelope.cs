@@ -48,14 +48,22 @@ public static class Envelope
 
     /// <summary>Wrap a raw agent result frame, applying the response byte cap.</summary>
     public static JsonObject FromAgentResult(JsonNode agentResult, AgentSession session, long heldMs, int attempts, int maxBytes)
+        => FromAgentResult(agentResult, session.Epoch, session.ProjectName, heldMs, attempts, maxBytes);
+
+    /// <summary>
+    /// The same wrapping without a live session, so the boundary's behaviour — error mapping, the
+    /// response cap, warnings passed through — can be tested without a socket.
+    /// </summary>
+    public static JsonObject FromAgentResult(JsonNode agentResult, int epoch, string projectName,
+                                             long heldMs, int attempts, int maxBytes)
     {
         var ok = (bool?)agentResult["ok"] ?? false;
         var meta = new JsonObject
         {
-            ["ms"] = (long?)agentResult["ms"] ?? 0,
+            ["ms"] = Number(agentResult["ms"]),
             ["source"] = "live",
-            ["epoch"] = session.Epoch,
-            ["project"] = session.ProjectName
+            ["epoch"] = epoch,
+            ["project"] = projectName
         };
         if (heldMs > 0) meta["heldMs"] = heldMs;
         if (attempts > 1) meta["attempts"] = attempts;
@@ -79,7 +87,28 @@ public static class Envelope
         meta["truncated"] = truncated;
         if (truncated) meta["bytes"] = bytes;
 
-        return Ok(capped, meta);
+        // Warnings the Editor attached — "you did this in Play mode, and it will not survive" —
+        // travel with the result rather than being dropped at the boundary.
+        var warnings = (agentResult["warnings"] as JsonArray)?
+            .Select(w => (string?)w).Where(w => w is not null).Select(w => w!).ToArray();
+
+        return Ok(capped, meta, warnings);
+    }
+
+    /// <summary>
+    /// Read a JSON number without caring how it was built.
+    ///
+    /// A cast like <c>(long?)node</c> throws when the node holds an <c>int</c> — which is what it
+    /// holds when the object was constructed in memory rather than parsed from the wire. That
+    /// difference is invisible in production and fatal in a test, which is the worst combination:
+    /// the code looks proven and is not.
+    /// </summary>
+    static long Number(JsonNode? node)
+    {
+        if (node is null) return 0;
+        try { return node.GetValue<long>(); } catch { }
+        try { return (long)node.GetValue<double>(); } catch { }
+        return long.TryParse(node.ToJsonString(), out var parsed) ? parsed : 0;
     }
 
     /// <summary>

@@ -50,3 +50,6 @@ scratch/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# ---- release drop ----
+dist/

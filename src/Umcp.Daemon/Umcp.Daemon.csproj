@@ -7,6 +7,12 @@
     <AssemblyName>umcpd</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- Workstation GC. ASP.NET defaults to server GC, which allocates a heap per core and holds
+         it: on a 16-core desktop that turns a daemon with a few megabytes of live state into a
+         process with a gigabyte of working set. This one shares a machine with a Unity Editor
+         that wants every byte, so it gives memory back instead of keeping it. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol" Version="0.4.0-preview.2" />
