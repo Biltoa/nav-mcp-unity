@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Umcp.Gui.Shots</RootNamespace>
+    <AssemblyName>umcp-shots</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Renders the real window off-screen, with the real styles and the real view models.
+         Screenshots of a mock-up are a drawing of a promise; these are the app. -->
+    <PackageReference Include="Avalonia.Headless" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Skia" Version="11.3.20" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Umcp.Gui\Umcp.Gui.csproj" />
+  </ItemGroup>
+</Project>

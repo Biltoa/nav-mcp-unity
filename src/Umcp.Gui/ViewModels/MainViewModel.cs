@@ -101,7 +101,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool HasNoProjects => Projects.Count == 0;
     public bool Busy { get => _busy; private set { if (Set(ref _busy, value)) Refresh(ToggleServerCommand); } }
     public bool Paused { get => _paused; private set { if (Set(ref _paused, value)) { Raise(nameof(ServerDotBrush)); Raise(nameof(PauseLabel)); } } }
-    public string ServerHeadline { get => _serverHeadline; private set => Set(ref _serverHeadline, value); }
+    public string ServerHeadline { get => _serverHeadline; set => Set(ref _serverHeadline, value); }
     public string ServerDetail { get => _serverDetail; private set => Set(ref _serverDetail, value); }
     public string Message { get => _message; private set => Set(ref _message, value); }
 
@@ -435,6 +435,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ? $"Restarting {row.Name}."
             : (string?)result?["message"] ?? $"Could not restart {row.Name}.";
         await RefreshAsync();
+    }
+
+    /// <summary>
+    /// Put the window into its stopped state without touching a server. Only the screenshot
+    /// tool calls this: the empty state is the first thing a new user sees, and photographing it
+    /// should not mean stopping somebody's running daemon.
+    /// </summary>
+    public void ForceStoppedForCapture()
+    {
+        Running = false;
+        ServerHeadline = "Server stopped";
+        _serverMeta = $"Nothing is listening on 127.0.0.1:{_settings.HttpPort}. Your AI assistants cannot reach Unity.";
+        Raise(nameof(ServerMeta));
+        Raise(nameof(ServerFootnote));
+        Raise(nameof(ToggleServerLabel));
     }
 
     // ---------------------------------------------------------------- permissions

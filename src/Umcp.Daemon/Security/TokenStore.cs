@@ -19,10 +19,18 @@ public sealed class TokenStore
     {
         Paths.EnsureCreated();
         Token = explicitToken ?? Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
-        Write();
     }
 
-    void Write()
+    /// <summary>
+    /// Write the token to disk. Called only once the listeners are bound, never at construction.
+    ///
+    /// A daemon that cannot bind its port is a daemon that is not serving, and the overwhelmingly
+    /// likely reason is that another one already is. Writing the token on the way to that failure
+    /// replaces the running daemon's token with one nobody holds: every client of the working
+    /// server starts getting 401s because a second copy failed to start. That is a very confusing
+    /// half-hour, and it cost one here.
+    /// </summary>
+    public void Persist()
     {
         File.WriteAllText(Paths.TokenFile, Token);
         var problem = Umcp.UmcpPaths.RestrictToOwner(Paths.TokenFile);

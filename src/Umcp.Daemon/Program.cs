@@ -157,15 +157,21 @@ try
     // that may be about to fail, and the first thing a user does with that line is trust it.
     await app.StartAsync();
 
+    // Bound and serving: now the token file may be replaced. Not before — see TokenStore.Persist.
+    tokens.Persist();
+
     Console.Error.WriteLine($"[umcpd] {BuildInfo.Version} · http 127.0.0.1:{options.HttpPort}/mcp · agents 127.0.0.1:{options.AgentPort} · " +
                             $"{ToolCatalog.All.Length} tools · profile {Umcp.Daemon.Security.Profiles.Name(options.Profile)} · " +
                             $"token in {Paths.TokenFile}");
 
     await app.WaitForShutdownAsync();
 }
-catch (Exception e) when (e is System.Net.Sockets.SocketException ||
+catch (Exception e) when (e is System.Net.Sockets.SocketException or TaskCanceledException ||
                           e.InnerException is System.Net.Sockets.SocketException)
 {
+    // Kestrel reports a port it cannot bind as a cancelled task rather than a socket error, so
+    // both land here; without the TaskCanceledException the friendly message below was printed
+    // and then followed by an unhandled exception and a stack trace.
     // Either listener can hit this, and the overwhelmingly likely cause is a second daemon. Say
     // so, and say which one, rather than printing a socket error and a stack trace at somebody
     // who just wanted to start the tool.
