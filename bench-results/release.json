@@ -1,5 +1,5 @@
 {
-  "when": "2026-09-06T03:46:22.6033853\u002B03:00",
+  "when": "2026-09-06T06:08:10.1589529\u002B03:00",
   "focus": "unfocused",
   "results": [
     {
@@ -14,12 +14,12 @@
     },
     {
       "ops": 16,
-      "msPerOp": 99.4,
+      "msPerOp": 99.5,
       "p50": 99,
-      "min": 99,
-      "max": 100,
+      "min": 98,
+      "max": 105,
       "name": "ping-sequential",
-      "harnessMs": 1705,
+      "harnessMs": 1694,
       "focus": "unfocused"
     },
     {
@@ -28,29 +28,29 @@
       "msPerOp": 3.12,
       "ok": 32,
       "name": "ping-concurrent-32",
-      "harnessMs": 193,
+      "harnessMs": 195,
       "focus": "unfocused"
     },
     {
       "ops": 32,
-      "batchMs": 127,
-      "msPerOp": 3.97,
+      "batchMs": 115,
+      "msPerOp": 3.59,
       "created": 32,
       "responseBytes": 478,
       "target": "\u003C=150ms",
       "pass": true,
       "name": "batch-32",
-      "harnessMs": 225,
+      "harnessMs": 214,
       "focus": "unfocused"
     },
     {
       "ops": 4,
-      "batchMs": 198,
+      "batchMs": 226,
       "ok": true,
       "count": 4,
       "error": null,
       "name": "batch-dependent",
-      "harnessMs": 198,
+      "harnessMs": 227,
       "focus": "unfocused"
     },
     {
@@ -60,19 +60,19 @@
       "cap": 32768,
       "pass": true,
       "name": "payload-scene-info",
-      "harnessMs": 111,
+      "harnessMs": 126,
       "focus": "unfocused"
     },
     {
       "opsDuringReload": 16,
       "visibleErrors": 0,
-      "heldOps": 4,
+      "heldOps": 0,
       "replayedOps": 0,
-      "sequenceMs": 14030,
+      "sequenceMs": 1174,
       "errors": [],
       "pass": true,
       "name": "reload-hold-replay",
-      "harnessMs": 14031,
+      "harnessMs": 1174,
       "focus": "unfocused"
     },
     {
@@ -87,14 +87,14 @@
       "baseline": 56800,
       "pass": true,
       "name": "skill-tree",
-      "harnessMs": 145,
+      "harnessMs": 17157,
       "focus": "unfocused"
     },
     {
       "dumpBytes": 39443,
       "dumpTruncated": false,
       "queryBytes": 4354,
-      "queryMs": 14,
+      "queryMs": 52,
       "countBytes": 153,
       "objectsMatched": 49,
       "overviewBytes": 1270,
@@ -102,34 +102,34 @@
       "target": "scene overview \u003C 2048 B (was 138,205 B)",
       "pass": true,
       "name": "scene-query-vs-dump",
-      "harnessMs": 328,
+      "harnessMs": 266,
       "focus": "unfocused"
     },
     {
-      "batchMs": 114,
+      "batchMs": 123,
       "batchBytes": 382,
-      "scriptMs": 1391,
+      "scriptMs": 1439,
       "scriptBytes": 291,
       "bytesRatio": 1.3,
       "scriptOk": true,
       "scriptCode": null,
-      "queryFirstMs": 87,
-      "queryCachedMs": 99,
+      "queryFirstMs": 80,
+      "queryCachedMs": 97,
       "queryBytes": 219,
-      "compileMsFirst": 39,
+      "compileMsFirst": 40,
       "compileMsCached": 0,
       "rendererCount": 49,
       "pass": true,
       "name": "code-mode",
-      "harnessMs": 1693,
+      "harnessMs": 1742,
       "focus": "unfocused"
     },
     {
       "source": "mirror",
       "verifySource": "live",
-      "mirrorMsMean": 0.1,
+      "mirrorMsMean": 0.45,
       "mirrorMsMax": 1,
-      "liveMsMean": 97.8,
+      "liveMsMean": 98.1,
       "staleMs": 218,
       "mirrorMatches": 167,
       "liveMatches": 167,
@@ -137,7 +137,7 @@
       "target": "served from mirror, agrees with live, mean \u003C 10 ms",
       "pass": true,
       "name": "mirror-latency",
-      "harnessMs": 1102,
+      "harnessMs": 1107,
       "focus": "unfocused"
     },
     {
@@ -150,7 +150,7 @@
       "target": "zero drift after a mixed mutation workload",
       "pass": true,
       "name": "mirror-reconcile",
-      "harnessMs": 1008,
+      "harnessMs": 1016,
       "focus": "unfocused"
     },
     {
@@ -159,13 +159,13 @@
       "readFailures": 0,
       "fromMirror": 60,
       "fromLive": 0,
-      "flaggedStale": 17,
-      "seconds": 73,
+      "flaggedStale": 20,
+      "seconds": 85,
       "failures": [],
       "target": "zero read failures across every reload",
       "pass": true,
       "name": "reads-through-reloads",
-      "harnessMs": 73135,
+      "harnessMs": 85135,
       "focus": "unfocused"
     },
     {
@@ -174,7 +174,7 @@
       "notConfined": [],
       "pass": true,
       "name": "path-confinement",
-      "harnessMs": 8670,
+      "harnessMs": 8702,
       "focus": "unfocused"
     },
     {
@@ -187,7 +187,7 @@
       "changedNothing": true,
       "pass": true,
       "name": "dry-run",
-      "harnessMs": 510,
+      "harnessMs": 505,
       "focus": "unfocused"
     },
     {
@@ -198,11 +198,11 @@
       "bytes": 567,
       "pass": true,
       "name": "scene-diff",
-      "harnessMs": 396,
+      "harnessMs": 397,
       "focus": "unfocused"
     },
     {
-      "ms": 255,
+      "ms": 286,
       "platform": "WebGL",
       "graphicsApis": "OpenGLES3",
       "errors": 8,
@@ -211,24 +211,24 @@
       "bytes": 14154,
       "pass": true,
       "name": "validate-target",
-      "harnessMs": 256,
+      "harnessMs": 288,
       "focus": "unfocused"
     },
     {
       "outcome": "cancelled",
-      "cancelMs": 414,
+      "cancelMs": 403,
       "objectsCreated": 0,
       "mutationPrevented": true,
       "pass": true,
       "name": "cancel-queued",
-      "harnessMs": 7527,
+      "harnessMs": 7526,
       "focus": "unfocused"
     },
     {
       "controlChannel": "ok",
       "msSinceTick": 2,
       "health": "ok",
-      "lastRoundTripMs": 7,
+      "lastRoundTripMs": 5,
       "pass": true,
       "name": "blocked-detection",
       "harnessMs": 1,
@@ -236,13 +236,13 @@
     },
     {
       "code": "E_EDITOR_BLOCKED",
-      "detectMs": 7018,
+      "detectMs": 7034,
       "message": "No main-thread tick for 8.4 s while 1 operation(s) are queued.",
-      "recoveredMs": 3062,
+      "recoveredMs": 3068,
       "target": "E_EDITOR_BLOCKED within 15000ms",
       "pass": true,
       "name": "blocked-under-stall",
-      "harnessMs": 12111,
+      "harnessMs": 12106,
       "focus": "unfocused"
     },
     {
@@ -252,7 +252,7 @@
       "remaining": 0,
       "pass": true,
       "name": "cleanup",
-      "harnessMs": 706,
+      "harnessMs": 709,
       "focus": "unfocused"
     }
   ]
