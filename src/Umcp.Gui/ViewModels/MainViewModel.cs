@@ -23,6 +23,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public MainViewModel()
     {
         _client.Port = _settings.HttpPort;
+        _profile = _settings.Profile;
 
         ToggleServerCommand = new RelayCommand(async _ => await ToggleServerAsync(), _ => !Busy);
         RefreshCommand = new RelayCommand(async _ => await RefreshAsync());
@@ -52,14 +53,37 @@ public sealed class MainViewModel : INotifyPropertyChanged
     string _serverDetail = "Start the server, then link the Unity projects you want to control.";
     string _message = "";
     string _profile = "standard";
+    string? _daemonVersion;
+    string? _packagePath;
+    int _editorCount;
 
-    public bool Running { get => _running; private set { if (Set(ref _running, value)) { Raise(nameof(NotRunning)); Raise(nameof(ServerDot)); Refresh(ToggleServerCommand, PauseCommand); } } }
+    public bool Running { get => _running; private set { if (Set(ref _running, value)) { Raise(nameof(NotRunning)); Raise(nameof(ServerDot)); Raise(nameof(EditorSummary)); Refresh(ToggleServerCommand, PauseCommand); } } }
     public bool NotRunning => !Running;
+
+    // ---- which page the sidebar is showing. Radio buttons bind two-way, so setting one
+    // ---- true must publish the other three as false.
+    Page _page = Page.Overview;
+    public enum Page { Overview, Projects, Connections, Settings }
+
+    public bool IsOverview { get => _page == Page.Overview; set { if (value) Go(Page.Overview); } }
+    public bool IsProjects { get => _page == Page.Projects; set { if (value) Go(Page.Projects); } }
+    public bool IsConnections { get => _page == Page.Connections; set { if (value) Go(Page.Connections); } }
+    public bool IsSettings { get => _page == Page.Settings; set { if (value) Go(Page.Settings); } }
+
+    void Go(Page page)
+    {
+        if (_page == page) return;
+        _page = page;
+        Raise(nameof(IsOverview));
+        Raise(nameof(IsProjects));
+        Raise(nameof(IsConnections));
+        Raise(nameof(IsSettings));
+    }
     /// <summary>Green when it is up, grey when it is not: the first thing a person looks at.</summary>
     public string ServerDot => Running ? (Paused ? "#F59E0B" : "#10B981") : "#6B7280";
     public bool HasNoProjects => Projects.Count == 0;
     public bool Busy { get => _busy; private set { if (Set(ref _busy, value)) Refresh(ToggleServerCommand); } }
-    public bool Paused { get => _paused; private set { if (Set(ref _paused, value)) Raise(nameof(ServerDot)); } }
+    public bool Paused { get => _paused; private set { if (Set(ref _paused, value)) { Raise(nameof(ServerDot)); Raise(nameof(PauseLabel)); } } }
     public string ServerHeadline { get => _serverHeadline; private set => Set(ref _serverHeadline, value); }
     public string ServerDetail { get => _serverDetail; private set => Set(ref _serverDetail, value); }
     public string Message { get => _message; private set => Set(ref _message, value); }
@@ -99,6 +123,41 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<ClientRow> Clients { get; } = new();
 
     public string ToggleServerLabel => Running ? "Stop server" : "Start server";
+    public string PauseLabel => Paused ? "Resume" : "Pause";
+
+    /// <summary>Shown in the sidebar, so "is anything actually attached" needs no navigation.</summary>
+    public string EditorSummary => !Running
+        ? "Server stopped"
+        : _editorCount switch
+        {
+            0 => "No editor connected",
+            1 => "1 editor connected",
+            var n => $"{n} editors connected"
+        };
+
+    public string VersionLine => _daemonVersion is null
+        ? $"NAV MCP {BuildVersion}"
+        : $"NAV MCP {BuildVersion} · server {_daemonVersion}";
+
+    static string BuildVersion =>
+        System.Reflection.Assembly.GetExecutingAssembly().GetName().Version is { } v
+            ? $"{v.Major}.{v.Minor}.{v.Build}"
+            : "1.0.0";
+
+    public string TokenPath => UmcpPaths.TokenFile;
+    public string PackagePath => _packagePath ?? "not found next to this app";
+
+    public bool StartServerOnLaunch
+    {
+        get => _settings.StartServerOnLaunch;
+        set { _settings.StartServerOnLaunch = value; _settings.Save(); Raise(nameof(StartServerOnLaunch)); }
+    }
+
+    public bool StopServerOnExit
+    {
+        get => _settings.StopServerOnExit;
+        set { _settings.StopServerOnExit = value; _settings.Save(); Raise(nameof(StopServerOnExit)); }
+    }
 
     /// <summary>The config snippet for a client this app does not know about.</summary>
     public string Snippet =>
@@ -205,10 +264,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var daemon = status["daemon"];
         var editors = status["editors"] as JsonArray ?? new JsonArray();
         var connected = editors.Count;
+
+        _daemonVersion = (string?)daemon?["version"];
+        _packagePath = (string?)status["packagePath"];
+        _editorCount = connected;
+        Raise(nameof(VersionLine));
+        Raise(nameof(PackagePath));
+        Raise(nameof(EditorSummary));
         ServerHeadline = Paused ? "Server running — paused" : "Server running";
         ServerDetail =
-            $"Version {(string?)daemon?["version"]} · port {(int?)daemon?["httpPort"]} · " +
-            $"{(int?)daemon?["tools"]} Editor tools · profile {(string?)daemon?["profile"]} · " +
+            $"Listening on 127.0.0.1:{(int?)daemon?["httpPort"]} · {(int?)daemon?["tools"]} Editor tools · " +
+            $"profile {(string?)daemon?["profile"]} · " +
             $"{connected} editor{(connected == 1 ? "" : "s")} connected · " +
             $"{(int?)daemon?["memory"]?["workingSetMB"]} MB";
 

@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Umcp.Gui.ViewModels"
+             x:Class="Umcp.Gui.Views.ProjectsPanel"
+             x:DataType="vm:MainViewModel">
+
+  <Border Classes="card">
+    <StackPanel Spacing="16">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="6">
+          <TextBlock Classes="h2" Text="Unity projects" />
+          <TextBlock Classes="muted"
+                     Text="One server drives all of them at once. Link a project and the tool writes itself into that project's package list." />
+        </StackPanel>
+        <Button Grid.Column="1" Classes="outline" Content="Link a project…"
+                Click="OnLinkClicked" VerticalAlignment="Center" />
+      </Grid>
+
+      <Border Classes="row" IsVisible="{Binding HasNoProjects}">
+        <TextBlock Classes="muted"
+                   Text="No projects linked yet. Click “Link a project…” and choose a Unity project folder — the one with Assets and ProjectSettings inside it." />
+      </Border>
+
+      <ItemsControl ItemsSource="{Binding Projects}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ProjectRow">
+            <Border Classes="row" Margin="0,0,0,10">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Ellipse Classes="dot" Margin="0,6,12,0" VerticalAlignment="Top">
+                  <Ellipse.Fill>
+                    <SolidColorBrush Color="{Binding Badge}" />
+                  </Ellipse.Fill>
+                </Ellipse>
+
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" />
+                    <TextBlock Classes="muted" Text="{Binding Status}" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <TextBlock Classes="muted" Text="{Binding Detail}" />
+                  <TextBlock Classes="faint" Text="{Binding Path}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2"
+                            VerticalAlignment="Center">
+                  <Button Classes="link" Content="Open in Unity"
+                          Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).OpenProjectCommand}"
+                          CommandParameter="{Binding}" IsVisible="{Binding CanOpen}" />
+                  <Button Classes="link" Content="Restart"
+                          Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).RestartProjectCommand}"
+                          CommandParameter="{Binding}" IsVisible="{Binding IsOpen}" />
+                  <Button Classes="link" Content="Close"
+                          Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).CloseProjectCommand}"
+                          CommandParameter="{Binding}" IsVisible="{Binding Connected}" />
+                  <Button Classes="link" Content="Show folder"
+                          Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).RevealProjectCommand}"
+                          CommandParameter="{Binding}" />
+                  <Button Classes="link danger" Content="Unlink"
+                          Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).UnlinkCommand}"
+                          CommandParameter="{Binding}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </Border>
+</UserControl>

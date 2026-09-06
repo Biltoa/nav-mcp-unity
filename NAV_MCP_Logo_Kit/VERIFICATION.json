@@ -1,0 +1,103 @@
+{
+  "source_filename": "6dea44d3-5396-4448-85cd-85a9b49a22ff.png",
+  "source_dimensions": [
+    1536,
+    1024
+  ],
+  "source_sha256": "c2a8fce2593a4d9b54dda1f0af7e72a832ab739480a7016e3b5eb6318aea8aec",
+  "crop_boxes_xyxy": {
+    "horizontal": [
+      238,
+      291,
+      1303,
+      530
+    ],
+    "mark": [
+      659,
+      676,
+      876,
+      835
+    ],
+    "wordmark": [
+      545,
+      330,
+      1303,
+      510
+    ]
+  },
+  "exact_master_method": "Direct source pixel crop with no resampling or recoloring",
+  "transparent_master_method": "Black-background decontamination from source RGB; no tracing or generation",
+  "transparent_extraction": {
+    "horizontal": {
+      "threshold_used_for_component_discovery_and_noise_floor": 8,
+      "minimum_component_area_pixels": 500,
+      "support_dilation_pixels": 3,
+      "edge_color_cosine_minimum": 0.97,
+      "kept_component_count": 8,
+      "nonzero_alpha_pixels": 84104
+    },
+    "mark": {
+      "threshold_used_for_component_discovery_and_noise_floor": 8,
+      "minimum_component_area_pixels": 500,
+      "support_dilation_pixels": 3,
+      "edge_color_cosine_minimum": 0.97,
+      "kept_component_count": 2,
+      "nonzero_alpha_pixels": 10774
+    },
+    "wordmark": {
+      "threshold_used_for_component_discovery_and_noise_floor": 8,
+      "minimum_component_area_pixels": 500,
+      "support_dilation_pixels": 3,
+      "edge_color_cosine_minimum": 0.97,
+      "kept_component_count": 6,
+      "nonzero_alpha_pixels": 54319
+    }
+  },
+  "measured_color_samples": {
+    "orange_observed": {
+      "median_rgb": [
+        255,
+        135,
+        35
+      ],
+      "median_hex": "#FF8723",
+      "most_common_rgb": [
+        255,
+        135,
+        34
+      ],
+      "most_common_hex": "#FF8722",
+      "sample_pixels": 33318
+    },
+    "white_observed": {
+      "median_rgb": [
+        255,
+        255,
+        255
+      ],
+      "median_hex": "#FFFFFF",
+      "most_common_rgb": [
+        255,
+        255,
+        255
+      ],
+      "most_common_hex": "#FFFFFF",
+      "sample_pixels": 36780
+    }
+  },
+  "horizontal_exact_pixel_match": true,
+  "horizontal_master_dimensions": [
+    1065,
+    239
+  ],
+  "mark_exact_pixel_match": true,
+  "mark_master_dimensions": [
+    217,
+    159
+  ],
+  "wordmark_exact_pixel_match": true,
+  "wordmark_master_dimensions": [
+    758,
+    180
+  ]
+}

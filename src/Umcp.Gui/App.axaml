@@ -1,90 +1,242 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Umcp.Gui.App"
-             RequestedThemeVariant="Default">
+             RequestedThemeVariant="Dark">
+
+  <Application.Resources>
+    <!-- The palette is the logo's, not a theme's: the orange is the measured median of the mark
+         (#FF8723) and everything else is a neutral ground chosen to sit under it without
+         competing. Dark only — the brand is a white-and-orange mark on black, and a light
+         variant would be a second identity to keep in sync. -->
+    <Color x:Key="AccentColor">#FF8723</Color>
+    <SolidColorBrush x:Key="Accent" Color="#FF8723" />
+    <SolidColorBrush x:Key="AccentHover" Color="#FF9A45" />
+    <SolidColorBrush x:Key="AccentPressed" Color="#E8761A" />
+    <SolidColorBrush x:Key="AccentInk" Color="#12171F" />
+
+    <SolidColorBrush x:Key="PageBackground" Color="#10151C" />
+    <SolidColorBrush x:Key="SidebarBackground" Color="#0B1016" />
+    <SolidColorBrush x:Key="CardBackground" Color="#161C25" />
+    <SolidColorBrush x:Key="CardBorder" Color="#242C38" />
+    <SolidColorBrush x:Key="Divider" Color="#1E2530" />
+    <SolidColorBrush x:Key="Foreground" Color="#E8ECF2" />
+    <SolidColorBrush x:Key="MutedForeground" Color="#96A0AE" />
+    <SolidColorBrush x:Key="FaintForeground" Color="#66707E" />
+
+    <SolidColorBrush x:Key="StatusReady" Color="#3FB950" />
+    <SolidColorBrush x:Key="StatusWarn" Color="#FF8723" />
+    <SolidColorBrush x:Key="StatusBad" Color="#F85149" />
+    <SolidColorBrush x:Key="StatusIdle" Color="#5A6472" />
+  </Application.Resources>
 
   <Application.Styles>
     <FluentTheme />
 
-    <!-- A small vocabulary, used consistently: cards, muted text, a status dot, three button
-         weights. Everything in the window is one of these. -->
+    <Style Selector="Window">
+      <Setter Property="Background" Value="{DynamicResource PageBackground}" />
+      <Setter Property="Foreground" Value="{DynamicResource Foreground}" />
+    </Style>
+
+    <Style Selector="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource Foreground}" />
+    </Style>
+
+    <!-- ================================================================ type -->
+
+    <Style Selector="TextBlock.h1">
+      <Setter Property="FontSize" Value="26" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="TextBlock.h2">
+      <Setter Property="FontSize" Value="19" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="TextBlock.h3">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.faint">
+      <Setter Property="Foreground" Value="{DynamicResource FaintForeground}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- ================================================================ surfaces -->
+
     <Style Selector="Border.card">
       <Setter Property="Background" Value="{DynamicResource CardBackground}" />
       <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="Padding" Value="16" />
+      <Setter Property="Padding" Value="22" />
     </Style>
 
-    <Style Selector="TextBlock.muted">
-      <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="TextWrapping" Value="Wrap" />
-    </Style>
-
-    <Style Selector="TextBlock.h1">
-      <Setter Property="FontSize" Value="20" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
-
-    <Style Selector="TextBlock.h2">
-      <Setter Property="FontSize" Value="14" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Margin" Value="0,0,0,8" />
+    <Style Selector="Border.row">
+      <Setter Property="Background" Value="#12171F" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Divider}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="16,14" />
     </Style>
 
     <Style Selector="Ellipse.dot">
-      <Setter Property="Width" Value="10" />
-      <Setter Property="Height" Value="10" />
+      <Setter Property="Width" Value="11" />
+      <Setter Property="Height" Value="11" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
+    <!-- ================================================================ buttons -->
+
     <Style Selector="Button.primary">
-      <Setter Property="Background" Value="#2563EB" />
-      <Setter Property="Foreground" Value="White" />
-      <Setter Property="Padding" Value="18,9" />
-      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Background" Value="{DynamicResource Accent}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentInk}" />
+      <Setter Property="Padding" Value="22,11" />
+      <Setter Property="CornerRadius" Value="7" />
       <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="BorderThickness" Value="0" />
     </Style>
     <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="#1D4ED8" />
+      <Setter Property="Background" Value="{DynamicResource AccentHover}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentInk}" />
+    </Style>
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentPressed}" />
+    </Style>
+    <Style Selector="Button.primary:disabled /template/ ContentPresenter">
+      <Setter Property="Background" Value="#3A2A18" />
+      <Setter Property="Foreground" Value="#7A7268" />
     </Style>
 
+    <Style Selector="Button.outline">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="18,9" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="Button.outline:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1F1A14" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentHover}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentHover}" />
+    </Style>
+    <Style Selector="Button.outline:disabled /template/ ContentPresenter">
+      <Setter Property="Foreground" Value="#6A5A48" />
+      <Setter Property="BorderBrush" Value="#3A2F22" />
+    </Style>
+
+    <!-- Row actions: quiet until you look at them. -->
     <Style Selector="Button.link">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
-      <Setter Property="Padding" Value="6,3" />
-      <Setter Property="FontSize" Value="12" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="9,5" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="Button.link:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1B222C" />
+      <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+    </Style>
+
+    <Style Selector="Button.danger:pointerover /template/ ContentPresenter">
+      <Setter Property="Foreground" Value="{DynamicResource StatusBad}" />
+    </Style>
+
+    <!-- ================================================================ navigation -->
+
+    <Style Selector="RadioButton.nav">
+      <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,1" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Name="Shell" Background="Transparent" CornerRadius="0,7,7,0" Padding="18,11">
+            <Grid ColumnDefinitions="3,*">
+              <!-- The selected marker is a bar in the brand orange, which is how the sidebar
+                   says "you are here" without a second colour. -->
+              <Border Name="Marker" Grid.Column="0" Width="3" CornerRadius="2"
+                      Background="Transparent" Margin="-18,-11,0,-11" />
+              <ContentPresenter Grid.Column="1" Margin="15,0,0,0"
+                                Content="{TemplateBinding Content}"
+                                VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="RadioButton.nav:pointerover /template/ Border#Shell">
+      <Setter Property="Background" Value="#141A22" />
+    </Style>
+    <Style Selector="RadioButton.nav:checked /template/ Border#Shell">
+      <Setter Property="Background" Value="#171E27" />
+    </Style>
+    <Style Selector="RadioButton.nav:checked /template/ Border#Marker">
+      <Setter Property="Background" Value="{DynamicResource Accent}" />
+    </Style>
+    <Style Selector="RadioButton.nav:checked">
+      <Setter Property="Foreground" Value="{DynamicResource Foreground}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- ================================================================ window chrome -->
+
+    <Style Selector="Button.chrome">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Width" Value="46" />
+      <Setter Property="Height" Value="36" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.chrome:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1B222C" />
+      <Setter Property="Foreground" Value="{DynamicResource Foreground}" />
+    </Style>
+    <Style Selector="Button.close:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#C42B1C" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+
+    <!-- ================================================================ inputs -->
+
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="#0E131A" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+      <Setter Property="Foreground" Value="{DynamicResource Foreground}" />
+      <Setter Property="CornerRadius" Value="7" />
+    </Style>
+
+    <Style Selector="Expander">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
     </Style>
   </Application.Styles>
 
-  <Application.Resources>
-    <ResourceDictionary>
-      <ResourceDictionary.ThemeDictionaries>
-        <ResourceDictionary x:Key="Light">
-          <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF" />
-          <SolidColorBrush x:Key="CardBorder" Color="#E5E7EB" />
-          <SolidColorBrush x:Key="MutedForeground" Color="#6B7280" />
-          <SolidColorBrush x:Key="PageBackground" Color="#F5F6F8" />
-        </ResourceDictionary>
-        <ResourceDictionary x:Key="Dark">
-          <SolidColorBrush x:Key="CardBackground" Color="#1B1F27" />
-          <SolidColorBrush x:Key="CardBorder" Color="#2C313C" />
-          <SolidColorBrush x:Key="MutedForeground" Color="#9AA3B2" />
-          <SolidColorBrush x:Key="PageBackground" Color="#12151B" />
-        </ResourceDictionary>
-      </ResourceDictionary.ThemeDictionaries>
-    </ResourceDictionary>
-  </Application.Resources>
-
-  <!-- Closing the window leaves the server running and the app in the tray, which is the whole
-       point: the daemon is meant to outlive the things that talk to it. -->
   <TrayIcon.Icons>
     <TrayIcons>
-      <TrayIcon Icon="/Assets/icon.ico" ToolTipText="Unity MCP Tool" Clicked="OnTrayClicked">
+      <TrayIcon Icon="/Assets/icon.ico" ToolTipText="NAV MCP" Clicked="OnTrayClicked">
         <TrayIcon.Menu>
           <NativeMenu>
-            <NativeMenuItem Header="Open Unity MCP Tool" Click="OnTrayOpen" />
+            <NativeMenuItem Header="Open NAV MCP" Click="OnTrayOpen" />
             <NativeMenuItemSeparator />
             <NativeMenuItem Header="Quit" Click="OnTrayQuit" />
           </NativeMenu>

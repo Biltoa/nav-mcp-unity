@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# Build a macOS release drop of the Unity MCP Tool.
+# Build a macOS release drop of NAV MCP.
 #
 #   dist-mac/
-#     Unity MCP Tool.app/           the thing a person drags to /Applications
+#     NAV MCP.app/                  the thing a person drags to /Applications
 #       Contents/MacOS/             the GUI binary and its runtime
 #       Contents/Resources/         umcpd, umcp-stdio, com.umcp.agent, the icon
-#     Unity-MCP-Tool-<arch>.zip     the same app, zipped for distribution
+#     NAV-MCP-<arch>.zip            the same app, zipped for distribution
 #
 # Self-contained by default: the audience has never installed a .NET runtime and should not have
 # to. Pass --framework-dependent for the small build that needs one.
@@ -86,7 +86,7 @@ for rid in "${arches[@]}"; do
 
   suffix=""
   [[ ${#arches[@]} -gt 1 ]] && suffix=" (${rid#osx-})"
-  app="$output/Unity MCP Tool$suffix.app"
+  app="$output/NAV MCP$suffix.app"
   rm -rf "$app"
   mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 
@@ -109,15 +109,18 @@ for rid in "${arches[@]}"; do
 
   cp docs/INSTALL.md "$output/INSTALL.md"
 
-  # The icon: iconutil wants a .iconset of the sizes it will be asked for. sips is on every Mac.
-  iconset="$stage/icon.iconset"
-  mkdir -p "$iconset"
-  for size in 16 32 128 256 512; do
-    sips -z $size $size src/Umcp.Gui/Assets/icon.png --out "$iconset/icon_${size}x${size}.png" >/dev/null 2>&1 || true
-    sips -z $((size * 2)) $((size * 2)) src/Umcp.Gui/Assets/icon.png --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null 2>&1 || true
-  done
-  iconutil -c icns "$iconset" -o "$app/Contents/Resources/icon.icns" 2>/dev/null || \
-    cp src/Umcp.Gui/Assets/icon.png "$app/Contents/Resources/icon.icns"
+  # The brand kit ships a real .icns; only build one from the PNG if it is ever missing.
+  if [[ -f src/Umcp.Gui/Assets/icon.icns ]]; then
+    cp src/Umcp.Gui/Assets/icon.icns "$app/Contents/Resources/icon.icns"
+  else
+    iconset="$stage/icon.iconset"
+    mkdir -p "$iconset"
+    for size in 16 32 128 256 512; do
+      sips -z $size $size src/Umcp.Gui/Assets/icon.png --out "$iconset/icon_${size}x${size}.png" >/dev/null 2>&1 || true
+      sips -z $((size * 2)) $((size * 2)) src/Umcp.Gui/Assets/icon.png --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null 2>&1 || true
+    done
+    iconutil -c icns "$iconset" -o "$app/Contents/Resources/icon.icns"
+  fi
 
   version=$(grep -o '<Version>[^<]*' Directory.Build.props | head -1 | cut -d'>' -f2)
 
@@ -126,13 +129,13 @@ for rid in "${arches[@]}"; do
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Unity MCP Tool</string>
-  <key>CFBundleDisplayName</key><string>Unity MCP Tool</string>
-  <key>CFBundleIdentifier</key><string>com.umcp.tool</string>
+  <key>CFBundleName</key><string>NAV MCP</string>
+  <key>CFBundleDisplayName</key><string>NAV MCP</string>
+  <key>CFBundleIdentifier</key><string>com.navmcp.app</string>
   <key>CFBundleVersion</key><string>$version</string>
   <key>CFBundleShortVersionString</key><string>$version</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleExecutable</key><string>Unity MCP Tool</string>
+  <key>CFBundleExecutable</key><string>NAV MCP</string>
   <key>CFBundleIconFile</key><string>icon</string>
   <key>NSHighResolutionCapable</key><true/>
   <!-- The window can be closed to the menu bar while the server keeps running; it is still a
@@ -142,7 +145,7 @@ for rid in "${arches[@]}"; do
 </plist>
 PLIST
 
-  chmod +x "$app/Contents/MacOS/Unity MCP Tool" "$app/Contents/Resources/umcpd" "$app/Contents/Resources/umcp-stdio"
+  chmod +x "$app/Contents/MacOS/NAV MCP" "$app/Contents/Resources/umcpd" "$app/Contents/Resources/umcp-stdio"
 
   say "signing $app"
   identity="${UMCP_SIGN_IDENTITY:--}"
@@ -155,11 +158,11 @@ PLIST
     echo "   ad-hoc signed: the first launch needs right-click -> Open (not notarised)."
   fi
 
-  ( cd "$output" && zip -qry "Unity-MCP-Tool-${rid#osx-}.zip" "$(basename "$app")" )
+  ( cd "$output" && zip -qry "NAV-MCP-${rid#osx-}.zip" "$(basename "$app")" )
   rm -rf "$stage"
 done
 
 say "done"
 ls -la "$output"
 echo
-echo "Drag 'Unity MCP Tool.app' to /Applications, then right-click it and choose Open the first time."
+echo "Drag 'NAV MCP.app' to /Applications, then right-click it and choose Open the first time."

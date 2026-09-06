@@ -1,0 +1,72 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Umcp.Gui.ViewModels"
+             x:Class="Umcp.Gui.Views.SettingsPanel"
+             x:DataType="vm:MainViewModel">
+
+  <StackPanel Spacing="16">
+    <Border Classes="card">
+      <StackPanel Spacing="18">
+        <StackPanel Spacing="6">
+          <TextBlock Classes="h2" Text="Settings" />
+          <TextBlock Classes="muted" Text="The port and the profile apply the next time the server starts." />
+        </StackPanel>
+
+        <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto" >
+          <TextBlock Classes="h3" Text="Port" VerticalAlignment="Center" Margin="0,0,0,14" />
+          <StackPanel Grid.Column="1" Spacing="4" Margin="0,0,0,14">
+            <NumericUpDown Minimum="1024" Maximum="65535" Increment="1" FormatString="0"
+                           Width="150" HorizontalAlignment="Left" Value="{Binding Port}" />
+            <TextBlock Classes="faint" Text="Loopback only — 127.0.0.1. The Unity agent uses the next port up." />
+          </StackPanel>
+
+          <TextBlock Grid.Row="1" Classes="h3" Text="What the AI may do" VerticalAlignment="Top"
+                     Margin="0,6,0,14" />
+          <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6" Margin="0,0,0,14">
+            <ComboBox Width="200" HorizontalAlignment="Left"
+                      ItemsSource="{Binding Profiles}" SelectedItem="{Binding Profile}" />
+            <TextBlock Classes="faint" Text="readonly — look, never touch." />
+            <TextBlock Classes="faint" Text="standard — make changes, but no arbitrary code and no irreversible writes." />
+            <TextBlock Classes="faint" Text="full — everything, including running C# in the Editor and deleting assets." />
+          </StackPanel>
+
+          <TextBlock Grid.Row="2" Classes="h3" Text="Behaviour" VerticalAlignment="Top" Margin="0,4,0,0" />
+          <StackPanel Grid.Row="2" Grid.Column="1" Spacing="10">
+            <CheckBox Content="Start the server when this app opens"
+                      IsChecked="{Binding StartServerOnLaunch}" />
+            <CheckBox Content="Stop the server when this app quits"
+                      IsChecked="{Binding StopServerOnExit}" />
+            <TextBlock Classes="faint"
+                       Text="Left off, the server keeps running after you quit — which is the point of it being a server. Unity stays connected either way." />
+          </StackPanel>
+        </Grid>
+      </StackPanel>
+    </Border>
+
+    <Border Classes="card">
+      <StackPanel Spacing="14">
+        <TextBlock Classes="h2" Text="This install" />
+        <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto">
+          <TextBlock Classes="h3" Text="Version" Margin="0,0,0,10" />
+          <TextBlock Grid.Column="1" Classes="muted" Text="{Binding VersionLine}" Margin="0,0,0,10" />
+
+          <TextBlock Grid.Row="1" Classes="h3" Text="Access token" Margin="0,0,0,10" />
+          <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4" Margin="0,0,0,10">
+            <TextBlock Classes="muted" Text="{Binding TokenPath}" />
+            <TextBlock Classes="faint"
+                       Text="Minted fresh on every server start, readable only by your account. The Connect buttons avoid it entirely." />
+          </StackPanel>
+
+          <TextBlock Grid.Row="2" Classes="h3" Text="Logs" Margin="0,0,0,10" />
+          <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+            <Button Classes="link" Content="Open log folder" Command="{Binding OpenLogFolderCommand}" />
+            <Button Classes="link" Content="Copy token" Click="OnCopyToken" />
+          </StackPanel>
+
+          <TextBlock Grid.Row="3" Classes="h3" Text="Unity package" />
+          <TextBlock Grid.Row="3" Grid.Column="1" Classes="muted" Text="{Binding PackagePath}" />
+        </Grid>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

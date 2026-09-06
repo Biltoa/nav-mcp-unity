@@ -1,4 +1,4 @@
-# Installing the Unity MCP Tool
+# Installing NAV MCP
 
 There are two ways in. Pick one.
 
@@ -15,13 +15,13 @@ carry their own .NET; a hand install needs the [.NET 8 runtime](https://dotnet.m
 
 ### 1. Download and open it
 
-**Windows** — unzip anywhere (`Documents\UnityMCP` is fine) and run **Unity MCP Tool.exe**.
+**Windows** — unzip anywhere (`Documents\NavMcp` is fine) and run **NAV MCP.exe**.
 
 The first launch shows a blue **"Windows protected your PC"** box. That is SmartScreen saying the
 app has no paid code-signing certificate, not that anything is wrong with it. Click **More info**,
 then **Run anyway**. It appears once.
 
-**macOS** — drag **Unity MCP Tool.app** to your Applications folder. The first launch must be
+**macOS** — drag **NAV MCP.app** to your Applications folder. The first launch must be
 **right-click (or Control-click) the app → Open → Open**. Double-clicking it the first time gives
 *"cannot be opened because the developer cannot be verified"* with no way past; the right-click
 route is the way macOS lets you approve an app that has not been notarised. After that, it opens
@@ -30,7 +30,7 @@ normally forever.
 If macOS says the app is **damaged**, it was quarantined during download. In Terminal:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Unity MCP Tool.app"
+xattr -dr com.apple.quarantine "/Applications/NAV MCP.app"
 ```
 
 ### 2. Start the server
@@ -153,14 +153,14 @@ Add the package to the project's `Packages/manifest.json`:
 ```jsonc
 {
   "dependencies": {
-    "com.umcp.agent": "file:C:/Users/you/Documents/UnityMCP/com.umcp.agent",
+    "com.umcp.agent": "file:C:/Users/you/Documents/NavMcp/com.umcp.agent",
     // ... everything else
   }
 }
 ```
 
 Absolute path, forward slashes. On macOS the package is inside the bundle, at
-`/Applications/Unity MCP Tool.app/Contents/Resources/com.umcp.agent`.
+`/Applications/NAV MCP.app/Contents/Resources/com.umcp.agent`.
 
 Unity resolves the manifest **at startup**; a *running* Editor only re-resolves when its window
 regains focus, so if you edit the manifest while Unity is open, click the Editor once.
@@ -180,7 +180,7 @@ Point the client at the shim, which reads the token itself and starts the daemon
 {
   "mcpServers": {
     "unity": {
-      "command": "C:/Users/you/Documents/UnityMCP/umcp-stdio.exe",
+      "command": "C:/Users/you/Documents/NavMcp/umcp-stdio.exe",
       "args": ["--port", "8730"]
     }
   }

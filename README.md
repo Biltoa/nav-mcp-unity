@@ -1,4 +1,4 @@
-# Unity MCP Tool
+# NAV MCP
 
 An MCP server for the Unity Editor, built around one measured finding: **the Editor drains its
 whole message queue in a single tick**, so 32 operations cost about the wall time of one. Batching
@@ -10,7 +10,7 @@ Three processes, and the important line is that **the durable state lives outsid
 AI client ──stdio──▶ umcp-stdio ──http──▶ umcpd ──tcp──▶ UnityAgent (in-editor package)
                        (shim)            (daemon)         one per project
                                             ▲
-                        Unity MCP Tool.app ─┘  (the GUI: start/stop, link projects,
+                             NAV MCP app ─┘  (the GUI: start/stop, link projects,
                                                 connect clients — Windows and macOS)
 ```
 
@@ -26,7 +26,7 @@ Generated tool reference: [docs/TOOLS.md](docs/TOOLS.md).
 | Path | What |
 |---|---|
 | `src/Umcp.Daemon` | `umcpd` — MCP over stdio and HTTP, editor registry, dispatcher, health, control API |
-| `src/Umcp.Gui` | the desktop app — Avalonia, one codebase for the Windows .exe and the macOS .app |
+| `src/Umcp.Gui` | **NAV MCP**, the desktop app — Avalonia, one codebase for the Windows .exe and the macOS .app |
 | `src/Umcp.Stdio` | `umcp-stdio` — the shim a client spawns; starts the daemon if it isn't up |
 | `src/Umcp.ToolGen` | `umcp-toolgen` — reads the `[UnityTool]` methods and generates dispatch, catalog and docs |
 | `src/Umcp.Bench` | `umcp-bench` — the measurement harness; every claim in PROGRESS.md comes from it |
@@ -45,7 +45,7 @@ anyway** on Windows, **right-click → Open** on macOS. INSTALL.md says so with 
 each OS uses.
 
 ```powershell
-pwsh scripts/publish.ps1        # Windows drop into dist/
+pwsh scripts/publish.ps1        # Windows drop into dist/ (NAV MCP.exe)
 ```
 ```bash
 scripts/publish.sh              # macOS .app into dist-mac/
@@ -68,7 +68,7 @@ input example, or if a mutating tool declares neither an undo group nor a reason
 ## Run
 
 ```bash
-dotnet run --project src/Umcp.Gui                                       # the app
+dotnet run --project src/Umcp.Gui                                       # NAV MCP, the app
 dotnet run --project src/Umcp.Daemon -- --port 8730 --agent-port 8731   # the server alone
 ```
 

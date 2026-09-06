@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Umcp.Gui.ViewModels"
+             x:Class="Umcp.Gui.Views.ServerCard"
+             x:DataType="vm:MainViewModel">
+
+  <!-- The first thing anyone looks at, so it answers the only question they have: is it on. -->
+  <Border Classes="card">
+    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+      <Ellipse Classes="dot" Grid.Row="0" Grid.Column="0" Margin="0,0,14,0" VerticalAlignment="Center">
+        <Ellipse.Fill>
+          <SolidColorBrush Color="{Binding ServerDot}" />
+        </Ellipse.Fill>
+      </Ellipse>
+
+      <TextBlock Grid.Row="0" Grid.Column="1" Classes="h1" Text="{Binding ServerHeadline}"
+                 VerticalAlignment="Center" />
+      <TextBlock Grid.Row="1" Grid.Column="1" Classes="muted" Margin="0,8,20,0"
+                 Text="{Binding ServerDetail}" />
+
+      <StackPanel Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" Orientation="Horizontal"
+                  Spacing="10" VerticalAlignment="Center">
+        <Button Classes="outline" Content="{Binding PauseLabel}" Command="{Binding PauseCommand}"
+                IsVisible="{Binding Running}" />
+        <Button Classes="primary" Content="{Binding ToggleServerLabel}"
+                Command="{Binding ToggleServerCommand}" MinWidth="140" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</UserControl>

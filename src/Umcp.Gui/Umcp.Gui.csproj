@@ -7,7 +7,8 @@
     <RootNamespace>Umcp.Gui</RootNamespace>
     <!-- The name a person sees in a Start menu, a Dock and a task manager. The daemon keeps its
          short unix-style name; this is the thing they double-click. -->
-    <AssemblyName>Unity MCP Tool</AssemblyName>
+    <AssemblyName>NAV MCP</AssemblyName>
+    <Product>NAV MCP</Product>
     <ApplicationIcon>Assets/icon.ico</ApplicationIcon>
     <InvariantGlobalization>true</InvariantGlobalization>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>

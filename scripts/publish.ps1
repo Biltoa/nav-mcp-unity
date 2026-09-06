@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-    Build a Windows release drop of the Unity MCP Tool into dist/.
+    Build a Windows release drop of NAV MCP into dist/.
 
 .DESCRIPTION
     Produces everything an install needs and nothing it does not:
 
         dist/
-          Unity MCP Tool.exe        the app people double-click
+          NAV MCP.exe               the app people double-click
           umcpd.exe                 the server it starts
           umcp-stdio.exe            the MCP shim clients spawn
           com.umcp.agent/           the Unity package, referenced from a project manifest
@@ -86,13 +86,13 @@ Get-ChildItem (Join-Path $dist 'com.umcp.agent') -Recurse -Include 'Library', 'T
 $version = (& (Join-Path $dist 'umcpd.exe') --version)
 
 # The app is what a person launches, so its absence is a broken drop, not a warning.
-foreach ($required in @('Unity MCP Tool.exe', 'umcpd.exe', 'umcp-stdio.exe')) {
+foreach ($required in @('NAV MCP.exe', 'umcpd.exe', 'umcp-stdio.exe')) {
     if (-not (Test-Path (Join-Path $dist $required))) { throw "the drop is missing $required" }
 }
 
 Write-Host ""
 Write-Host "dist/ is ready: $version ($Runtime, $(if ($selfContained) { 'self-contained' } else { 'needs the .NET 8 runtime' }))" -ForegroundColor Green
-Write-Host "Start it by double-clicking 'Unity MCP Tool.exe'." -ForegroundColor Green
+Write-Host "Start it by double-clicking 'NAV MCP.exe'." -ForegroundColor Green
 Write-Host ""
 Write-Host "Unsigned, so the first launch shows SmartScreen: More info -> Run anyway." -ForegroundColor DarkYellow
 Get-ChildItem $dist | Select-Object Name, Length | Format-Table -AutoSize

@@ -88,18 +88,18 @@ jobs:
       # resolves its runtime and its helpers.
       - name: The bundle is shaped like an app
         run: |
-          app="dist-mac/Unity MCP Tool (arm64).app"
-          test -x "$app/Contents/MacOS/Unity MCP Tool"
+          app="dist-mac/NAV MCP (arm64).app"
+          test -x "$app/Contents/MacOS/NAV MCP"
           test -x "$app/Contents/Resources/umcpd"
           test -x "$app/Contents/Resources/umcp-stdio"
           test -f "$app/Contents/Resources/com.umcp.agent/package.json"
           test -f "$app/Contents/Info.plist"
           codesign --verify --verbose "$app"
-          "dist-mac/Unity MCP Tool (x64).app/Contents/Resources/umcpd" --version
+          "dist-mac/NAV MCP (x64).app/Contents/Resources/umcpd" --version
 
       - uses: actions/upload-artifact@v4
         with:
-          name: unity-mcp-tool-macos
+          name: nav-mcp-macos
           path: dist-mac/*.zip
           if-no-files-found: error
 
@@ -123,6 +123,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: unity-mcp-tool-windows
+          name: nav-mcp-windows
           path: dist/
           if-no-files-found: error

@@ -1,9 +1,9 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Umcp.Gui.ViewModels;
 
@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ApplyChrome();
 
         // Polling, rather than a push channel, on purpose: the state being shown changes on
         // Unity's schedule (a reload, an import, a dialog someone opened), and two seconds of
@@ -30,8 +31,7 @@ public partial class MainWindow : Window
         };
 
         // Closing the window leaves the server running and the app in the tray. Quit from the
-        // tray menu is the way out — the daemon outliving its clients is the design, and a
-        // window close that stopped it would be a destructive action nobody asked for.
+        // tray menu is the way out.
         Closing += (_, e) =>
         {
             if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime
@@ -47,37 +47,40 @@ public partial class MainWindow : Window
 
     void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
-    async void OnLinkClicked(object? sender, RoutedEventArgs e)
+    /// <summary>
+    /// Windows gets the mark in its own title bar. macOS keeps the system chrome — its traffic
+    /// lights are muscle memory and an app that redraws them reads as a port of a Windows app —
+    /// so the bar is only inset far enough to clear them.
+    /// </summary>
+    void ApplyChrome()
     {
-        if (Model is not { } model) return;
+        var buttons = this.FindControl<StackPanel>("WindowButtons");
+        var brand = this.FindControl<StackPanel>("Brand");
 
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        if (OperatingSystem.IsWindows())
         {
-            Title = "Choose a Unity project folder",
-            AllowMultiple = false
-        });
-
-        var folder = folders.FirstOrDefault();
-        if (folder is null) return;
-
-        // TryGetLocalPath is null for a folder that is not on this machine's filesystem — a
-        // network share the picker surfaced, say. Linking one would write a manifest entry Unity
-        // cannot resolve, so it is refused with the reason.
-        var path = folder.TryGetLocalPath();
-        if (path is null)
-        {
-            await model.LinkAsync("");   // the daemon answers with the sentence to show
+            ExtendClientAreaToDecorationsHint = true;
+            ExtendClientAreaChromeHints = Avalonia.Platform.ExtendClientAreaChromeHints.NoChrome;
+            ExtendClientAreaTitleBarHeightHint = -1;
             return;
         }
 
-        await model.LinkAsync(path);
+        if (buttons is not null) buttons.IsVisible = false;
+        if (OperatingSystem.IsMacOS() && brand is not null) brand.Margin = new Thickness(78, 0, 0, 0);
     }
 
-    async void OnCopySnippet(object? sender, RoutedEventArgs e)
+    void OnTitleBarPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (Model is { } model && Clipboard is { } clipboard)
-            await model.CopyAsync(model.Snippet, clipboard, "Config copied. Paste it into your client's MCP settings.");
+        if (!OperatingSystem.IsWindows()) return;
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) BeginMoveDrag(e);
     }
+
+    void OnMinimise(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    void OnMaximise(object? sender, RoutedEventArgs e) =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    void OnClose(object? sender, RoutedEventArgs e) => Close();
 
     async void OnCopyToken(object? sender, RoutedEventArgs e)
     {
