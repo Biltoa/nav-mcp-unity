@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Umcp.Gui</RootNamespace>
+    <!-- The name a person sees in a Start menu, a Dock and a task manager. The daemon keeps its
+         short unix-style name; this is the thing they double-click. -->
+    <AssemblyName>Unity MCP Tool</AssemblyName>
+    <ApplicationIcon>Assets/icon.ico</ApplicationIcon>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.20" />
+    <!-- Diagnostics only in Debug: the dev tools panel is not something a shipped app should carry. -->
+    <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="11.3.20" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets/**" />
+  </ItemGroup>
+
+  <!-- The token path and the exe-name rules, shared with the daemon and the shim. A GUI that
+       looks for the token in the wrong folder reports "unauthorized" against a daemon that is
+       running perfectly. -->
+  <ItemGroup>
+    <Compile Include="..\Shared\UmcpPaths.cs" Link="Shared\UmcpPaths.cs" />
+  </ItemGroup>
+</Project>

@@ -17,7 +17,12 @@ namespace Umcp.Daemon.Api;
 public sealed class LinkedProjects
 {
     readonly object _gate = new();
-    readonly string _file = Umcp.UmcpPaths.SettingsFile;
+    readonly string _file;
+
+    public LinkedProjects() : this(Umcp.UmcpPaths.SettingsFile) { }
+
+    /// <summary>The file is a parameter so a test can have its own, rather than the user's.</summary>
+    public LinkedProjects(string file) => _file = file;
 
     public sealed record Entry(string Path, bool AutoRestart, DateTimeOffset LinkedAt);
 
@@ -94,7 +99,7 @@ public sealed class LinkedProjects
     {
         try
         {
-            Umcp.UmcpPaths.EnsureCreated();
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_file)!);
 
             // Preserve anything else in the file — the GUI keeps its own keys here.
             JsonObject root;

@@ -13,5 +13,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Umcp.Daemon\Umcp.Daemon.csproj" />
     <ProjectReference Include="..\..\src\Umcp.MainThreadCheck\Umcp.MainThreadCheck.csproj" />
+    <ProjectReference Include="..\..\src\Umcp.Gui\Umcp.Gui.csproj" />
   </ItemGroup>
 </Project>

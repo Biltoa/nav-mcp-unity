@@ -1,0 +1,95 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Umcp.Gui.App"
+             RequestedThemeVariant="Default">
+
+  <Application.Styles>
+    <FluentTheme />
+
+    <!-- A small vocabulary, used consistently: cards, muted text, a status dot, three button
+         weights. Everything in the window is one of these. -->
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource CardBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style Selector="TextBlock.h1">
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="TextBlock.h2">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+
+    <Style Selector="Ellipse.dot">
+      <Setter Property="Width" Value="10" />
+      <Setter Property="Height" Value="10" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#2563EB" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="Padding" Value="18,9" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1D4ED8" />
+    </Style>
+
+    <Style Selector="Button.link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedForeground}" />
+      <Setter Property="Padding" Value="6,3" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+  </Application.Styles>
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="CardBorder" Color="#E5E7EB" />
+          <SolidColorBrush x:Key="MutedForeground" Color="#6B7280" />
+          <SolidColorBrush x:Key="PageBackground" Color="#F5F6F8" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="CardBackground" Color="#1B1F27" />
+          <SolidColorBrush x:Key="CardBorder" Color="#2C313C" />
+          <SolidColorBrush x:Key="MutedForeground" Color="#9AA3B2" />
+          <SolidColorBrush x:Key="PageBackground" Color="#12151B" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <!-- Closing the window leaves the server running and the app in the tray, which is the whole
+       point: the daemon is meant to outlive the things that talk to it. -->
+  <TrayIcon.Icons>
+    <TrayIcons>
+      <TrayIcon Icon="/Assets/icon.ico" ToolTipText="Unity MCP Tool" Clicked="OnTrayClicked">
+        <TrayIcon.Menu>
+          <NativeMenu>
+            <NativeMenuItem Header="Open Unity MCP Tool" Click="OnTrayOpen" />
+            <NativeMenuItemSeparator />
+            <NativeMenuItem Header="Quit" Click="OnTrayQuit" />
+          </NativeMenu>
+        </TrayIcon.Menu>
+      </TrayIcon>
+    </TrayIcons>
+  </TrayIcon.Icons>
+</Application>

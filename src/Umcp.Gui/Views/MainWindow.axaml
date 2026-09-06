@@ -1,0 +1,178 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Umcp.Gui.ViewModels"
+        x:Class="Umcp.Gui.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Unity MCP Tool"
+        Width="860" Height="720"
+        MinWidth="700" MinHeight="560"
+        Icon="/Assets/icon.ico"
+        Background="{DynamicResource PageBackground}">
+
+  <DockPanel Margin="20">
+
+    <!-- The status line lives at the bottom and says what just happened, in a sentence. -->
+    <Border DockPanel.Dock="Bottom" Classes="card" Margin="0,14,0,0" Padding="12,10">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" VerticalAlignment="Center" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+          <Button Classes="link" Content="Log folder" Command="{Binding OpenLogFolderCommand}" />
+          <Button Classes="link" Content="Copy token" Click="OnCopyToken" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <StackPanel DockPanel.Dock="Top" Spacing="14">
+
+      <!-- 1. the server -->
+      <Border Classes="card">
+        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+          <Ellipse Classes="dot" Grid.Row="0" Grid.Column="0" Margin="0,0,10,0">
+            <Ellipse.Fill>
+              <SolidColorBrush Color="{Binding ServerDot}" />
+            </Ellipse.Fill>
+          </Ellipse>
+
+          <TextBlock Grid.Row="0" Grid.Column="1" Classes="h1" Text="{Binding ServerHeadline}" />
+          <TextBlock Grid.Row="1" Grid.Column="1" Classes="muted" Margin="0,4,0,0"
+                     Text="{Binding ServerDetail}" />
+
+          <StackPanel Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" Orientation="Horizontal"
+                      Spacing="8" VerticalAlignment="Center">
+            <Button Classes="link" Content="Pause" Command="{Binding PauseCommand}"
+                    IsVisible="{Binding Running}" />
+            <Button Classes="primary" Content="{Binding ToggleServerLabel}"
+                    Command="{Binding ToggleServerCommand}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- 2. the projects -->
+      <Border Classes="card">
+        <StackPanel Spacing="10">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel>
+              <TextBlock Classes="h2" Text="Unity projects" Margin="0" />
+              <TextBlock Classes="muted"
+                         Text="One server drives all of them at once. Link a project and the tool writes itself into that project's package list." />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="primary" Content="Link a project…"
+                    Click="OnLinkClicked" VerticalAlignment="Center" />
+          </Grid>
+
+          <TextBlock Classes="muted" Margin="0,4,0,0"
+                     Text="No projects linked yet. Click “Link a project…” and choose a Unity project folder — the one with Assets and ProjectSettings inside it."
+                     IsVisible="{Binding HasNoProjects}" />
+
+          <ItemsControl ItemsSource="{Binding Projects}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ProjectRow">
+                <Border BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,1,0,0"
+                        Padding="0,12,0,12">
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Ellipse Classes="dot" Margin="0,5,10,0" VerticalAlignment="Top">
+                      <Ellipse.Fill>
+                        <SolidColorBrush Color="{Binding Badge}" />
+                      </Ellipse.Fill>
+                    </Ellipse>
+
+                    <StackPanel Grid.Column="1" Spacing="2">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                        <TextBlock Classes="muted" Text="{Binding Status}" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <TextBlock Classes="muted" Text="{Binding Detail}" />
+                      <TextBlock Classes="muted" Text="{Binding Path}" FontSize="11" Opacity="0.7" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4"
+                                VerticalAlignment="Center">
+                      <Button Classes="link" Content="Open in Unity"
+                              Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).OpenProjectCommand}"
+                              CommandParameter="{Binding}" IsVisible="{Binding CanOpen}" />
+                      <Button Classes="link" Content="Restart"
+                              Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).RestartProjectCommand}"
+                              CommandParameter="{Binding}" IsVisible="{Binding IsOpen}" />
+                      <Button Classes="link" Content="Close"
+                              Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).CloseProjectCommand}"
+                              CommandParameter="{Binding}" IsVisible="{Binding Connected}" />
+                      <Button Classes="link" Content="Show folder"
+                              Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).RevealProjectCommand}"
+                              CommandParameter="{Binding}" />
+                      <Button Classes="link" Content="Unlink"
+                              Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).UnlinkCommand}"
+                              CommandParameter="{Binding}" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <!-- 3. the AI clients -->
+      <Border Classes="card">
+        <StackPanel Spacing="10">
+          <StackPanel>
+            <TextBlock Classes="h2" Text="Connect your AI assistant" Margin="0" />
+            <TextBlock Classes="muted"
+                       Text="Writes the server into that app's settings for you. Nothing secret is stored in the file, and your other servers are left alone." />
+          </StackPanel>
+
+          <ItemsControl ItemsSource="{Binding Clients}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ClientRow">
+                <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,6">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                    <TextBlock Classes="muted" Text="{Binding Detail}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <Button Classes="primary" Content="Connect"
+                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).ConnectClientCommand}"
+                            CommandParameter="{Binding}" IsVisible="{Binding NotConnected}" />
+                    <Button Classes="link" Content="Disconnect"
+                            Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).DisconnectClientCommand}"
+                            CommandParameter="{Binding}" IsVisible="{Binding Connected}" />
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Expander Header="Another app, or do it by hand">
+            <StackPanel Spacing="8" Margin="0,8,0,0">
+              <TextBlock Classes="muted"
+                         Text="Paste this into any MCP client's config file:" />
+              <TextBox Text="{Binding Snippet, Mode=OneWay}" IsReadOnly="True"
+                       FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                       TextWrapping="Wrap" AcceptsReturn="True" MinHeight="110" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Classes="link" Content="Copy" Click="OnCopySnippet" />
+              </StackPanel>
+            </StackPanel>
+          </Expander>
+        </StackPanel>
+      </Border>
+
+      <!-- 4. settings, folded away -->
+      <Expander Header="Settings">
+        <Grid ColumnDefinitions="Auto,Auto,Auto,*" RowDefinitions="Auto,Auto" Margin="0,10,0,0">
+          <TextBlock Text="Port" VerticalAlignment="Center" Margin="0,0,8,0" />
+          <NumericUpDown Grid.Column="1" Minimum="1024" Maximum="65535" Increment="1"
+                         FormatString="0" Width="120" Value="{Binding Port}" />
+
+          <TextBlock Grid.Column="2" Text="What the AI may do" VerticalAlignment="Center"
+                     Margin="20,0,8,0" />
+          <ComboBox Grid.Column="3" Width="160" HorizontalAlignment="Left"
+                    ItemsSource="{Binding Profiles}" SelectedItem="{Binding Profile}" />
+
+          <TextBlock Grid.Row="1" Grid.ColumnSpan="4" Classes="muted" Margin="0,10,0,0"
+                     Text="readonly — look, never touch.  standard — make changes, but no arbitrary code and no irreversible writes.  full — everything, including running C# in the Editor. Changing the port or profile applies the next time the server starts." />
+        </Grid>
+      </Expander>
+
+    </StackPanel>
+  </DockPanel>
+</Window>
