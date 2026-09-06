@@ -39,6 +39,9 @@ public sealed class ControlClient
     public Task<JsonObject?> LogsAsync(int tail = 200, CancellationToken ct = default) =>
         GetAsync($"/api/logs?tail={tail}", ct);
 
+    public Task<JsonObject?> ActivityAsync(int limit = 40, CancellationToken ct = default) =>
+        GetAsync($"/api/activity?limit={limit}", ct);
+
     public Task<JsonObject?> LinkAsync(string path, CancellationToken ct = default) =>
         PostAsync("/api/projects/link", new JsonObject { ["path"] = path }, ct);
 

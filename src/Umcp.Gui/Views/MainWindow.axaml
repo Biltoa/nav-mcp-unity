@@ -61,12 +61,12 @@
         <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto" Padding="28,24,22,24">
           <Grid>
-            <!-- Overview is the whole story in one column; the other pages are the same panels
-                 on their own, for when you know what you came for. -->
+            <!-- Overview answers "what is happening", not "what can I configure": counts, what
+                 still needs doing, and what the AI has actually been doing. The lists themselves
+                 live on their own tabs, where they are not read twice. -->
             <StackPanel Spacing="18" IsVisible="{Binding IsOverview}">
               <views:ServerCard />
-              <views:ProjectsPanel />
-              <views:ConnectionsPanel />
+              <views:OverviewPanel />
             </StackPanel>
 
             <StackPanel Spacing="18" IsVisible="{Binding IsProjects}">

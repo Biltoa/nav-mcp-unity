@@ -69,6 +69,81 @@ public static class ControlApi
             });
         });
 
+        // What the AI has actually been doing, from the audit log — the one question a person
+        // asks about a tool that edits their project while they are not looking. Read from the
+        // tail of the file rather than kept in memory: it survives a daemon restart, and the
+        // daemon already writes it for reasons that have nothing to do with this window.
+        group.MapGet("/activity", (int? limit, EditorRegistry registry, LinkedProjects linked) =>
+        {
+            var want = Math.Clamp(limit ?? 40, 1, 200);
+
+            // projectId is a GUID in the log; a person needs the folder's name.
+            var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var session in registry.Sessions)
+                if (session.ProjectId is { Length: > 0 } id) names[id] = session.ProjectName ?? id;
+            foreach (var entry in linked.All())
+                if (ProjectCatalog.ReadProjectId(entry.Path) is { Length: > 0 } id)
+                    names[id] = Path.GetFileName(entry.Path.TrimEnd('/'));
+
+            // Deep enough that a busy day is counted honestly, shallow enough to stay cheap.
+            // When every line read is still inside the window the count is a floor, not a total,
+            // and it says so rather than reporting the cap as if it were the answer.
+            const int scan = 4000;
+            var lines = TailLines(Paths.AuditLog, scan);
+            var entries = new JsonArray();
+            var durations = new List<double>();
+            var since = DateTimeOffset.Now.AddHours(-24);
+            var today = 0;
+            var failures = 0;
+
+            foreach (var line in lines)
+            {
+                JsonObject? row;
+                try { row = JsonNode.Parse(line) as JsonObject; } catch { continue; }
+                if (row is null) continue;
+
+                var stamp = DateTimeOffset.TryParse((string?)row["ts"], out var t) ? t : (DateTimeOffset?)null;
+                if (stamp >= since)
+                {
+                    today++;
+                    if ((bool?)row["ok"] == false) failures++;
+                    if (row["ms"] is not null && double.TryParse(row["ms"]!.ToString(), out var ms)) durations.Add(ms);
+                }
+
+                var projectId = (string?)row["projectId"] ?? "";
+                entries.Add(new JsonObject
+                {
+                    ["ts"] = stamp?.ToString("O"),
+                    ["tool"] = (string?)row["tool"],
+                    ["ok"] = (bool?)row["ok"] ?? false,
+                    ["ms"] = row["ms"]?.DeepClone(),
+                    ["code"] = row["code"]?.DeepClone(),
+                    ["project"] = names.TryGetValue(projectId, out var name) ? name : null
+                });
+            }
+
+            // Newest first, and only as many as were asked for.
+            var ordered = new JsonArray();
+            for (var i = entries.Count - 1; i >= 0 && ordered.Count < want; i--)
+            {
+                var node = entries[i]!;
+                entries.RemoveAt(i);
+                ordered.Add(node);
+            }
+
+            durations.Sort();
+            return Results.Json(new JsonObject
+            {
+                ["ok"] = true,
+                ["entries"] = ordered,
+                ["last24h"] = today,
+                ["last24hCapped"] = lines.Length >= scan && today >= scan,
+                ["failures24h"] = failures,
+                // Median, not mean: one 40-second import would otherwise describe every other call.
+                ["medianMs"] = durations.Count == 0 ? null : durations[durations.Count / 2]
+            });
+        });
+
         // ---------------------------------------------------------------- linking
 
         // Linking is the whole point of the GUI: it writes the file: dependency into the project's

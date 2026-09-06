@@ -56,6 +56,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     string? _daemonVersion;
     string? _packagePath;
     int _editorCount;
+    int _last24h;
+    int _failures24h;
+    double? _medianMs;
+    bool _last24hCapped;
+    int _activityTick;
 
     public bool Running { get => _running; private set { if (Set(ref _running, value)) { Raise(nameof(NotRunning)); Raise(nameof(ServerDot)); Raise(nameof(EditorSummary)); Refresh(ToggleServerCommand, PauseCommand); } } }
     public bool NotRunning => !Running;
@@ -121,6 +126,32 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public ObservableCollection<ProjectRow> Projects { get; } = new();
     public ObservableCollection<ClientRow> Clients { get; } = new();
+
+    /// <summary>What the AI has been doing, newest first. The Overview's reason to exist.</summary>
+    public ObservableCollection<ActivityRow> Activity { get; } = new();
+
+    /// <summary>Either the setup steps still outstanding, or the states that want a human.</summary>
+    public ObservableCollection<AttentionRow> Attention { get; } = new();
+
+    public bool HasActivity => Activity.Count > 0;
+    public bool HasNoActivity => Activity.Count == 0;
+
+    // ---- the tiles across the top of the Overview. Counts, not prose.
+    public string EditorsTile => _editorCount.ToString();
+    public string ProjectsTile => Projects.Count.ToString();
+    public string ClientsTile => Clients.Count(c => c.Connected).ToString();
+    public string OperationsTile => _last24hCapped ? $"{_last24h}+" : _last24h.ToString();
+
+    public string EditorsTileNote => _editorCount == 1 ? "Unity editor connected" : "Unity editors connected";
+    public string ProjectsTileNote => Projects.Count == 1 ? "project linked" : "projects linked";
+    public string ClientsTileNote => "AI assistants connected";
+    public string OperationsTileNote => _medianMs is null
+        ? "operations in 24 hours"
+        : $"in 24 h · {_medianMs:0} ms typical";
+
+    public string ActivityHeadline => _failures24h > 0
+        ? $"Recent activity — {_failures24h} failed in the last 24 hours"
+        : "Recent activity";
 
     public string ToggleServerLabel => Running ? "Stop server" : "Start server";
     public string PauseLabel => Paused ? "Resume" : "Pause";
@@ -254,6 +285,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 ? "Nothing is listening on port " + _settings.HttpPort + "."
                 : "Press Start server to begin.";
             foreach (var row in Projects) row.ApplyServerDown();
+            Activity.Clear();
+            BuildAttention(new JsonArray());
+            RaiseTiles();
             Raise(nameof(ToggleServerLabel));
             return;
         }
@@ -279,7 +313,96 @@ public sealed class MainViewModel : INotifyPropertyChanged
             $"{(int?)daemon?["memory"]?["workingSetMB"]} MB";
 
         MergeProjects(status["projects"] as JsonArray ?? new JsonArray(), editors);
+        await RefreshActivityAsync();
+        BuildAttention(editors);
+        RaiseTiles();
         Raise(nameof(ToggleServerLabel));
+    }
+
+    /// <summary>
+    /// Pull the audit tail. Rebuilt wholesale rather than appended to: entries carry relative
+    /// times ("4 minutes ago") that go stale on their own, so the list is cheap to replace and
+    /// wrong to keep.
+    /// </summary>
+    async Task RefreshActivityAsync()
+    {
+        // Every third poll. The status tick has to be quick because it drives the dots; the audit
+        // tail is thousands of lines to parse and nothing in it changes meaningfully in two
+        // seconds.
+        if (_activityTick++ % 3 != 0) return;
+
+        JsonObject? feed;
+        try { feed = await _client.ActivityAsync(25); }
+        catch { return; }
+        if (feed is null || (bool?)feed["ok"] != true) return;
+
+        _last24h = (int?)feed["last24h"] ?? 0;
+        _last24hCapped = (bool?)feed["last24hCapped"] ?? false;
+        _failures24h = (int?)feed["failures24h"] ?? 0;
+        _medianMs = (double?)feed["medianMs"];
+
+        var rows = (feed["entries"] as JsonArray ?? new JsonArray())
+                   .OfType<JsonObject>().Select(ActivityRow.From).ToList();
+
+        // Only touch the collection when something actually changed: a list that rebuilds every
+        // two seconds cannot be scrolled or selected.
+        if (rows.Count == Activity.Count && rows.Zip(Activity).All(p => p.First == p.Second)) return;
+
+        Activity.Clear();
+        foreach (var row in rows) Activity.Add(row);
+        Raise(nameof(HasActivity));
+        Raise(nameof(HasNoActivity));
+        Raise(nameof(ActivityHeadline));
+    }
+
+    /// <summary>
+    /// The one card that changes with the situation: setup steps while things are missing, and
+    /// what has gone wrong once they are not. Both answer "what do I do next", which is the only
+    /// question an overview is for.
+    /// </summary>
+    void BuildAttention(JsonArray editors)
+    {
+        var rows = new List<AttentionRow>();
+
+        rows.Add(new AttentionRow(
+            Running ? "Server running" : "Start the server",
+            Running ? $"Listening on 127.0.0.1:{_settings.HttpPort}." : "Nothing is listening yet — press Start server above.",
+            Running ? "#3FB950" : "#FF8723", Running));
+
+        var linked = Projects.Count;
+        rows.Add(new AttentionRow(
+            linked > 0 ? $"{linked} project{(linked == 1 ? "" : "s")} linked" : "Link a Unity project",
+            linked > 0 ? "Projects tab lists them and what each one is doing." : "Projects tab · Link a project… and choose a Unity project folder.",
+            linked > 0 ? "#3FB950" : "#FF8723", linked > 0));
+
+        var connected = Clients.Count(c => c.Connected);
+        rows.Add(new AttentionRow(
+            connected > 0 ? $"{connected} assistant{(connected == 1 ? "" : "s")} connected" : "Connect an AI assistant",
+            connected > 0 ? "Ask it to run unity_projects to check the link." : "Connections tab · Connect next to Claude Desktop, Claude Code or Cursor.",
+            connected > 0 ? "#3FB950" : "#FF8723", connected > 0));
+
+        // Anything actively wrong is appended, because a blocked Editor outranks a checklist.
+        foreach (var project in Projects)
+        {
+            if (project.Status is "Waiting on you" or "Click the Unity window" or "Not linked" or "Folder missing")
+                rows.Add(new AttentionRow($"{project.Name}: {project.Status.ToLowerInvariant()}", project.Detail, project.Badge, false));
+        }
+
+        if (rows.Count == Attention.Count && rows.Zip(Attention).All(p => p.First == p.Second)) return;
+        Attention.Clear();
+        foreach (var row in rows) Attention.Add(row);
+    }
+
+    void RaiseTiles()
+    {
+        Raise(nameof(EditorsTile));
+        Raise(nameof(ProjectsTile));
+        Raise(nameof(ClientsTile));
+        Raise(nameof(OperationsTile));
+        Raise(nameof(EditorsTileNote));
+        Raise(nameof(ProjectsTileNote));
+        Raise(nameof(OperationsTileNote));
+        Raise(nameof(ActivityHeadline));
     }
 
     void MergeProjects(JsonArray projects, JsonArray editors)
