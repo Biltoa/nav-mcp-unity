@@ -313,6 +313,17 @@ public sealed class Dispatcher
                             ["project"] = session.ProjectName
                         });
 
+                case SendOutcome.Overloaded:
+                    return Envelope.Error("E_BUSY", result.Detail ?? "Too many operations are queued for this Editor.",
+                        hint: "Wait for the queue to drain, or send fewer operations at once — unity_batch runs many " +
+                              "operations as one queued item, in a single Editor tick.",
+                        meta: new JsonObject
+                        {
+                            ["ms"] = total.ElapsedMilliseconds,
+                            ["inFlight"] = session.InFlight,
+                            ["limit"] = AgentSession.MaxInFlight
+                        });
+
                 case SendOutcome.Disconnected:
                     // The editor went away mid-flight — almost always a domain reload. Hold and
                     // replay with the same idempotency key rather than surfacing an error.

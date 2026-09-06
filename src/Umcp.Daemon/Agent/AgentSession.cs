@@ -9,7 +9,7 @@ using System.Threading.Channels;
 
 namespace Umcp.Daemon.Agent;
 
-public enum SendOutcome { Completed, Disconnected, Blocked, TimedOut }
+public enum SendOutcome { Completed, Disconnected, Blocked, TimedOut, Overloaded }
 
 public sealed record OpResult(SendOutcome Outcome, JsonNode? Result, long ElapsedMs, string? Detail = null);
 
@@ -24,6 +24,17 @@ public sealed record OpResult(SendOutcome Outcome, JsonNode? Result, long Elapse
 public sealed class AgentSession : IAsyncDisposable
 {
     const int MaxFrame = 64 * 1024 * 1024;
+
+    /// <summary>
+    /// How many operations may be in flight to one Editor at once.
+    ///
+    /// The Editor drains its whole queue every tick, so a burst is normally free — that is the
+    /// measurement this design rests on. But a client that never stops sending would grow this
+    /// map without bound while the Editor is blocked by a modal, and the failure would arrive as
+    /// daemon memory rather than as an answer. Refusing at a limit, with the reason, is better
+    /// than dying quietly at none.
+    /// </summary>
+    public const int MaxInFlight = 512;
 
     readonly TcpClient _client;
     readonly NetworkStream _stream;
@@ -81,6 +92,10 @@ public sealed class AgentSession : IAsyncDisposable
 
     public async Task<OpResult> SendAsync(JsonObject message, TimeSpan timeout, CancellationToken ct)
     {
+        if (_pending.Count >= MaxInFlight)
+            return new OpResult(SendOutcome.Overloaded, null, 0,
+                $"{_pending.Count} operations are already queued for this Editor (limit {MaxInFlight}).");
+
         var id = Guid.NewGuid().ToString("N");
         message["id"] = id;
 

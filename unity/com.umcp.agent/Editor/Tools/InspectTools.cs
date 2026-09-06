@@ -201,7 +201,7 @@ namespace Umcp.Agent
                 ? new[] { "prefabs", "scriptableobjects", "materials" }
                 : kinds.Select(k => (k ?? "").ToLowerInvariant()));
 
-            var folders = string.IsNullOrEmpty(folder) ? null : new[] { folder.Replace('\\', '/') };
+            var folders = string.IsNullOrEmpty(folder) ? null : new[] { Resolve.AssetPath(folder, "folder") };
             var findings = new List<object>();
             int scanned = 0;
 

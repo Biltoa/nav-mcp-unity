@@ -141,9 +141,7 @@ namespace Umcp.Agent
             [Doc("Insert at this index when adding. Default: append.")] int index = -1)
         {
             var verb = (action ?? "").ToLowerInvariant();
-            var normalised = (path ?? "").Replace('\\', '/');
-            if (string.IsNullOrEmpty(normalised))
-                throw new UmcpToolException("E_ARG_REQUIRED", "A scene path is required.", "path");
+            var normalised = Resolve.AssetPath(path, "path");
 
             var list = EditorBuildSettings.scenes.ToList();
             int at = list.FindIndex(s => string.Equals(s.path, normalised, StringComparison.OrdinalIgnoreCase));

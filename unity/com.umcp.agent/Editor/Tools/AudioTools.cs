@@ -50,7 +50,9 @@ namespace Umcp.Agent
             [Doc("Report the override for this platform, e.g. WebGL, Android. Default: the default settings.")] string platform = null,
             [Doc("Maximum clips (default 50)")] int limit = 50)
         {
-            var folders = string.IsNullOrEmpty(folder) ? null : new[] { folder.Replace('\\', '/') };
+            // Confined, like every other path this tool set accepts: "../" is rejected, never
+            // resolved, and a path outside Assets/ or Packages/ is refused.
+            var folders = string.IsNullOrEmpty(folder) ? null : new[] { Resolve.AssetPath(folder, "folder") };
             var guids = folders == null
                 ? AssetDatabase.FindAssets("t:AudioClip")
                 : AssetDatabase.FindAssets("t:AudioClip", folders);
@@ -103,9 +105,7 @@ namespace Umcp.Agent
             [Doc("Force to mono")] bool? forceToMono = null,
             [Doc("Maximum clips to touch (default 200)")] int limit = 200)
         {
-            if (string.IsNullOrEmpty(path))
-                throw new UmcpToolException("E_ARG_REQUIRED", "A clip or folder path is required.", "path");
-            var normalised = path.Replace('\\', '/');
+            var normalised = Resolve.AssetPath(path, "path");
 
             var targets = AssetDatabase.IsValidFolder(normalised)
                 ? AssetDatabase.FindAssets("t:AudioClip", new[] { normalised })

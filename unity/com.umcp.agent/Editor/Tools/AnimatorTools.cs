@@ -40,10 +40,7 @@ namespace Umcp.Agent
             [Doc("Transition duration in seconds (default 0.25)")] float duration = 0.25f)
         {
             var verb = (action ?? "").ToLowerInvariant();
-            if (string.IsNullOrEmpty(path))
-                throw new UmcpToolException("E_ARG_REQUIRED", "A controller path is required.", "path", null, null,
-                    "Controller paths look like Assets/Animation/Player.controller.");
-            var assetPath = path.Replace('\\', '/');
+            var assetPath = Resolve.AssetPath(path, "path");
 
             if (verb == "create")
             {
@@ -104,7 +101,7 @@ namespace Umcp.Agent
                         var added = machine.AddState(state);
                         if (!string.IsNullOrEmpty(clip))
                         {
-                            var motion = AssetDatabase.LoadAssetAtPath<Motion>(clip.Replace('\\', '/'));
+                            var motion = AssetDatabase.LoadAssetAtPath<Motion>(Resolve.AssetPath(clip, "clip"));
                             if (motion == null)
                                 throw new UmcpToolException("E_ASSET_NOT_FOUND", "No animation clip at '" + clip + "'.",
                                     "clip", clip,

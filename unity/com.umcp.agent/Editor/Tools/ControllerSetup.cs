@@ -37,7 +37,10 @@ namespace Umcp.Agent
             [Doc("Jump height in metres (default 1.2)")] float jumpHeight = 1.2f,
             [Doc("Where the generated script goes")] string scriptFolder = "Assets/Scripts/Generated")
         {
-            var folder = string.IsNullOrEmpty(scriptFolder) ? DefaultFolder : scriptFolder.Replace('\\', '/').TrimEnd('/');
+            // This one writes a file, so confinement is not a nicety: an unchecked "../"
+            // here would write C# anywhere the Editor process can reach.
+            var folder = Resolve.AssetPath(
+                string.IsNullOrEmpty(scriptFolder) ? DefaultFolder : scriptFolder, "scriptFolder").TrimEnd('/');
             var scriptPath = folder + "/" + TypeName + ".cs";
             var type = FindType(TypeName);
 

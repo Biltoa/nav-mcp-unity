@@ -22,8 +22,9 @@ const string Instructions = """
     Unity Editor control. Six tools; the full catalog of Editor operations is reached through them.
 
     Route by domain:
-      scene · gameobject · transform · component | assets · prefabs | material · shaders
-      diagnostics (console, compile errors, editor health) | script (code mode)
+      scene · gameobject · transform · component | assets · prefabs | rendering (material,
+      lighting, effects, ui) | physics · navmesh · animation · audio · terrain · cinematics
+      build (validateTarget checks a platform before you build it) | diagnostics | script
 
     How to choose:
       one discrete change            -> unity_run
@@ -41,6 +42,12 @@ const string Instructions = """
 
 var tokens = new TokenStore(options.Token ?? Environment.GetEnvironmentVariable("UMCP_TOKEN"));
 
+if (args.Contains("--version") || args.Contains("-v"))
+{
+    Console.WriteLine($"umcpd {BuildInfo.Version}");
+    return 0;
+}
+
 if (args.Contains("--help") || args.Contains("-h"))
 {
     Console.WriteLine("""
@@ -53,6 +60,7 @@ if (args.Contains("--help") || args.Contains("-h"))
           --token <s>               use this bearer token instead of minting one
           --profile <p>             readonly | standard | full   (default standard)
           --max-response-bytes <n>  response cap           (default 32768)
+          --version                 print the version and exit
           --auto-restart            reopen an Editor whose process dies (bounded: 2 per 10 min)
           --package-path <dir>      com.umcp.agent source, when not next to this binary
           --open-timeout <sec>      how long to wait for a launched Editor's handshake (default 300)
@@ -69,7 +77,7 @@ if (options.Stdio)
     stdio.Logging.ClearProviders();
     stdio.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
     AddCore(stdio.Services, options);
-    stdio.Services.AddMcpServer(o => { o.ServerInfo = new() { Name = "unity-mcp-tool", Version = "0.2.0" }; o.ServerInstructions = Instructions; })
+    stdio.Services.AddMcpServer(o => { o.ServerInfo = new() { Name = BuildInfo.ServerName, Version = BuildInfo.Version }; o.ServerInstructions = Instructions; })
         .WithStdioServerTransport()
         .WithTools<UnityMcpTools>();
     await stdio.Build().RunAsync();
@@ -85,12 +93,14 @@ builder.Logging.AddSimpleConsole(o => { o.SingleLine = true; o.TimestampFormat =
 // replaced bound 0.0.0.0 with no auth while exposing script creation and arbitrary C#.
 builder.WebHost.ConfigureKestrel(k =>
 {
-    k.Listen(System.Net.IPAddress.Loopback, options.HttpPort, l => l.Protocols = HttpProtocols.Http1AndHttp2);
+    // HTTP/1.1 only. Without TLS, HTTP/2 needs prior knowledge and Kestrel warns about it on
+    // every start; there is no TLS here on purpose, because this listener never leaves loopback.
+    k.Listen(System.Net.IPAddress.Loopback, options.HttpPort, l => l.Protocols = HttpProtocols.Http1);
 });
 
 AddCore(builder.Services, options);
 builder.Services.AddSingleton(tokens);
-builder.Services.AddMcpServer(o => { o.ServerInfo = new() { Name = "unity-mcp-tool", Version = "0.2.0" }; o.ServerInstructions = Instructions; })
+builder.Services.AddMcpServer(o => { o.ServerInfo = new() { Name = BuildInfo.ServerName, Version = BuildInfo.Version }; o.ServerInstructions = Instructions; })
     .WithHttpTransport()
     .WithTools<UnityMcpTools>();
 
@@ -149,7 +159,7 @@ app.MapGet("/health", async (EditorRegistry registry, DaemonOptions opts) =>
         ["daemon"] = new JsonObject
         {
             ["pid"] = Environment.ProcessId,
-            ["version"] = "0.2.0",
+            ["version"] = BuildInfo.Version,
             ["uptimeSec"] = (long)(DateTime.UtcNow - DaemonInfo.StartedUtc).TotalSeconds,
             ["httpPort"] = opts.HttpPort,
             ["agentPort"] = opts.AgentPort,
@@ -163,12 +173,67 @@ app.MapGet("/health", async (EditorRegistry registry, DaemonOptions opts) =>
 if (options.Tray && OperatingSystem.IsWindows())
     TrayHost.Start(app.Services, options, tokens);
 
-Console.Error.WriteLine($"[umcpd] http 127.0.0.1:{options.HttpPort}/mcp · agents 127.0.0.1:{options.AgentPort} · " +
-                        $"{ToolCatalog.All.Length} tools · profile {Umcp.Daemon.Security.Profiles.Name(options.Profile)} · " +
-                        $"token in {Paths.TokenFile}");
+try
+{
+    // Start first, announce second: a banner printed before the listeners bind claims a service
+    // that may be about to fail, and the first thing a user does with that line is trust it.
+    await app.StartAsync();
 
-await app.RunAsync();
+    Console.Error.WriteLine($"[umcpd] {BuildInfo.Version} · http 127.0.0.1:{options.HttpPort}/mcp · agents 127.0.0.1:{options.AgentPort} · " +
+                            $"{ToolCatalog.All.Length} tools · profile {Umcp.Daemon.Security.Profiles.Name(options.Profile)} · " +
+                            $"token in {Paths.TokenFile}");
+
+    await app.WaitForShutdownAsync();
+}
+catch (Exception e) when (e is System.Net.Sockets.SocketException ||
+                          e.InnerException is System.Net.Sockets.SocketException)
+{
+    // Either listener can hit this, and the overwhelmingly likely cause is a second daemon. Say
+    // so, and say which one, rather than printing a socket error and a stack trace at somebody
+    // who just wanted to start the tool.
+    var busy = Taken(options.HttpPort) ? options.HttpPort : Taken(options.AgentPort) ? options.AgentPort : 0;
+    var existing = await DescribeExistingAsync(options.HttpPort);
+
+    Console.Error.WriteLine(busy == 0
+        ? $"[umcpd] could not bind a listener: {e.Message}"
+        : $"[umcpd] port {busy} is already in use.");
+    Console.Error.WriteLine(existing is not null
+        ? $"[umcpd] {existing} is already serving 127.0.0.1:{options.HttpPort} — use that one, or start this with --port <n> --agent-port <n>."
+        : "[umcpd] stop whatever holds the port, or start this with --port <n> --agent-port <n>.");
+    return 3;
+}
+
 return 0;
+
+/// <summary>Is anything listening on this loopback port?</summary>
+static bool Taken(int port)
+{
+    try
+    {
+        using var probe = new System.Net.Sockets.TcpClient();
+        return probe.ConnectAsync(System.Net.IPAddress.Loopback, port).Wait(TimeSpan.FromMilliseconds(400));
+    }
+    catch { return false; }
+}
+
+/// <summary>Ask whatever holds the port whether it is one of ours.</summary>
+static async Task<string?> DescribeExistingAsync(int port)
+{
+    try
+    {
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+        var json = await http.GetStringAsync($"http://127.0.0.1:{port}/health");
+        var node = JsonNode.Parse(json);
+        var pid = (int?)node?["daemon"]?["pid"];
+        var version = (string?)node?["daemon"]?["version"];
+        var editors = (node?["editors"] as JsonArray)?.Count ?? 0;
+        return pid is null ? null : $"umcpd {version} (pid {pid}, {editors} editor(s) connected)";
+    }
+    catch
+    {
+        return null;
+    }
+}
 
 static void AddCore(IServiceCollection services, DaemonOptions options)
 {

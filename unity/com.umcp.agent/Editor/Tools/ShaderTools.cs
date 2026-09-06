@@ -36,7 +36,7 @@ namespace Umcp.Agent
                     "assets.find with \"t:Shader\" lists the shaders in this project.");
 
             Shader shader = null;
-            var assetPath = path == null ? null : path.Replace('\\', '/');
+            var assetPath = path == null ? null : Resolve.AssetPath(path, "path");
 
             if (assetPath != null)
             {

@@ -173,19 +173,58 @@ void StartDaemon(int httpPort)
     };
     psi.ArgumentList.Add("--port");
     psi.ArgumentList.Add(httpPort.ToString());
-    foreach (var extra in new[] { "--agent-port", "--tray" })
+    foreach (var extra in new[] { "--agent-port", "--profile", "--package-path" })
     {
         var v = Arg(extra);
-        if (extra == "--tray")
-        {
-            if (Environment.GetCommandLineArgs().Contains("--tray")) psi.ArgumentList.Add("--tray");
-        }
-        else if (v is not null) { psi.ArgumentList.Add(extra); psi.ArgumentList.Add(v); }
+        if (v is not null) { psi.ArgumentList.Add(extra); psi.ArgumentList.Add(v); }
     }
+    if (Environment.GetCommandLineArgs().Contains("--tray")) psi.ArgumentList.Add("--tray");
+    if (Environment.GetCommandLineArgs().Contains("--auto-restart")) psi.ArgumentList.Add("--auto-restart");
 
     // Deliberately not tracked: the daemon outliving this shim is the entire point of the design.
     // No parent-PID watchdog anywhere in this system.
-    Process.Start(psi);
+    var child = Process.Start(psi);
+    if (child is null) return;
+
+    // Both pipes must be drained. A redirected stream nobody reads fills its buffer — 4 KB on
+    // Windows — and then every write from the daemon blocks: the daemon stops serving, having
+    // logged its way into a deadlock, and the only visible symptom is that nothing answers.
+    // Draining into a log file also gives a place to look when startup fails.
+    _ = DrainAsync(child.StandardOutput, DaemonLogPath());
+    _ = DrainAsync(child.StandardError, DaemonLogPath());
+}
+
+static string DaemonLogPath()
+{
+    var dir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UnityMCP", "logs");
+    Directory.CreateDirectory(dir);
+    return Path.Combine(dir, "daemon.log");
+}
+
+static async Task DrainAsync(StreamReader stream, string logPath)
+{
+    const long maxBytes = 8 * 1024 * 1024;
+    try
+    {
+        while (true)
+        {
+            var line = await stream.ReadLineAsync();
+            if (line is null) return;
+
+            try
+            {
+                // Truncate rather than grow without bound: this is a convenience log, and a
+                // daemon that fills a disk with its own chatter is a worse failure than a lost
+                // history of it.
+                var info = new FileInfo(logPath);
+                if (info.Exists && info.Length > maxBytes) File.WriteAllText(logPath, "");
+                await File.AppendAllTextAsync(logPath, line + Environment.NewLine);
+            }
+            catch { /* logging must never take the shim down */ }
+        }
+    }
+    catch { /* the daemon exited; nothing to drain */ }
 }
 
 static string? FindDaemon()

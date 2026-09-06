@@ -137,6 +137,104 @@ sealed partial class Bench
         return (list.OrderBy(t => t.Item1, StringComparer.Ordinal).ToList(), catalogTotal);
     }
 
+
+    // ---------------------------------------------------------------- path confinement
+
+    /// <summary>
+    /// Every tool that takes an asset path must refuse one that escapes the project.
+    ///
+    /// This is a systematic probe rather than a spot check, because confinement is exactly the
+    /// kind of rule that holds everywhere until somebody adds the ninety-first tool and forgets
+    /// it. Five tools added in one sitting had done precisely that: they normalised separators and
+    /// went straight to the filesystem, and one of them *writes a C# file*.
+    /// </summary>
+    public async Task<JsonObject> PathConfinementAsync()
+    {
+        var probed = new JsonArray();
+        var accepted = new JsonArray();
+        var pathParams = new[] { "path", "folder", "scriptFolder", "to", "source" };
+        var escapes = new[] { "../escape/evil.cs", "C:/Windows/System32/evil.cs", "Library/evil.cs" };
+
+        var (tools, _) = await CatalogAsync();
+        foreach (var (id, mutating, _) in tools)
+        {
+            var detail = await CallAsync("unity_skill", new() { ["id"] = id });
+            var schema = detail["data"]?["inputSchema"];
+            var properties = schema?["properties"] as JsonObject;
+            if (properties is null) continue;
+
+            var required = (schema?["required"] as JsonArray ?? new JsonArray())
+                .Select(r => (string?)r).Where(r => r is not null).Select(r => r!).ToArray();
+
+            foreach (var name in pathParams)
+            {
+                if (!properties.ContainsKey(name)) continue;
+                if ((string?)properties[name]?["type"] != "string") continue;
+
+                foreach (var escape in escapes)
+                {
+                    var args = new JsonObject { [name] = escape };
+
+                    // Fill the tool's other required arguments so the refusal we see is about the
+                    // path and not about a missing argument.
+                    foreach (var other in required)
+                    {
+                        if (other == name || args.ContainsKey(other)) continue;
+                        args[other] = (string?)properties[other]?["type"] switch
+                        {
+                            "integer" or "number" => 1,
+                            "boolean" => true,
+                            "array" => new JsonArray(),
+                            _ => "__umcp_probe"
+                        };
+                    }
+
+                    var call = new JsonObject { ["tool"] = id, ["args"] = args };
+                    if (mutating) call["dryRun"] = true;
+
+                    var result = await CallAsync("unity_run", call);
+                    var code = (string?)result["code"] ?? "";
+
+                    // A mutating tool is probed through dryRun, which returns ok:true and puts its
+                    // verdict in the payload. Reading only `ok` there would call every refusal an
+                    // acceptance — which is how the first run of this probe reported 42 false
+                    // failures.
+                    var problems = result["data"]?["problems"] as JsonArray ?? new JsonArray();
+                    var pathProblem = problems.Any(x => (string?)x?["code"] is "E_PATH_ESCAPE" or "E_PATH_OUTSIDE_PROJECT");
+                    var confined = code is "E_PATH_ESCAPE" or "E_PATH_OUTSIDE_PROJECT" || pathProblem;
+                    var refused = (bool?)result["ok"] != true || pathProblem;
+
+                    probed.Add(new JsonObject
+                    {
+                        ["tool"] = id,
+                        ["param"] = name,
+                        ["value"] = escape,
+                        ["code"] = confined && code.Length == 0 ? "dryRun:refused" : code
+                    });
+
+                    if (!refused || (!confined && code is not ("E_ARG_VALUE" or "E_ASSET_NOT_FOUND")))
+                        accepted.Add(new JsonObject
+                        {
+                            ["tool"] = id,
+                            ["param"] = name,
+                            ["value"] = escape,
+                            ["ok"] = result["ok"]?.DeepClone(),
+                            ["code"] = code
+                        });
+                }
+            }
+        }
+
+        var confinedCount = probed.Count(p => (string?)p?["code"] is "E_PATH_ESCAPE" or "E_PATH_OUTSIDE_PROJECT" or "dryRun:refused");
+        return new JsonObject
+        {
+            ["probes"] = probed.Count,
+            ["confined"] = confinedCount,
+            ["notConfined"] = accepted,
+            ["pass"] = accepted.Count == 0 && probed.Count > 0
+        };
+    }
+
     // ---------------------------------------------------------------- dry run
 
     /// <summary>A dry run must predict the effect and must change nothing. Both halves are checked.</summary>

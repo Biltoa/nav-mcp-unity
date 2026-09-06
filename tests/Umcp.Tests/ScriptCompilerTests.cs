@@ -113,6 +113,7 @@ public class ProfileTests
     [InlineData("assets.delete")]
     [InlineData("scene.save")]
     [InlineData("editor.stall")]
+    [InlineData("editor.quit")]
     public void Dangerous_operations_need_the_full_profile(string toolId)
     {
         Assert.NotNull(Umcp.Daemon.Security.Profiles.Denies(Umcp.Daemon.Security.Profile.Standard, toolId, true));

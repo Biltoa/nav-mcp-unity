@@ -61,6 +61,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("mirror-latency", bench.MirrorLatencyAsync),
     ("mirror-reconcile", bench.MirrorReconcileAsync),
     ("reads-through-reloads", () => bench.ReadsThroughReloadsAsync(reloads)),
+    ("path-confinement", bench.PathConfinementAsync),
     ("dry-run", bench.DryRunAsync),
     ("scene-diff", bench.SceneDiffAsync),
     ("validate-target", bench.ValidateTargetAsync),

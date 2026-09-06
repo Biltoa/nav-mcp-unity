@@ -35,6 +35,12 @@ namespace Umcp.Agent
                 ResolveOne(args, name, resolved, problems);
             ResolveMany(args, "targets", resolved, problems);
 
+            // Path confinement is checked here as well as in the tool. A dry run that accepts a
+            // path the real call would refuse is worse than no dry run: it is a prediction that
+            // the dangerous argument is fine.
+            foreach (var name in new[] { "path", "folder", "to", "scriptFolder" })
+                ConfinePath(args, name, problems);
+
             string effect;
             switch (tool)
             {
@@ -205,6 +211,9 @@ namespace Umcp.Agent
                     break;
             }
 
+            if (problems.Any(p => (p.GetType().GetProperty("code")?.GetValue(p) as string) is "E_PATH_ESCAPE" or "E_PATH_OUTSIDE_PROJECT"))
+                effect = "Would fail: the path is outside the project. Asset paths must resolve under Assets/ or Packages/.";
+
             return new
             {
                 dryRun = true,
@@ -223,6 +232,26 @@ namespace Umcp.Agent
         }
 
         // ---------------------------------------------------------------- helpers
+
+        /// <summary>Run the same confinement the tools run, and report a failure as a problem.</summary>
+        static void ConfinePath(JObject args, string field, List<object> problems)
+        {
+            var value = Str(args, field);
+            if (string.IsNullOrEmpty(value)) return;
+
+            try { Resolve.AssetPath(value, field); }
+            catch (UmcpToolException e)
+            {
+                problems.Add(new
+                {
+                    param = field,
+                    value,
+                    problem = e.Message,
+                    code = e.Code,
+                    didYouMean = new string[0]
+                });
+            }
+        }
 
         static void ResolveOne(JObject args, string field, List<object> resolved, List<object> problems)
         {

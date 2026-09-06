@@ -6,15 +6,29 @@ namespace Umcp.Daemon.Agent;
 /// <summary>
 /// Append-only record of every mutating operation, on disk, outside any Unity project.
 /// Written from a single background writer so no caller ever blocks on IO.
+///
+/// It rotates. A daemon that runs for months at a few hundred mutations an hour writes a file
+/// nobody can open and a disk nobody expected to fill; "append forever" is a defect with a long
+/// fuse. At <see cref="MaxBytes"/> the current file becomes <c>audit.1.jsonl</c>, the older
+/// generations shift down, and the oldest is dropped.
 /// </summary>
 public sealed class AuditLog : IAsyncDisposable
 {
+    /// <summary>Roll at 8 MB, which is roughly 40,000 operations.</summary>
+    public const long MaxBytes = 8 * 1024 * 1024;
+    /// <summary>Keep this many rolled generations.</summary>
+    public const int Generations = 3;
+
     readonly Channel<string> _lines = Channel.CreateUnbounded<string>();
     readonly Task _writer;
+    readonly string _path;
 
-    public AuditLog()
+    public AuditLog() : this(Paths.AuditLog) { }
+
+    public AuditLog(string path)
     {
         Paths.EnsureCreated();
+        _path = path;
         _writer = Task.Run(WriteLoopAsync);
     }
 
@@ -37,8 +51,44 @@ public sealed class AuditLog : IAsyncDisposable
     {
         await foreach (var line in _lines.Reader.ReadAllAsync())
         {
-            try { await File.AppendAllTextAsync(Paths.AuditLog, line + Environment.NewLine); }
+            try
+            {
+                RollIfNeeded();
+                await File.AppendAllTextAsync(_path, line + Environment.NewLine).ConfigureAwait(false);
+            }
             catch { /* auditing must never take the daemon down */ }
+        }
+    }
+
+    /// <summary>Shift the generations along when the live file is full. Called on the writer thread only.</summary>
+    void RollIfNeeded()
+    {
+        var info = new FileInfo(_path);
+        if (!info.Exists || info.Length < MaxBytes) return;
+
+        var directory = Path.GetDirectoryName(_path)!;
+        var stem = Path.GetFileNameWithoutExtension(_path);
+        var extension = Path.GetExtension(_path);
+        string Generation(int n) => Path.Combine(directory, $"{stem}.{n}{extension}");
+
+        try { if (File.Exists(Generation(Generations))) File.Delete(Generation(Generations)); } catch { }
+        for (var n = Generations - 1; n >= 1; n--)
+        {
+            try { if (File.Exists(Generation(n))) File.Move(Generation(n), Generation(n + 1), overwrite: true); }
+            catch { }
+        }
+        try { File.Move(_path, Generation(1), overwrite: true); } catch { }
+    }
+
+    /// <summary>Flush everything queued. Tests need it; nothing in the daemon's hot path does.</summary>
+    public async Task DrainAsync()
+    {
+        var idle = 0;
+        while (idle < 20)
+        {
+            if (_lines.Reader.Count == 0) idle++;
+            else idle = 0;
+            await Task.Delay(10).ConfigureAwait(false);
         }
     }
 
