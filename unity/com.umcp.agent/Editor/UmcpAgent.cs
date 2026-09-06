@@ -165,18 +165,21 @@ namespace Umcp.Agent
         static void HandleOp(JObject msg, string id, Stopwatch sw)
         {
             var key = (string)msg["key"];
-            if (UmcpCancellation.Take(key))
-            {
-                SendError(id, "E_CANCELLED", "The caller cancelled this operation before it ran.", sw);
-                return;
-            }
 
             string cached;
             if (!string.IsNullOrEmpty(key) && _appliedResults.TryGetValue(key, out cached))
             {
                 // Replayed after a domain reload. Answer from the ring buffer rather than
-                // applying the mutation twice.
+                // applying the mutation twice. Checked *before* cancellation: an operation that
+                // already ran cannot be un-run, and reporting it as cancelled would be a second
+                // lie on top of a lost result.
                 Send("{\"t\":\"result\",\"id\":" + JsonConvert.ToString(id) + ",\"ok\":true,\"replayed\":true,\"data\":" + cached + ",\"ms\":0}");
+                return;
+            }
+
+            if (UmcpCancellation.Take(key))
+            {
+                SendError(id, "E_CANCELLED", "The caller cancelled this operation before it ran.", sw);
                 return;
             }
 
@@ -246,16 +249,17 @@ namespace Umcp.Agent
         static void HandleBatch(JObject msg, string id, Stopwatch sw)
         {
             var key = (string)msg["key"];
-            if (UmcpCancellation.Take(key))
-            {
-                SendError(id, "E_CANCELLED", "The caller cancelled this batch before it ran.", sw);
-                return;
-            }
 
             string cached;
             if (!string.IsNullOrEmpty(key) && _appliedResults.TryGetValue(key, out cached))
             {
                 Send("{\"t\":\"result\",\"id\":" + JsonConvert.ToString(id) + ",\"ok\":true,\"replayed\":true,\"data\":" + cached + ",\"ms\":0}");
+                return;
+            }
+
+            if (UmcpCancellation.Take(key))
+            {
+                SendError(id, "E_CANCELLED", "The caller cancelled this batch before it ran.", sw);
                 return;
             }
 

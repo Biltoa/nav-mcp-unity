@@ -302,15 +302,24 @@ public sealed class Dispatcher
                     }
 
                 case SendOutcome.Blocked:
+                    // Withdraw the operation before reporting the block. Without this the daemon
+                    // says "blocked", the caller believes nothing happened, and the Editor runs
+                    // the mutation the moment the modal is dismissed — measured: 60 creates all
+                    // answered E_EDITOR_BLOCKED and all 60 objects appeared. An error for work
+                    // that then happens is the worst answer this system can give.
+                    if (key is not null) session.SendCancel(key);
+
                     return Envelope.Error("E_EDITOR_BLOCKED", result.Detail ?? "The Editor main thread is not ticking.",
-                        hint: "Unity is very likely showing a modal dialog. Dismiss it in the Editor; queued operations " +
-                              "will then run. This daemon never raises modals of its own.",
+                        hint: "Unity is very likely showing a modal dialog. Dismiss it in the Editor, then send the " +
+                              "operation again — this one was withdrawn rather than left queued. This daemon never " +
+                              "raises modals of its own.",
                         meta: new JsonObject
                         {
                             ["ms"] = total.ElapsedMilliseconds,
                             ["heldMs"] = heldMs,
                             ["epoch"] = session.Epoch,
-                            ["project"] = session.ProjectName
+                            ["project"] = session.ProjectName,
+                            ["withdrawn"] = key is not null
                         });
 
                 case SendOutcome.Overloaded:

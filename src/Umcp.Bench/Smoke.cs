@@ -138,6 +138,48 @@ sealed partial class Bench
     }
 
 
+
+    /// <summary>
+    /// E_EDITOR_BLOCKED must mean "it did not run".
+    ///
+    /// It did not, once: sixty creates issued behind a stalled Editor all answered
+    /// E_EDITOR_BLOCKED, and all sixty objects appeared the moment the stall cleared. An error for
+    /// work that then happens is the worst answer this system can give, so the daemon now
+    /// withdraws the operation before reporting the block — and this measures that it stayed
+    /// withdrawn.
+    /// </summary>
+    public async Task<JsonObject> BlockedWithdrawalAsync(int operations = 24)
+    {
+        var tag = Prefix + "withdrawn_" + DateTime.Now.ToString("HHmmss");
+
+        var stall = CallAsync("unity_run", new() { ["tool"] = "editor.stall", ["args"] = new JsonObject { ["seconds"] = 12 } });
+        await Task.Delay(700);
+
+        var calls = Enumerable.Range(0, operations).Select(i => CallAsync("unity_run", new()
+        {
+            ["tool"] = "gameobject.create",
+            ["args"] = new JsonObject { ["name"] = tag + "_" + i }
+        })).ToArray();
+
+        var results = await Task.WhenAll(calls);
+        var blocked = results.Count(r => (string?)r["code"] == "E_EDITOR_BLOCKED");
+        var withdrawn = results.Count(r => (bool?)r["meta"]?["withdrawn"] == true);
+
+        await stall;
+        await Task.Delay(2000);   // let anything the Editor still holds drain
+
+        var created = await CountAsync(null, $"//*[name^:{tag}]");
+
+        return new JsonObject
+        {
+            ["operations"] = operations,
+            ["blocked"] = blocked,
+            ["reportedWithdrawn"] = withdrawn,
+            ["objectsCreated"] = created,
+            ["pass"] = blocked == operations && created == 0
+        };
+    }
+
     // ---------------------------------------------------------------- path confinement
 
     /// <summary>

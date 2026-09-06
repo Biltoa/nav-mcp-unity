@@ -68,6 +68,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("cancel-queued", bench.CancelAsync),
     ("blocked-detection", bench.BlockedProbeAsync),
     ("blocked-under-stall", bench.BlockedUnderStallAsync),
+    ("blocked-withdrawn", () => bench.BlockedWithdrawalAsync()),
     ("cleanup", bench.CleanupAsync)
 };
 
