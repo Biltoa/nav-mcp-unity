@@ -22,7 +22,12 @@
       </Grid>
     </Border>
 
-    <StackPanel DockPanel.Dock="Top" Spacing="14">
+    <!-- The window fills what it has and scrolls the rest. Five linked projects plus three
+         clients is taller than a laptop screen, and content that is simply cut off reads as a
+         broken app rather than as a window that needs resizing. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                  Padding="0,0,6,0">
+      <StackPanel Spacing="14">
 
       <!-- 1. the server -->
       <Border Classes="card">
@@ -173,6 +178,7 @@
         </Grid>
       </Expander>
 
-    </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
   </DockPanel>
 </Window>
