@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Umcp.Daemon;
 using Umcp.Daemon.Agent;
+using Umcp.Daemon.Api;
 using Umcp.Daemon.Generated;
 using Umcp.Daemon.Mcp;
 using Umcp.Daemon.Security;
@@ -144,49 +145,11 @@ app.Use(async (ctx, next) =>
 });
 
 app.MapMcp("/mcp");
+app.MapControlApi();
 
 // Health is the last completed round trip, never "the socket is open".
 app.MapGet("/health", async (EditorRegistry registry, DaemonOptions opts) =>
-{
-    var editors = new JsonArray();
-    foreach (var s in registry.Sessions)
-    {
-        var o = s.StatusJson();
-        var probe = await s.ProbeControlAsync();
-        var tickAge = (long?)probe?["msSinceTick"];
-        o["msSinceTick"] = tickAge;
-        o["health"] = tickAge is null
-            ? (s.MsSinceLastResponse < 5000 ? "ok" : "unknown")
-            : tickAge >= opts.BlockedTickAge.TotalMilliseconds ? "blocked"
-            : tickAge >= 5000 ? "degraded" : "ok";
-        editors.Add(o);
-    }
-
-    return Results.Json(new JsonObject
-    {
-        ["ok"] = true,
-        ["daemon"] = new JsonObject
-        {
-            ["pid"] = Environment.ProcessId,
-            ["version"] = BuildInfo.Version,
-            ["uptimeSec"] = (long)(DateTime.UtcNow - DaemonInfo.StartedUtc).TotalSeconds,
-            // Memory is reported because this process is expected to run for weeks. A number
-            // nobody can see is a leak nobody finds.
-            ["memory"] = new JsonObject
-            {
-                ["workingSetMB"] = Environment.WorkingSet / (1024 * 1024),
-                ["privateMB"] = System.Diagnostics.Process.GetCurrentProcess().PrivateMemorySize64 / (1024 * 1024),
-                ["managedHeapMB"] = GC.GetTotalMemory(false) / (1024 * 1024),
-                ["gen2Collections"] = GC.CollectionCount(2)
-            },
-            ["httpPort"] = opts.HttpPort,
-            ["agentPort"] = opts.AgentPort,
-            ["tools"] = ToolCatalog.All.Length,
-            ["profile"] = Umcp.Daemon.Security.Profiles.Name(opts.Profile)
-        },
-        ["editors"] = editors
-    });
-});
+    Results.Json(await HealthReport.BuildAsync(registry, opts)));
 
 try
 {
@@ -259,6 +222,7 @@ static void AddCore(IServiceCollection services, DaemonOptions options)
     services.AddSingleton<UnityMcpTools>();
     services.AddHostedService<AgentServer>();
     services.AddSingleton<DaemonState>();
+    services.AddSingleton<Umcp.Daemon.Api.LinkedProjects>();
     services.AddSingleton<Umcp.Daemon.Script.ScriptCompiler>();
     services.AddHostedService<Umcp.Daemon.Script.ScriptCacheJanitor>();
     services.AddSingleton<SkillTree>();
