@@ -23,8 +23,7 @@ public static class EditorInstalls
 {
     static readonly Regex VersionDir = new(@"^\d+\.\d+\.\d+[abfp]\d+$", RegexOptions.Compiled);
 
-    public static string HubConfigDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UnityHub");
+    public static string HubConfigDir => Umcp.UmcpPaths.UnityHubConfigDir;
 
     /// <summary>The roots to scan: the Hub's secondary install path, then the platform defaults.</summary>
     public static IReadOnlyList<string> Roots()

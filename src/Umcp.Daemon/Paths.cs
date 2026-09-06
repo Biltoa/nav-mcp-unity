@@ -7,19 +7,16 @@ namespace Umcp.Daemon;
 /// Unity's AssetDatabase try to import it while the server is still appending, which produced
 /// "Amount of processed bytes '37966' does not match file size '37849'" in the Editor log of the
 /// tool being replaced.
+///
+/// The platform rules live in <see cref="Umcp.UmcpPaths"/>, which the shim and the GUI link too:
+/// the token file is the one path they all have to agree on.
 /// </summary>
 public static class Paths
 {
-    public static string Root { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UnityMCP");
+    public static string Root => Umcp.UmcpPaths.Root;
+    public static string TokenFile => Umcp.UmcpPaths.TokenFile;
+    public static string LogDir => Umcp.UmcpPaths.LogDir;
+    public static string AuditLog => Umcp.UmcpPaths.AuditLog;
 
-    public static string TokenFile => Path.Combine(Root, "token");
-    public static string LogDir => Path.Combine(Root, "logs");
-    public static string AuditLog => Path.Combine(LogDir, "audit.jsonl");
-
-    public static void EnsureCreated()
-    {
-        Directory.CreateDirectory(Root);
-        Directory.CreateDirectory(LogDir);
-    }
+    public static void EnsureCreated() => Umcp.UmcpPaths.EnsureCreated();
 }

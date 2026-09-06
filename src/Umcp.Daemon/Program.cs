@@ -5,7 +5,6 @@ using Umcp.Daemon.Agent;
 using Umcp.Daemon.Generated;
 using Umcp.Daemon.Mcp;
 using Umcp.Daemon.Security;
-using Umcp.Daemon.Tray;
 
 // umcpd — the daemon.
 //
@@ -56,7 +55,7 @@ if (args.Contains("--help") || args.Contains("-h"))
           --port <n>                HTTP/MCP port          (default 8730, loopback only)
           --agent-port <n>          Unity agent channel    (default 8731, loopback only)
           --stdio                   also serve MCP on this process's stdio
-          --tray                    show the Windows tray UI
+          --tray                    accepted and ignored; the tray lives in the GUI app now
           --token <s>               use this bearer token instead of minting one
           --profile <p>             readonly | standard | full   (default standard)
           --max-response-bytes <n>  response cap           (default 32768)
@@ -65,7 +64,8 @@ if (args.Contains("--help") || args.Contains("-h"))
           --package-path <dir>      com.umcp.agent source, when not next to this binary
           --open-timeout <sec>      how long to wait for a launched Editor's handshake (default 300)
 
-        The token is written to %LOCALAPPDATA%/UnityMCP/token.
+        The token is written next to the logs: %LOCALAPPDATA%/UnityMCP on Windows,
+        ~/Library/Application Support/UnityMCP on macOS.
         """);
     return 0;
 }
@@ -187,9 +187,6 @@ app.MapGet("/health", async (EditorRegistry registry, DaemonOptions opts) =>
         ["editors"] = editors
     });
 });
-
-if (options.Tray && OperatingSystem.IsWindows())
-    TrayHost.Start(app.Services, options, tokens);
 
 try
 {

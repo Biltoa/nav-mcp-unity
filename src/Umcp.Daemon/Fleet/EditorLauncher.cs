@@ -64,16 +64,49 @@ public static class EditorLauncher
     /// </summary>
     public static string? CommandLineOf(int pid)
     {
-        if (!OperatingSystem.IsWindows()) return null;
+        if (pid <= 0) return null;
         try
         {
-            using var searcher = new System.Management.ManagementObjectSearcher(
-                $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {pid}");
-            foreach (var o in searcher.Get())
-                return o["CommandLine"] as string;
+            return OperatingSystem.IsWindows() ? FromWmi(pid) : FromPs(pid);
         }
-        catch { /* WMI can be disabled or slow; unverified is a valid answer */ }
+        catch { /* WMI can be disabled, ps can be missing; unverified is a valid answer */ }
         return null;
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    static string? FromWmi(int pid)
+    {
+        using var searcher = new System.Management.ManagementObjectSearcher(
+            $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {pid}");
+        foreach (var o in searcher.Get())
+            return o["CommandLine"] as string;
+        return null;
+    }
+
+    /// <summary>
+    /// macOS and Linux: <c>ps -o command= -p &lt;pid&gt;</c>. `command` rather than `args` because
+    /// BSD ps on macOS truncates `args` at the terminal width unless it is the last column, and a
+    /// truncated command line would read as a mismatched -projectPath — a confident wrong answer.
+    /// </summary>
+    static string? FromPs(int pid)
+    {
+        var psi = new ProcessStartInfo("ps")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        psi.ArgumentList.Add("-o");
+        psi.ArgumentList.Add("command=");
+        psi.ArgumentList.Add("-p");
+        psi.ArgumentList.Add(pid.ToString());
+
+        using var p = Process.Start(psi);
+        if (p is null) return null;
+        var text = p.StandardOutput.ReadToEnd().Trim();
+        if (!p.WaitForExit(2000)) { try { p.Kill(true); } catch { } return null; }
+        return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 
     /// <summary>
@@ -107,8 +140,12 @@ public static class EditorLauncher
         }
         else
         {
-            var end = rest.IndexOf(' ');
-            value = end < 0 ? rest : rest[..end];
+            // Unquoted, which is what `ps` reports on macOS and Linux even for a path that was
+            // passed as one argument. Stopping at the first space would truncate every project
+            // path with a space in it and report a mismatch that never happened, so the value
+            // runs to the next argument — a space followed by a dash — or to the end.
+            var end = rest.IndexOf(" -", StringComparison.Ordinal);
+            value = (end < 0 ? rest : rest[..end]).Trim();
         }
 
         try { return EditorInstalls.Normalise(Path.GetFullPath(value)); }

@@ -1,12 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- Cross-platform on purpose. The tray UI that used to force net8.0-windows now lives in
+         the GUI app; what is left of the Windows-only surface (WMI command-line readback, the
+         user32 dialog-title probe, the token ACL) is guarded at runtime and compiles anywhere. -->
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Umcp.Daemon</RootNamespace>
     <AssemblyName>umcpd</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <UseWindowsForms>true</UseWindowsForms>
     <!-- Workstation GC. ASP.NET defaults to server GC, which allocates a heap per core and holds
          it: on a 16-core desktop that turns a daemon with a few megabytes of live state into a
          process with a gigabyte of working set. This one shares a machine with a Unity Editor
@@ -19,7 +21,7 @@
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.4.0-preview.2" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
     <!-- Reading back a launched process's command line, to prove the -projectPath argument
-         survived quoting. Windows-only, which this assembly already is because of the tray. -->
+         survived quoting. Windows-only at runtime; macOS and Linux use `ps` instead. -->
     <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>
   <!-- Shared with the Unity package: one selector grammar and one reconcile hash, compiled
@@ -28,6 +30,7 @@
   <ItemGroup>
     <Compile Include="..\..\unity\com.umcp.agent\Editor\SceneSelector.cs" Link="Shared\SceneSelector.cs" />
     <Compile Include="..\..\unity\com.umcp.agent\Editor\MirrorHash.cs" Link="Shared\MirrorHash.cs" />
+    <Compile Include="..\Shared\UmcpPaths.cs" Link="Shared\UmcpPaths.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Skills\**\*.md" />

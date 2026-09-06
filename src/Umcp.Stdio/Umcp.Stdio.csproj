@@ -8,4 +8,7 @@
     <AssemblyName>umcp-stdio</AssemblyName>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\Shared\UmcpPaths.cs" Link="Shared\UmcpPaths.cs" />
+  </ItemGroup>
 </Project>

@@ -196,10 +196,8 @@ void StartDaemon(int httpPort)
 
 static string DaemonLogPath()
 {
-    var dir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UnityMCP", "logs");
-    Directory.CreateDirectory(dir);
-    return Path.Combine(dir, "daemon.log");
+    Umcp.UmcpPaths.EnsureCreated();
+    return Umcp.UmcpPaths.DaemonLog;
 }
 
 static async Task DrainAsync(StreamReader stream, string logPath)
@@ -229,18 +227,20 @@ static async Task DrainAsync(StreamReader stream, string logPath)
 
 static string? FindDaemon()
 {
-    var names = new[] { "umcpd.exe", "umcpd" };
+    var names = new[] { Umcp.UmcpPaths.ExeName("umcpd") };
     var dirs = new List<string> { AppContext.BaseDirectory };
 
     // Development layout: src/Umcp.Stdio/bin/... alongside src/Umcp.Daemon/bin/...
     var here = new DirectoryInfo(AppContext.BaseDirectory);
     for (var d = here; d is not null; d = d.Parent)
-    {
-        var candidate = Path.Combine(d.FullName, "src", "Umcp.Daemon", "bin", "Debug", "net8.0-windows");
-        if (Directory.Exists(candidate)) dirs.Add(candidate);
-        var release = Path.Combine(d.FullName, "src", "Umcp.Daemon", "bin", "Release", "net8.0-windows");
-        if (Directory.Exists(release)) dirs.Add(release);
-    }
+        foreach (var configuration in new[] { "Debug", "Release" })
+        {
+            var candidate = Path.Combine(d.FullName, "src", "Umcp.Daemon", "bin", configuration, "net8.0");
+            if (Directory.Exists(candidate)) dirs.Add(candidate);
+        }
+
+    // A macOS drop puts the binaries inside the app bundle; the shim may be invoked from either.
+    dirs.Add(Path.Combine(AppContext.BaseDirectory, "..", "Resources"));
 
     foreach (var dir in dirs)
         foreach (var name in names)
@@ -260,8 +260,7 @@ static string? FindDaemon()
 
 static string? TryReadTokenFile()
 {
-    var path = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UnityMCP", "token");
+    var path = Umcp.UmcpPaths.TokenFile;
     try { return File.Exists(path) ? File.ReadAllText(path).Trim() : null; } catch { return null; }
 }
 
