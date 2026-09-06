@@ -9,6 +9,9 @@ Three processes, and the important line is that **the durable state lives outsid
 ```
 AI client ──stdio──▶ umcp-stdio ──http──▶ umcpd ──tcp──▶ UnityAgent (in-editor package)
                        (shim)            (daemon)         one per project
+                                            ▲
+                        Unity MCP Tool.app ─┘  (the GUI: start/stop, link projects,
+                                                connect clients — Windows and macOS)
 ```
 
 Everything that must survive a recompile — the request queue, the catalog, the retry logic — lives
@@ -22,12 +25,34 @@ Generated tool reference: [docs/TOOLS.md](docs/TOOLS.md).
 
 | Path | What |
 |---|---|
-| `src/Umcp.Daemon` | `umcpd` — MCP over stdio and HTTP, editor registry, dispatcher, health, tray UI |
+| `src/Umcp.Daemon` | `umcpd` — MCP over stdio and HTTP, editor registry, dispatcher, health, control API |
+| `src/Umcp.Gui` | the desktop app — Avalonia, one codebase for the Windows .exe and the macOS .app |
 | `src/Umcp.Stdio` | `umcp-stdio` — the shim a client spawns; starts the daemon if it isn't up |
 | `src/Umcp.ToolGen` | `umcp-toolgen` — reads the `[UnityTool]` methods and generates dispatch, catalog and docs |
 | `src/Umcp.Bench` | `umcp-bench` — the measurement harness; every claim in PROGRESS.md comes from it |
 | `unity/com.umcp.agent` | the Unity package: connect out, pump the main thread, execute, stream scene deltas |
 | `tests/Umcp.Tests` | the quality bar as tests |
+
+## Install it as an app
+
+[docs/INSTALL.md](docs/INSTALL.md) leads with the double-click route: run the app, click **Start
+server**, **Link a project…** for each Unity project, **Connect** next to your AI client. One
+server drives every linked project at once, and linking writes the package reference into that
+project's manifest so nobody has to edit JSON.
+
+Neither build is code-signed, so the first launch needs one extra click — **More info → Run
+anyway** on Windows, **right-click → Open** on macOS. INSTALL.md says so with the exact wording
+each OS uses.
+
+```powershell
+pwsh scripts/publish.ps1        # Windows drop into dist/
+```
+```bash
+scripts/publish.sh              # macOS .app into dist-mac/
+```
+
+Both refuse to build a drop whose generated catalog differs from its sources, or whose tests or
+main-thread check fail. CI builds both on every push.
 
 ## Build
 
@@ -43,10 +68,11 @@ input example, or if a mutating tool declares neither an undo group nor a reason
 ## Run
 
 ```bash
-dotnet run --project src/Umcp.Daemon -- --port 8730 --agent-port 8731 --tray
+dotnet run --project src/Umcp.Gui                                       # the app
+dotnet run --project src/Umcp.Daemon -- --port 8730 --agent-port 8731   # the server alone
 ```
 
-Add `--profile full` to enable code mode.
+Add `--profile full` to enable code mode. The app exposes the same three profiles under Settings.
 
 Both ports bind `127.0.0.1` explicitly. A bearer token is minted at start and written to
 `%LOCALAPPDATA%\UnityMCP\token` with an ACL granting the current user only; `/health` is the one
@@ -177,8 +203,15 @@ Content lives in `src/Umcp.Daemon/Skills/*.md` and is embedded in the binary.
 [docs/INSTALL.md](docs/INSTALL.md) is the install guide: the daemon, the Unity package, MCP client
 registration for both transports, a health table, troubleshooting, and how to remove it again.
 
-`scripts/publish.ps1` builds a release drop into `dist/` — and refuses to build one whose generated
-catalog differs from its sources, or whose tests or main-thread check fail.
+`scripts/publish.ps1` and `scripts/publish.sh` build the Windows and macOS drops — and refuse to
+build one whose generated catalog differs from its sources, or whose tests or main-thread check
+fail. The app is self-contained by default: its audience has never installed a .NET runtime and
+should not have to.
+
+The daemon itself is `net8.0` and platform-neutral. What used to make it Windows-only — a WinForms
+tray, one WMI call, a token ACL — is either gone (the tray lives in the app) or guarded: the token
+is ACL'd on Windows and 0600 elsewhere, and the command-line readback that proves `-projectPath`
+arrived intact uses WMI on Windows and `ps` on macOS.
 
 Operationally: the daemon binds loopback only and mints a token with an owner-only ACL; the audit
 log rotates; one Editor accepts at most 512 queued operations and then answers `E_BUSY`; every tool

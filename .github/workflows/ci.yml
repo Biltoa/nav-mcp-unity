@@ -54,3 +54,75 @@ jobs:
       # tests, but they are the ones that keep the catalog honest, so they are named here.
       - name: Catalog quality gates
         run: dotnet test UnityMcpTool.sln -c Release --no-build --filter "FullyQualifiedName~CatalogTests|FullyQualifiedName~EnvelopeTests"
+
+  # The daemon left Windows, so the build has to prove it on something that is not Windows. This
+  # job is also where the macOS app comes from: there is no Mac in this project's development
+  # loop, and an .app nobody has ever built is an .app that does not build.
+  macos-app:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+
+      - name: Build and test on macOS
+        run: |
+          dotnet restore UnityMcpTool.sln
+          dotnet build UnityMcpTool.sln -c Release --no-restore
+          dotnet test UnityMcpTool.sln -c Release --no-build --logger "console;verbosity=normal"
+
+      # Package the app itself. --skip-tests because the step above just ran them; the script
+      # still enforces the generated-file and main-thread gates.
+      - name: Package the app
+        run: |
+          chmod +x scripts/publish.sh
+          scripts/publish.sh --arch both --skip-tests
+
+      # A bundle that launches is the only evidence that the layout is right — the GUI looks for
+      # umcpd in Contents/Resources, and a wrong path there is invisible until someone downloads
+      # it. Headless, so it exits rather than showing a window: it is enough that the binary
+      # resolves its runtime and its helpers.
+      - name: The bundle is shaped like an app
+        run: |
+          app="dist-mac/Unity MCP Tool (arm64).app"
+          test -x "$app/Contents/MacOS/Unity MCP Tool"
+          test -x "$app/Contents/Resources/umcpd"
+          test -x "$app/Contents/Resources/umcp-stdio"
+          test -f "$app/Contents/Resources/com.umcp.agent/package.json"
+          test -f "$app/Contents/Info.plist"
+          codesign --verify --verbose "$app"
+          "dist-mac/Unity MCP Tool (x64).app/Contents/Resources/umcpd" --version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unity-mcp-tool-macos
+          path: dist-mac/*.zip
+          if-no-files-found: error
+
+  # The Windows drop, built the same way a release is, so the packaging script is exercised on
+  # every push rather than on the day someone needs a build.
+  windows-app:
+    runs-on: windows-latest
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+
+      - name: Package the app
+        shell: pwsh
+        run: ./scripts/publish.ps1 -SkipTests
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unity-mcp-tool-windows
+          path: dist/
+          if-no-files-found: error

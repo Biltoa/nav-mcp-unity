@@ -1,29 +1,33 @@
 <#
 .SYNOPSIS
-    Build a release drop of the Unity MCP Tool into dist/.
+    Build a Windows release drop of the Unity MCP Tool into dist/.
 
 .DESCRIPTION
     Produces everything an install needs and nothing it does not:
 
         dist/
-          umcpd.exe                 the daemon
-          umcp-stdio.exe            the MCP stdio shim
-          com.umcp.agent/           the Unity package, to reference from a project manifest
+          Unity MCP Tool.exe        the app people double-click
+          umcpd.exe                 the server it starts
+          umcp-stdio.exe            the MCP shim clients spawn
+          com.umcp.agent/           the Unity package, referenced from a project manifest
           INSTALL.md                the install guide, copied for the drop
 
-    Framework-dependent by default: it needs the .NET 8 runtime, which is a 60 MB shared install
-    rather than a 70 MB copy inside every build. Pass -SelfContained for a machine that has no
-    runtime at all.
+    Self-contained by default. The audience for this drop is someone who has never installed a
+    .NET runtime and should not have to; the cost is about 70 MB of files nobody has to think
+    about. Pass -FrameworkDependent for the small drop that needs the .NET 8 runtime present.
 
 .EXAMPLE
     pwsh scripts/publish.ps1
-    pwsh scripts/publish.ps1 -SelfContained
+    pwsh scripts/publish.ps1 -FrameworkDependent
+    pwsh scripts/publish.ps1 -Runtime win-arm64
 #>
 [CmdletBinding()]
 param(
     [string] $Configuration = 'Release',
+    [ValidateSet('win-x64', 'win-arm64')]
     [string] $Runtime = 'win-x64',
-    [switch] $SelfContained,
+    [switch] $FrameworkDependent,
+    [switch] $SkipTests,
     [string] $Output = 'dist'
 )
 
@@ -48,13 +52,18 @@ Write-Host "== the rule the compiler cannot enforce" -ForegroundColor Cyan
 dotnet run --project src/Umcp.MainThreadCheck -c $Configuration
 if ($LASTEXITCODE -ne 0) { throw "main-thread check failed" }
 
-Write-Host "== tests" -ForegroundColor Cyan
-dotnet test UnityMcpTool.sln -c $Configuration --nologo
-if ($LASTEXITCODE -ne 0) { throw "tests failed" }
+if (-not $SkipTests) {
+    Write-Host "== tests" -ForegroundColor Cyan
+    dotnet test UnityMcpTool.sln -c $Configuration --nologo
+    if ($LASTEXITCODE -ne 0) { throw "tests failed" }
+}
 
-$publishArgs = @('-c', $Configuration, '-r', $Runtime, '--self-contained', $(if ($SelfContained) { 'true' } else { 'false' }))
+$selfContained = -not $FrameworkDependent
+$publishArgs = @('-c', $Configuration, '-r', $Runtime, '--self-contained', $(if ($selfContained) { 'true' } else { 'false' }))
 
-foreach ($project in @('src/Umcp.Daemon', 'src/Umcp.Stdio')) {
+# The GUI is published last so its own copies of the shared framework files win any collision —
+# they are identical, but a half-overwritten runtime is not a thing to leave to file order.
+foreach ($project in @('src/Umcp.Daemon', 'src/Umcp.Stdio', 'src/Umcp.Gui')) {
     $name = Split-Path $project -Leaf
     Write-Host "== publishing $name" -ForegroundColor Cyan
     $target = Join-Path $dist ".stage-$name"
@@ -75,6 +84,15 @@ Get-ChildItem (Join-Path $dist 'com.umcp.agent') -Recurse -Include 'Library', 'T
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
 $version = (& (Join-Path $dist 'umcpd.exe') --version)
+
+# The app is what a person launches, so its absence is a broken drop, not a warning.
+foreach ($required in @('Unity MCP Tool.exe', 'umcpd.exe', 'umcp-stdio.exe')) {
+    if (-not (Test-Path (Join-Path $dist $required))) { throw "the drop is missing $required" }
+}
+
 Write-Host ""
-Write-Host "dist/ is ready: $version" -ForegroundColor Green
+Write-Host "dist/ is ready: $version ($Runtime, $(if ($selfContained) { 'self-contained' } else { 'needs the .NET 8 runtime' }))" -ForegroundColor Green
+Write-Host "Start it by double-clicking 'Unity MCP Tool.exe'." -ForegroundColor Green
+Write-Host ""
+Write-Host "Unsigned, so the first launch shows SmartScreen: More info -> Run anyway." -ForegroundColor DarkYellow
 Get-ChildItem $dist | Select-Object Name, Length | Format-Table -AutoSize
