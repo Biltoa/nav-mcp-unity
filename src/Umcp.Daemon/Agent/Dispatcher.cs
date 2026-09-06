@@ -76,6 +76,9 @@ public sealed class Dispatcher
         var validation = SchemaCheck.Validate(entry, args);
         if (validation is not null) return Task.FromResult(validation);
 
+        var tooLarge = TooLarge(args, tool);
+        if (tooLarge is not null) return Task.FromResult(tooLarge);
+
         // Reads go to the mirror first. It answers in microseconds, it does not need an Editor
         // tick, and it keeps answering while the Editor is mid-reload — which is when half an
         // agent's calls would otherwise fail. Mutations always go live; the mirror is never
@@ -103,6 +106,9 @@ public sealed class Dispatcher
     public Task<JsonObject> RunBatchAsync(JsonObject batch, string? projectId, CancellationToken ct,
                                           IProgress<OpProgress>? progress = null)
     {
+        var oversized = TooLarge(batch["ops"], "unity.batch");
+        if (oversized is not null) return Task.FromResult(oversized);
+
         batch["t"] = "batch";
         batch["key"] = Guid.NewGuid().ToString("N");
 
@@ -128,6 +134,20 @@ public sealed class Dispatcher
             }
         }
         return DispatchAsync(batch, projectId, timeout, "unity.batch", mutating: true, ct, progress: progress);
+    }
+
+    /// <summary>Refuse an argument payload no legitimate call would send.</summary>
+    JsonObject? TooLarge(JsonNode? args, string tool)
+    {
+        if (args is null) return null;
+        var bytes = System.Text.Encoding.UTF8.GetByteCount(args.ToJsonString());
+        if (bytes <= _options.MaxRequestBytes) return null;
+
+        return Envelope.Error("E_ARG_TOO_LARGE",
+            $"The arguments for '{tool}' are {bytes / 1024} KB; the limit is {_options.MaxRequestBytes / 1024} KB.",
+            hint: "Split the work, or reference assets by path instead of embedding their contents. " +
+                  "--max-request-bytes raises the limit if you genuinely need it.",
+            meta: new JsonObject { ["bytes"] = bytes, ["limit"] = _options.MaxRequestBytes });
     }
 
     /// <summary>Tools the mirror can answer at all. Anything else is live by construction.</summary>
@@ -352,14 +372,21 @@ public sealed class Dispatcher
                         meta: new JsonObject { ["ms"] = total.ElapsedMilliseconds, ["heldMs"] = heldMs });
 
                 default:
+                    // Same rule as a block: the caller is being told it did not happen, so make
+                    // that true where it still can be. An operation already executing cannot be
+                    // withdrawn — the meta says "attempted" rather than claiming otherwise.
+                    if (key is not null) session.SendCancel(key);
+
                     return Envelope.Error("E_TIMEOUT",
                         $"'{label}' did not complete within {opTimeout.TotalSeconds:0}s.",
-                        hint: "The Editor is ticking but the operation is slow. Check unity.status.",
+                        hint: "The Editor is ticking but the operation is slow. It was withdrawn if it had not " +
+                              "started yet; if it had, it may still finish. Check unity_projects.",
                         meta: new JsonObject
                         {
                             ["ms"] = total.ElapsedMilliseconds,
                             ["heldMs"] = heldMs,
-                            ["lastRoundTripMs"] = session.LastRoundTripMs
+                            ["lastRoundTripMs"] = session.LastRoundTripMs,
+                            ["withdrawal"] = key is null ? "not attempted" : "attempted"
                         });
             }
         }

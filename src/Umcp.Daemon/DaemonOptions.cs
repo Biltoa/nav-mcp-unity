@@ -37,6 +37,15 @@ public sealed class DaemonOptions
     /// <summary>Responses larger than this are truncated honestly unless the caller overrides.</summary>
     public int MaxResponseBytes { get; init; } = 32 * 1024;
 
+    /// <summary>
+    /// Arguments larger than this are refused.
+    ///
+    /// Unity will happily accept a 200 KB GameObject name — measured — and then carry it in the
+    /// scene, in the mirror, and in every response that mentions it. There is no legitimate call
+    /// of that shape, and refusing it is cheaper for everyone than discovering it later.
+    /// </summary>
+    public int MaxRequestBytes { get; init; } = 256 * 1024;
+
     // -------- fleet --------
 
     /// <summary>
@@ -82,6 +91,7 @@ public sealed class DaemonOptions
             Tray = args.Contains("--tray"),
             Token = Str("--token"),
             MaxResponseBytes = Int("--max-response-bytes", 32 * 1024),
+            MaxRequestBytes = Int("--max-request-bytes", 256 * 1024),
             Profile = Security.Profiles.Parse(Str("--profile")),
             AutoRestart = args.Contains("--auto-restart"),
             PackagePath = Str("--package-path"),

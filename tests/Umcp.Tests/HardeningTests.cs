@@ -153,3 +153,34 @@ public class EnvelopeBoundaryTests
         Assert.True(kept is > 0 and < 5000, $"kept {kept} of 5000");
     }
 }
+
+public class DaemonOptionTests
+{
+    [Fact]
+    public void The_size_limits_are_configurable_and_default_sanely()
+    {
+        var defaults = DaemonOptions.Parse(Array.Empty<string>());
+        Assert.Equal(32 * 1024, defaults.MaxResponseBytes);
+        Assert.Equal(256 * 1024, defaults.MaxRequestBytes);
+
+        var tuned = DaemonOptions.Parse(new[] { "--max-request-bytes", "1048576", "--max-response-bytes", "65536" });
+        Assert.Equal(1048576, tuned.MaxRequestBytes);
+        Assert.Equal(65536, tuned.MaxResponseBytes);
+    }
+
+    [Fact]
+    public void Ports_and_profile_come_from_the_command_line()
+    {
+        var options = DaemonOptions.Parse(new[] { "--port", "9100", "--agent-port", "9101", "--profile", "readonly" });
+        Assert.Equal(9100, options.HttpPort);
+        Assert.Equal(9101, options.AgentPort);
+        Assert.Equal(Umcp.Daemon.Security.Profile.ReadOnly, options.Profile);
+    }
+
+    [Fact]
+    public void Auto_restart_is_off_unless_asked_for()
+    {
+        Assert.False(DaemonOptions.Parse(Array.Empty<string>()).AutoRestart);
+        Assert.True(DaemonOptions.Parse(new[] { "--auto-restart" }).AutoRestart);
+    }
+}

@@ -347,8 +347,30 @@ namespace Umcp.Agent
             bool ok = failure == null;
             if (!string.IsNullOrEmpty(key) && ok && !dryRun) RememberApplied(key, payload);
 
+            // A failed batch has to say *which* op failed and why, at the top level, because that
+            // is where the daemon's envelope reads errors from. Reporting it only inside data
+            // produced "E_TOOL_FAILED: The tool failed." for a batch that knew the op index, the
+            // tool id, the real code and the did-you-mean list.
+            var errorFrame = "";
+            if (!ok)
+            {
+                var f = JObject.FromObject(failure, UmcpJson.Serializer);
+                var wrapped = new JObject
+                {
+                    ["code"] = f["code"],
+                    ["message"] = "op " + f["index"] + " (" + f["op"] + "): " + (string)f["message"],
+                    ["param"] = f["param"] ?? "ops",
+                    ["value"] = f["value"] ?? f["op"],
+                    ["didYouMean"] = f["didYouMean"],
+                    ["hint"] = (string)f["hint"] ?? (atomic
+                        ? "The whole group was reverted; nothing was applied."
+                        : "Operations before this one were applied. Pass atomic:true to make the group all-or-nothing.")
+                };
+                errorFrame = ",\"error\":" + wrapped.ToString(Newtonsoft.Json.Formatting.None);
+            }
+
             Send("{\"t\":\"result\",\"id\":" + JsonConvert.ToString(id) + ",\"ok\":" + (ok ? "true" : "false") +
-                 ",\"data\":" + payload + ",\"ms\":" + sw.ElapsedMilliseconds + "}");
+                 errorFrame + ",\"data\":" + payload + ",\"ms\":" + sw.ElapsedMilliseconds + "}");
         }
 
         static object Project(List<object> results, string returns)

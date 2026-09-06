@@ -72,7 +72,7 @@ public static class Envelope
         if (!ok)
         {
             var err = agentResult["error"];
-            return Error(
+            var error = Error(
                 (string?)err?["code"] ?? "E_TOOL_FAILED",
                 (string?)err?["message"] ?? "The tool failed.",
                 (string?)err?["param"],
@@ -80,6 +80,17 @@ public static class Envelope
                 (err?["didYouMean"] as JsonArray)?.Select(n => (string)n!).ToArray(),
                 (string?)err?["hint"],
                 meta);
+
+            // A failure can carry a payload worth keeping: a batch that failed at op 7 still knows
+            // what ops 0-6 did and whether the group was reverted. Throwing that away leaves the
+            // caller to guess what state the Editor is in, which is the one thing it must not do.
+            if (agentResult["data"] is { } failureData)
+            {
+                var (failurePayload, failureTruncated, _) = Cap(failureData, maxBytes);
+                error["data"] = failurePayload;
+                if (failureTruncated) meta["truncated"] = true;
+            }
+            return error;
         }
 
         var data = agentResult["data"];
