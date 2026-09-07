@@ -15,6 +15,7 @@ public static class Paths
 {
     public static string Root => Umcp.UmcpPaths.Root;
     public static string TokenFile => Umcp.UmcpPaths.TokenFile;
+    public static string TokenFileFor(int port) => Umcp.UmcpPaths.TokenFileFor(port);
     public static string LogDir => Umcp.UmcpPaths.LogDir;
     public static string AuditLog => Umcp.UmcpPaths.AuditLog;
 

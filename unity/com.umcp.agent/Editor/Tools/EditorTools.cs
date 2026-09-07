@@ -216,5 +216,67 @@ namespace Umcp.Agent
                 scenesInBuild = EditorBuildSettings.scenes.Length
             };
         }
+        // ---------------------------------------------------------------- undo
+
+        [UnityTool(Skill = "diagnostics", Id = "editor.undo",
+            Summary = "Undo the most recent change, by name. Every batch this tool runs is one undo step. action: peek | undo | redo.",
+            Mutating = true, Retry = RetryClass.Write,
+            NoUndoReason = "This is the undo operation; undoing it is redo.")]
+        [Example("{ \"action\": \"peek\" }")]
+        [Example("{ \"action\": \"undo\", \"expect\": \"MCP Batch\" }")]
+        [Example("{ \"action\": \"undo\", \"steps\": 2 }")]
+        public static object UndoStep(
+            [Doc("peek | undo | redo. peek reports what would be undone without touching anything.")] string action = "peek",
+            [Doc("How many steps (default 1, max 20)")] int steps = 1,
+            [Doc("Only proceed if the next step's name matches this exactly. The guard against undoing a human's work.")] string expect = null)
+        {
+            var verb = (action ?? "peek").ToLowerInvariant();
+
+            // Unity exposes the *name* of the group that a Ctrl+Z would collapse, and nothing else
+            // — there is no readable undo stack. So "what will this undo" is one string, and it is
+            // the only thing that can be checked before acting.
+            var next = Undo.GetCurrentGroupName();
+
+            if (verb == "peek")
+                return new { next, canGuard = !string.IsNullOrEmpty(next) };
+
+            if (verb != "undo" && verb != "redo")
+                throw new UmcpToolException("E_BAD_ARG", "action must be peek, undo or redo.",
+                    "action", action, new[] { "peek", "undo", "redo" }, null);
+
+            // The guard exists because undo is Editor-wide, not ours: the last step may belong to
+            // a person who was working in the Editor a second ago, and silently reverting that is
+            // the worst thing this tool could do.
+            if (verb == "undo" && !string.IsNullOrEmpty(expect) &&
+                !string.Equals(expect, next, StringComparison.Ordinal))
+            {
+                throw new UmcpToolException("E_UNDO_MISMATCH",
+                    "The next undo step is '" + next + "', not '" + expect + "'. Nothing was undone.",
+                    "expect", expect, null,
+                    "Somebody else changed the scene after this batch. Re-read the state before undoing.");
+            }
+
+            int count = Math.Max(1, Math.Min(steps, 20));
+            var performed = new System.Collections.Generic.List<string>(count);
+
+            for (int i = 0; i < count; i++)
+            {
+                var name = Undo.GetCurrentGroupName();
+                if (verb == "undo") Undo.PerformUndo(); else Undo.PerformRedo();
+                performed.Add(name);
+            }
+
+            // Unity applies undo lazily against the scene view; flushing here means the response
+            // describes a scene that has actually changed, not one that is about to.
+            Undo.FlushUndoRecordObjects();
+
+            return new
+            {
+                action = verb,
+                steps = performed.Count,
+                names = performed.ToArray(),
+                next = Undo.GetCurrentGroupName()
+            };
+        }
     }
 }

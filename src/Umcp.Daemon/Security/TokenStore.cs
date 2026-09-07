@@ -30,14 +30,29 @@ public sealed class TokenStore
     /// server starts getting 401s because a second copy failed to start. That is a very confusing
     /// half-hour, and it cost one here.
     /// </summary>
-    public void Persist()
+    public void Persist(int port)
     {
-        File.WriteAllText(Paths.TokenFile, Token);
-        var problem = Umcp.UmcpPaths.RestrictToOwner(Paths.TokenFile);
-        if (problem is not null)
-            Console.Error.WriteLine($"[umcpd] warning: could not restrict permissions on {Paths.TokenFile}: {problem}");
+        // Both files. The port-specific one is the truth — two daemons on one machine each keep
+        // their own — and the legacy path is kept current for anything configured before it
+        // existed. A single-daemon machine, which is nearly all of them, sees no difference.
+        Write(Paths.TokenFileFor(port));
+        Write(Paths.TokenFile);
     }
 
-    public static string? ReadExisting()
-        => File.Exists(Paths.TokenFile) ? File.ReadAllText(Paths.TokenFile).Trim() : null;
+    void Write(string path)
+    {
+        try
+        {
+            File.WriteAllText(path, Token);
+            var problem = Umcp.UmcpPaths.RestrictToOwner(path);
+            if (problem is not null)
+                Console.Error.WriteLine($"[umcpd] warning: could not restrict permissions on {path}: {problem}");
+        }
+        catch (Exception e)
+        {
+            Console.Error.WriteLine($"[umcpd] warning: could not write {path}: {e.Message}");
+        }
+    }
+
+    public static string? ReadExisting(int port) => Umcp.UmcpPaths.ReadToken(port);
 }

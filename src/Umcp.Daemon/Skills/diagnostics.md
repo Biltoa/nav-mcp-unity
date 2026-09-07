@@ -57,3 +57,28 @@ dialog; this tool will never click someone else's modal, because "Recover scene 
   testing.
 - `editor.stall` exists only to test blocked-editor detection. It wedges the Editor on purpose and
   requires the `full` profile.
+
+## Undoing what you just did
+
+`editor.undo` reverses the most recent change. Every `unity_batch` this tool runs is collapsed into
+**one undo step** with a name, so undoing a batch of forty operations is one call, not forty.
+
+```
+editor.undo { "action": "peek" }                          -> what a Ctrl+Z would undo, by name
+editor.undo { "action": "undo", "expect": "MCP Batch" }    -> undo it, only if that is still true
+editor.undo { "action": "redo" }
+```
+
+**Always peek first, and pass `expect`.** Undo is Editor-wide, not yours: the top of the stack may
+belong to a person who moved a transform in the Editor a second after your batch, and reverting
+their work silently is the worst thing this tool can do. With `expect` set, a mismatch is
+`E_UNDO_MISMATCH` and nothing is undone.
+
+Name your batches — `unity_batch` takes `undoName` — so that both the peek and the user's own
+Edit menu say what the step was, rather than "MCP Batch" forty times.
+
+Two limits worth knowing. Unity exposes only the *name* of the next undo group, never the stack, so
+"what will this undo" is one string and there is no way to look further back. And asset operations
+are frequently not undoable at all — `assets.delete`, `scene.save` and controller edits are asset
+writes that Unity's own editors do not register with `Undo`; each such tool says so in its
+`NoUndoReason`. Undo is for scene and object changes.

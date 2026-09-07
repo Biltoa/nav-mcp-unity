@@ -65,19 +65,22 @@ public sealed class ControlClient
             ["disabled"] = new JsonArray(disabled.Select(d => (JsonNode)d!).ToArray())
         }, ct);
 
+    public Task<JsonObject?> UndoPeekAsync(string project, CancellationToken ct = default) =>
+        GetAsync($"/api/undo/peek?project={Uri.EscapeDataString(project)}", ct);
+
+    public Task<JsonObject?> UndoAsync(string project, string? expect, CancellationToken ct = default) =>
+        PostAsync("/api/undo", new JsonObject { ["project"] = project, ["expect"] = expect }, ct);
+
     public Task<JsonObject?> PauseAsync(bool on, CancellationToken ct = default) =>
         PostAsync("/api/pause", new JsonObject { ["on"] = on }, ct);
 
     public Task<JsonObject?> QuitAsync(CancellationToken ct = default) =>
         PostAsync("/api/quit", new JsonObject(), ct);
 
-    public string? Token => _token ??= ReadToken();
+    public string? Token => _token ??= UmcpPaths.ReadToken(Port);
 
-    static string? ReadToken()
-    {
-        try { return File.Exists(UmcpPaths.TokenFile) ? File.ReadAllText(UmcpPaths.TokenFile).Trim() : null; }
-        catch { return null; }
-    }
+    /// <summary>Re-read after a 401, and for the port we are actually pointed at.</summary>
+    string? ReadToken() => UmcpPaths.ReadToken(Port);
 
     async Task<JsonObject?> GetAsync(string path, CancellationToken ct)
     {

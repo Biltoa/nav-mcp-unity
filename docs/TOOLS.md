@@ -2,7 +2,7 @@
 
 # Tool reference
 
-92 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
+93 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
 
 ## animation
 
@@ -501,6 +501,7 @@ Set serialized properties on a component.
 | `editor.selection.set` | yes | — *Selection is editor UI state, not object state.* | Set the Editor selection. |
 | `editor.stall` | no | n/a | Diagnostic: block the Editor main thread for N seconds, reproducing a modal dialog's effect. |
 | `editor.status` | no | n/a | Editor state: compiling, updating, play mode, focus, selection. |
+| `editor.undo` | yes | — *This is the undo operation; undoing it is redo.* | Undo the most recent change, by name. Every batch this tool runs is one undo step. action: peek | undo | redo. |
 | `mirror.hashes` | no | n/a | Per-root subtree hashes, for reconciling the daemon's mirror against the live hierarchy. |
 | `mirror.snapshot` | no | n/a | Full compact hierarchy snapshot. Used by the daemon to seed its mirror; rarely useful directly. |
 | `profile.frame` | no | n/a | Editor frame cost: main-thread time, draw calls, batches, triangles, allocations, memory. Does not enter Play mode. |
@@ -624,6 +625,28 @@ Editor state: compiling, updating, play mode, focus, selection.
 
 ```json
 { }
+```
+
+### `editor.undo`
+
+Undo the most recent change, by name. Every batch this tool runs is one undo step. action: peek | undo | redo.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `action` | `string` | no | `"peek"` | peek | undo | redo. peek reports what would be undone without touching anything. |
+| `steps` | `int` | no | `1` | How many steps (default 1, max 20) |
+| `expect` | `string` | no | `null` | Only proceed if the next step's name matches this exactly. The guard against undoing a human's work. |
+
+```json
+{ "action": "peek" }
+```
+
+```json
+{ "action": "undo", "expect": "MCP Batch" }
+```
+
+```json
+{ "action": "undo", "steps": 2 }
 ```
 
 ### `mirror.hashes`

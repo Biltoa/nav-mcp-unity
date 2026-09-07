@@ -160,11 +160,7 @@ static string? Arg(string name)
 
 static int ArgInt(string name, int dflt) => int.TryParse(Arg(name), out var v) ? v : dflt;
 
-static string? ReadTokenFile()
-{
-    var p = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "UnityMCP", "token");
-    return File.Exists(p) ? File.ReadAllText(p).Trim() : null;
-}
+static string? ReadTokenFile() => Umcp.UmcpPaths.ReadToken(ArgInt("--port", 8730));
 
 sealed partial class Bench(McpClient client)
 {

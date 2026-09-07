@@ -158,11 +158,11 @@ try
     await app.StartAsync();
 
     // Bound and serving: now the token file may be replaced. Not before — see TokenStore.Persist.
-    tokens.Persist();
+    tokens.Persist(options.HttpPort);
 
     Console.Error.WriteLine($"[umcpd] {BuildInfo.Version} · http 127.0.0.1:{options.HttpPort}/mcp · agents 127.0.0.1:{options.AgentPort} · " +
                             $"{ToolCatalog.All.Length} tools · profile {Umcp.Daemon.Security.Profiles.Name(options.Profile)} · " +
-                            $"token in {Paths.TokenFile}");
+                            $"token in {Paths.TokenFileFor(options.HttpPort)}");
 
     await app.WaitForShutdownAsync();
 }

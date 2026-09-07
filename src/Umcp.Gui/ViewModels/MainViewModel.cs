@@ -35,6 +35,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         CloseProjectCommand = new RelayCommand(async p => await CloseProjectAsync(p as ProjectRow), p => p is ProjectRow { Connected: true });
         RestartProjectCommand = new RelayCommand(async p => await RestartProjectAsync(p as ProjectRow), p => p is ProjectRow { IsOpen: true });
         RevealProjectCommand = new RelayCommand(p => { if (p is ProjectRow row) Reveal(row.Path); });
+        UndoCommand = new RelayCommand(async p => await UndoAsync(p as ProjectRow), p => p is ProjectRow { Connected: true });
 
         ConnectClientCommand = new RelayCommand(p => ConnectClient(p as ClientRow));
         DisconnectClientCommand = new RelayCommand(p => DisconnectClient(p as ClientRow));
@@ -214,6 +215,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand CloseProjectCommand { get; }
     public ICommand RestartProjectCommand { get; }
     public ICommand RevealProjectCommand { get; }
+    public ICommand UndoCommand { get; }
     public ICommand AllowAllCommand { get; }
     public ICommand AllowNoneCommand { get; }
     public ICommand ConnectClientCommand { get; }
@@ -524,6 +526,44 @@ public sealed class MainViewModel : INotifyPropertyChanged
         foreach (var tool in Tools) tool.SetQuietly(allowed);
         _applyingTools = false;
         await SaveToolsAsync(null);
+    }
+
+    /// <summary>
+    /// Undo the last thing that happened in that Editor — which, for anything this tool did, is
+    /// one batch collapsed into one step.
+    ///
+    /// It peeks first and passes what it saw back as a guard. Undo is Editor-wide: between the
+    /// peek and the click, a person may have moved a transform themselves, and reverting that
+    /// silently would be the worst thing this app could do. A mismatch refuses and says so.
+    /// </summary>
+    async Task UndoAsync(ProjectRow? row)
+    {
+        if (row?.ProjectId is null) return;
+
+        var peek = await _client.UndoPeekAsync(row.ProjectId);
+        var next = (string?)peek?["data"]?["next"];
+        if (peek is null || (bool?)peek["ok"] != true)
+        {
+            Message = (string?)peek?["message"] ?? $"Could not read {row.Name}'s undo history.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(next))
+        {
+            Message = $"There is nothing to undo in {row.Name}.";
+            return;
+        }
+
+        var result = await _client.UndoAsync(row.ProjectId, next);
+        if ((bool?)result?["ok"] == true)
+        {
+            var names = (result?["data"]?["names"] as JsonArray)?.Select(n => (string?)n).ToArray() ?? Array.Empty<string>();
+            Message = names.Length > 0
+                ? $"Undid \"{names[0]}\" in {row.Name}."
+                : $"Undid the last change in {row.Name}.";
+        }
+        else Message = (string?)result?["message"] ?? $"Could not undo in {row.Name}.";
+
+        await RefreshAsync();
     }
 
     // ---------------------------------------------------------------- AI clients

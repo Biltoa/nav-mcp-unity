@@ -258,11 +258,11 @@ static string? FindDaemon()
     return null;
 }
 
-static string? TryReadTokenFile()
-{
-    var path = Umcp.UmcpPaths.TokenFile;
-    try { return File.Exists(path) ? File.ReadAllText(path).Trim() : null; } catch { return null; }
-}
+/// <summary>
+/// The token for the daemon this shim talks to. Port-specific first, legacy second — two daemons
+/// on one machine keep separate tokens, and the one on our port is the only one that will let us in.
+/// </summary>
+static string? TryReadTokenFile() => Umcp.UmcpPaths.ReadToken(ArgInt("--port", 8730));
 
 static string? Arg(string name)
 {

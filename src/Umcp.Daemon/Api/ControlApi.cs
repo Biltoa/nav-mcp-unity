@@ -31,7 +31,7 @@ public static class ControlApi
             var report = await HealthReport.BuildAsync(registry, opts);
             report["paused"] = state.Paused;
             report["packagePath"] = AgentPackage.Locate(opts.PackagePath);
-            report["tokenFile"] = Paths.TokenFile;
+            report["tokenFile"] = Paths.TokenFileFor(opts.HttpPort);
             report["logDir"] = Paths.LogDir;
 
             // A project the user linked, described as it is right now: does its manifest still
@@ -275,6 +275,29 @@ public static class ControlApi
             return Results.Json(fleet.SetAutoRestart(body.Project!, on));
         });
 
+        // ---------------------------------------------------------------- undo
+
+        // "What did the AI just do, and can I take it back" — one button in the app, because the
+        // daemon already collapses every batch into a single named undo step.
+        group.MapGet("/undo/peek", async (string? project, Dispatcher dispatcher, CancellationToken ct) =>
+        {
+            var answer = await dispatcher.RunToolAsync("editor.undo",
+                new JsonObject { ["action"] = "peek" }, project, dryRun: false, ct);
+            return Results.Json(answer);
+        });
+
+        group.MapPost("/undo", async (UndoRequest body, Dispatcher dispatcher, CancellationToken ct) =>
+        {
+            var args = new JsonObject { ["action"] = body.Redo == true ? "redo" : "undo" };
+            // The guard travels from the window: the app peeked a moment ago, and if the top of
+            // the stack has changed since — because a person moved something in the Editor — the
+            // call fails rather than reverting their work.
+            if (!string.IsNullOrWhiteSpace(body.Expect)) args["expect"] = body.Expect;
+
+            var answer = await dispatcher.RunToolAsync("editor.undo", args, body.Project, dryRun: false, ct);
+            return Results.Json(answer);
+        });
+
         // ---------------------------------------------------------------- the switch
 
         group.MapPost("/pause", (PauseRequest body, DaemonState state) =>
@@ -326,4 +349,5 @@ public static class ControlApi
     public sealed record AutoRestartRequest(string? Project, bool? On);
     public sealed record PauseRequest(bool? On);
     public sealed record ToolsRequest(string[]? Disabled);
+    public sealed record UndoRequest(string? Project, string? Expect, bool? Redo);
 }

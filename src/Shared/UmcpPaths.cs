@@ -20,7 +20,43 @@ public static class UmcpPaths
     /// </summary>
     public static string Root { get; } = Resolve();
 
+    /// <summary>
+    /// The legacy, port-less token path. Still written, because a client configured before this
+    /// existed reads it, and still read as a fallback.
+    /// </summary>
     public static string TokenFile => Path.Combine(Root, "token");
+
+    /// <summary>
+    /// The token for the daemon on a given port.
+    ///
+    /// One file for every daemon was a bug with a quiet symptom: a second daemon — started by hand
+    /// on another port, or by the shim because a client launched before the app did — replaced the
+    /// running daemon's token, and every client of the working server began answering 401 to
+    /// requests that had been fine a second earlier. The port is the only thing that distinguishes
+    /// two daemons on one machine, so it goes in the filename.
+    /// </summary>
+    public static string TokenFileFor(int port) => Path.Combine(Root, $"token-{port}");
+
+    /// <summary>
+    /// Read the token for a port: its own file first, then the legacy one. The fallback matters
+    /// for a shim or a bench run pointed at a daemon older than this change.
+    /// </summary>
+    public static string? ReadToken(int port)
+    {
+        foreach (var candidate in new[] { TokenFileFor(port), TokenFile })
+        {
+            try
+            {
+                if (File.Exists(candidate))
+                {
+                    var text = File.ReadAllText(candidate).Trim();
+                    if (text.Length > 0) return text;
+                }
+            }
+            catch { /* an unreadable token file is the same as an absent one */ }
+        }
+        return null;
+    }
     public static string LogDir => Path.Combine(Root, "logs");
     public static string AuditLog => Path.Combine(LogDir, "audit.jsonl");
     public static string DaemonLog => Path.Combine(LogDir, "daemon.log");

@@ -47,6 +47,7 @@ namespace Umcp.Agent
             "editor.selection.set",
             "editor.stall",
             "editor.status",
+            "editor.undo",
             "gameobject.create",
             "gameobject.delete",
             "gameobject.duplicate",
@@ -143,6 +144,7 @@ namespace Umcp.Agent
             { "editor.selection.set", new ToolMeta { Id = "editor.selection.set", Skill = "diagnostics", Summary = "Set the Editor selection.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Selection is editor UI state, not object state." } },
             { "editor.stall", new ToolMeta { Id = "editor.stall", Skill = "diagnostics", Summary = "Diagnostic: block the Editor main thread for N seconds, reproducing a modal dialog's effect.", Mutating = false, Retry = "None", Cost = "Expensive", Undo = null, NoUndoReason = "A diagnostic stall changes no state." } },
             { "editor.status", new ToolMeta { Id = "editor.status", Skill = "diagnostics", Summary = "Editor state: compiling, updating, play mode, focus, selection.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
+            { "editor.undo", new ToolMeta { Id = "editor.undo", Skill = "diagnostics", Summary = "Undo the most recent change, by name. Every batch this tool runs is one undo step. action: peek | undo | redo.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "This is the undo operation; undoing it is redo." } },
             { "gameobject.create", new ToolMeta { Id = "gameobject.create", Skill = "gameobject", Summary = "Create a GameObject in the active scene.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Create GameObject", NoUndoReason = null } },
             { "gameobject.delete", new ToolMeta { Id = "gameobject.delete", Skill = "gameobject", Summary = "Delete a GameObject and its children.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Delete GameObject", NoUndoReason = null } },
             { "gameobject.duplicate", new ToolMeta { Id = "gameobject.duplicate", Skill = "gameobject", Summary = "Duplicate a GameObject in place.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Duplicate GameObject", NoUndoReason = null } },
@@ -282,6 +284,8 @@ namespace Umcp.Agent
                     return EditorTools.Stall(Bind.Int(a, "seconds", false, 10));
                 case "editor.status":
                     return EditorTools.Status();
+                case "editor.undo":
+                    return EditorTools.UndoStep(Bind.Str(a, "action", false, "peek"), Bind.Int(a, "steps", false, 1), Bind.Str(a, "expect", false));
                 case "gameobject.create":
                     return GameObjectTools.Create(Bind.Str(a, "name", true), Bind.Str(a, "primitive", false), Bind.Str(a, "parent", false), Bind.FltArr(a, "position", false), Bind.FltArr(a, "rotation", false), Bind.FltArr(a, "scale", false));
                 case "gameobject.delete":
@@ -623,6 +627,13 @@ namespace Umcp.Agent
                 }
                 case "editor.status":
                 {
+                    return;
+                }
+                case "editor.undo":
+                {
+                    var __action = Bind.Str(a, "action", false, "peek");
+                    var __steps = Bind.Int(a, "steps", false, 1);
+                    var __expect = Bind.Str(a, "expect", false);
                     return;
                 }
                 case "gameobject.create":
