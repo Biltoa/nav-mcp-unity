@@ -105,7 +105,10 @@ namespace Umcp.Agent
             "transform.rotate",
             "transform.set",
             "transform.translate",
+            "ui.layout",
             "ui.layoutReport",
+            "ui.rect",
+            "ui.text",
             "vcs.touched",
             "vfx.info",
             "vfx.set",
@@ -205,7 +208,10 @@ namespace Umcp.Agent
             { "transform.rotate", new ToolMeta { Id = "transform.rotate", Skill = "transform", Summary = "Rotate a GameObject by euler angles.", Mutating = true, Retry = "None", Cost = "Cheap", Undo = "Rotate", NoUndoReason = null } },
             { "transform.set", new ToolMeta { Id = "transform.set", Skill = "transform", Summary = "Set position, rotation and/or scale on a GameObject.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set Transform", NoUndoReason = null } },
             { "transform.translate", new ToolMeta { Id = "transform.translate", Skill = "transform", Summary = "Move a GameObject by a delta.", Mutating = true, Retry = "None", Cost = "Cheap", Undo = "Translate", NoUndoReason = null } },
+            { "ui.layout", new ToolMeta { Id = "ui.layout", Skill = "ui", Summary = "Layout groups and fitters: arrange children horizontally, vertically or in a grid, and size a container to its content. action: info | horizontal | vertical | grid | fit | element | remove.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set UI layout", NoUndoReason = null } },
             { "ui.layoutReport", new ToolMeta { Id = "ui.layoutReport", Skill = "ui", Summary = "Geometric UI problems on a canvas: off-screen rects, zero-size elements, overlapping siblings, low-contrast text, unsafe-area content.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
+            { "ui.rect", new ToolMeta { Id = "ui.rect", Skill = "ui", Summary = "RectTransform anchors, pivot, size and position, including the anchor presets from the Inspector. action: info | set | anchor | stretch.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set UI rect", NoUndoReason = null } },
+            { "ui.text", new ToolMeta { Id = "ui.text", Skill = "ui", Summary = "Read and style UI text, TextMeshPro or legacy: content, size, colour, alignment, wrapping, auto-size. action: info | set.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set UI text", NoUndoReason = null } },
             { "vcs.touched", new ToolMeta { Id = "vcs.touched", Skill = "assets", Summary = "Which assets changed recently, in VCS terms: modified files under Assets/, and git status when the project is a repository.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "vfx.info", new ToolMeta { Id = "vfx.info", Skill = "effects", Summary = "Read a VisualEffect component: its asset, its exposed parameters and their current values.", Mutating = false, Retry = "Read", Cost = "Cheap", Undo = null, NoUndoReason = null } },
             { "vfx.set", new ToolMeta { Id = "vfx.set", Skill = "effects", Summary = "Set one exposed parameter on a VisualEffect: float, int, bool, Vector2/3/4 or colour.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = "Set VFX parameter", NoUndoReason = null } },
@@ -406,8 +412,14 @@ namespace Umcp.Agent
                     return TransformTools.Set(Bind.Str(a, "target", true), Bind.FltArr(a, "position", false), Bind.FltArr(a, "rotation", false), Bind.FltArr(a, "scale", false), Bind.Str(a, "space", false, "local"));
                 case "transform.translate":
                     return TransformTools.Translate(Bind.Str(a, "target", true), Bind.FltArr(a, "delta", true), Bind.Str(a, "space", false, "local"));
+                case "ui.layout":
+                    return UiLayoutTools.Layout(Bind.Str(a, "action", true), Bind.Str(a, "target", true), Bind.Flt(a, "spacing", false, 0f), Bind.FltArr(a, "padding", false), Bind.Str(a, "alignment", false, "UpperLeft"), Bind.FltArr(a, "cellSize", false), Bind.Bool(a, "expand", false, false), Bind.Str(a, "horizontal", false), Bind.Str(a, "vertical", false), Bind.FltArr(a, "preferred", false), Bind.FltArr(a, "flexible", false));
                 case "ui.layoutReport":
                     return UiTools.LayoutReport(Bind.Str(a, "canvas", false), Bind.StrArr(a, "checks", false), Bind.Flt(a, "safeAreaInset", false, 0f), Bind.Int(a, "limit", false, 50));
+                case "ui.rect":
+                    return UiLayoutTools.Rect(Bind.Str(a, "action", true), Bind.Str(a, "target", true), Bind.Str(a, "preset", false), Bind.FltArr(a, "size", false), Bind.FltArr(a, "position", false), Bind.FltArr(a, "pivot", false), Bind.FltArr(a, "margin", false));
+                case "ui.text":
+                    return UiLayoutTools.Text(Bind.Str(a, "action", true), Bind.Str(a, "target", true), Bind.Str(a, "text", false), Bind.FltOpt(a, "fontSize", false), Bind.FltArr(a, "color", false), Bind.Str(a, "alignment", false), Bind.BoolOpt(a, "wrap", false), Bind.BoolOpt(a, "autoSize", false));
                 case "vcs.touched":
                     return InspectTools.Touched(Bind.Int(a, "sinceMinutes", false, 60), Bind.Int(a, "limit", false, 100));
                 case "vfx.info":
@@ -1053,12 +1065,50 @@ namespace Umcp.Agent
                     var __space = Bind.Str(a, "space", false, "local");
                     return;
                 }
+                case "ui.layout":
+                {
+                    var __action = Bind.Str(a, "action", true);
+                    var __target = Bind.Str(a, "target", true);
+                    var __spacing = Bind.Flt(a, "spacing", false, 0f);
+                    var __padding = Bind.FltArr(a, "padding", false);
+                    var __alignment = Bind.Str(a, "alignment", false, "UpperLeft");
+                    var __cellSize = Bind.FltArr(a, "cellSize", false);
+                    var __expand = Bind.Bool(a, "expand", false, false);
+                    var __horizontal = Bind.Str(a, "horizontal", false);
+                    var __vertical = Bind.Str(a, "vertical", false);
+                    var __preferred = Bind.FltArr(a, "preferred", false);
+                    var __flexible = Bind.FltArr(a, "flexible", false);
+                    return;
+                }
                 case "ui.layoutReport":
                 {
                     var __canvas = Bind.Str(a, "canvas", false);
                     var __checks = Bind.StrArr(a, "checks", false);
                     var __safeAreaInset = Bind.Flt(a, "safeAreaInset", false, 0f);
                     var __limit = Bind.Int(a, "limit", false, 50);
+                    return;
+                }
+                case "ui.rect":
+                {
+                    var __action = Bind.Str(a, "action", true);
+                    var __target = Bind.Str(a, "target", true);
+                    var __preset = Bind.Str(a, "preset", false);
+                    var __size = Bind.FltArr(a, "size", false);
+                    var __position = Bind.FltArr(a, "position", false);
+                    var __pivot = Bind.FltArr(a, "pivot", false);
+                    var __margin = Bind.FltArr(a, "margin", false);
+                    return;
+                }
+                case "ui.text":
+                {
+                    var __action = Bind.Str(a, "action", true);
+                    var __target = Bind.Str(a, "target", true);
+                    var __text = Bind.Str(a, "text", false);
+                    var __fontSize = Bind.FltOpt(a, "fontSize", false);
+                    var __color = Bind.FltArr(a, "color", false);
+                    var __alignment = Bind.Str(a, "alignment", false);
+                    var __wrap = Bind.BoolOpt(a, "wrap", false);
+                    var __autoSize = Bind.BoolOpt(a, "autoSize", false);
                     return;
                 }
                 case "vcs.touched":

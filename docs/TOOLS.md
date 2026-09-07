@@ -2,7 +2,7 @@
 
 # Tool reference
 
-96 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
+99 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
 
 ## animation
 
@@ -1546,7 +1546,10 @@ Move a GameObject by a delta.
 | Tool | Mutating | Undo | Summary |
 |---|---|---|---|
 | `setup.uiScreen` | yes | Set up UI screen | Create a working UI screen: canvas, scaler, raycaster, EventSystem if missing, a root panel, and the elements you name. |
+| `ui.layout` | yes | Set UI layout | Layout groups and fitters: arrange children horizontally, vertically or in a grid, and size a container to its content. action: info | horizontal | vertical | grid | fit | element | remove. |
 | `ui.layoutReport` | no | n/a | Geometric UI problems on a canvas: off-screen rects, zero-size elements, overlapping siblings, low-contrast text, unsafe-area content. |
+| `ui.rect` | yes | Set UI rect | RectTransform anchors, pivot, size and position, including the anchor presets from the Inspector. action: info | set | anchor | stretch. |
+| `ui.text` | yes | Set UI text | Read and style UI text, TextMeshPro or legacy: content, size, colour, alignment, wrapping, auto-size. action: info | set. |
 
 ### `setup.uiScreen`
 
@@ -1561,6 +1564,36 @@ Create a working UI screen: canvas, scaler, raycaster, EventSystem if missing, a
 
 ```json
 { "name": "PauseMenu", "elements": ["text:Paused", "button:Resume", "button:Quit"] }
+```
+
+### `ui.layout`
+
+Layout groups and fitters: arrange children horizontally, vertically or in a grid, and size a container to its content. action: info | horizontal | vertical | grid | fit | element | remove.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `action` | `string` | yes | — | info | horizontal | vertical | grid | fit | element | remove |
+| `target` | `string` | yes | — | GameObject to arrange (the container, not the children) |
+| `spacing` | `float` | no | `0f` | Gap between children |
+| `padding` | `float[]` | no | `null` | Padding [left, top, right, bottom] |
+| `alignment` | `string` | no | `"UpperLeft"` | Child alignment: UpperLeft … MiddleCenter … LowerRight |
+| `cellSize` | `float[]` | no | `null` | Grid cell size [width, height] |
+| `expand` | `bool` | no | `false` | Stretch children along the layout axis |
+| `horizontal` | `string` | no | `null` | ContentSizeFitter horizontal mode: unconstrained | preferred | minimum |
+| `vertical` | `string` | no | `null` | ContentSizeFitter vertical mode: unconstrained | preferred | minimum |
+| `preferred` | `float[]` | no | `null` | LayoutElement preferred size [width, height]; -1 leaves an axis alone |
+| `flexible` | `float[]` | no | `null` | LayoutElement flexible weight [horizontal, vertical] |
+
+```json
+{ "action": "vertical", "target": "Menu/Buttons", "spacing": 12, "padding": [16, 16, 16, 16] }
+```
+
+```json
+{ "action": "grid", "target": "Inventory/Slots", "cellSize": [96, 96], "spacing": 8 }
+```
+
+```json
+{ "action": "fit", "target": "Tooltip", "vertical": "preferred" }
 ```
 
 ### `ui.layoutReport`
@@ -1580,5 +1613,54 @@ Geometric UI problems on a canvas: off-screen rects, zero-size elements, overlap
 
 ```json
 { "canvas": "HUD", "checks": ["offscreen", "contrast"] }
+```
+
+### `ui.rect`
+
+RectTransform anchors, pivot, size and position, including the anchor presets from the Inspector. action: info | set | anchor | stretch.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `action` | `string` | yes | — | info | set | anchor | stretch |
+| `target` | `string` | yes | — | GameObject with a RectTransform |
+| `preset` | `string` | no | `null` | Anchor preset: topLeft, top, topRight, left, center, right, bottomLeft, bottom, bottomRight, stretch, stretchTop, stretchBottom, stretchLeft, stretchRight |
+| `size` | `float[]` | no | `null` | Size [width, height] |
+| `position` | `float[]` | no | `null` | Anchored position [x, y] |
+| `pivot` | `float[]` | no | `null` | Pivot [x, y], 0..1 |
+| `margin` | `float[]` | no | `null` | Stretch margins [left, top, right, bottom] |
+
+```json
+{ "action": "info", "target": "HUD/Health" }
+```
+
+```json
+{ "action": "anchor", "target": "HUD/Health", "preset": "topLeft", "size": [220, 48] }
+```
+
+```json
+{ "action": "stretch", "target": "HUD/Backdrop", "margin": [16, 16, 16, 16] }
+```
+
+### `ui.text`
+
+Read and style UI text, TextMeshPro or legacy: content, size, colour, alignment, wrapping, auto-size. action: info | set.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `action` | `string` | yes | — | info | set |
+| `target` | `string` | yes | — | GameObject carrying a TMP or uGUI text component |
+| `text` | `string` | no | `null` | The string to display |
+| `fontSize` | `float?` | no | `null` | Font size in points |
+| `color` | `float[]` | no | `null` | Colour [r, g, b, a], 0..1 |
+| `alignment` | `string` | no | `null` | left | center | right |
+| `wrap` | `bool?` | no | `null` | Wrap long lines |
+| `autoSize` | `bool?` | no | `null` | Shrink text to fit its rect |
+
+```json
+{ "action": "info", "target": "HUD/Score" }
+```
+
+```json
+{ "action": "set", "target": "HUD/Score", "text": "0", "fontSize": 36, "color": [1, 1, 1, 1], "alignment": "center" }
 ```
 
