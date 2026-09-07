@@ -320,7 +320,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ServerDetail = _settings.StartServerOnLaunch
                 ? "Nothing is listening on port " + _settings.HttpPort + "."
                 : "Press Start server to begin.";
-            _serverMeta = $"Nothing is listening on 127.0.0.1:{_settings.HttpPort}. Your AI assistants cannot reach Unity.";
+            _serverMeta = $"Nothing is listening on 127.0.0.1:{_settings.HttpPort}. Your MCP clients cannot reach Unity.";
             Raise(nameof(ServerMeta));
             Raise(nameof(ServerFootnote));
             foreach (var row in Projects) row.ApplyServerDown();
@@ -468,7 +468,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         Running = false;
         ServerHeadline = "Server stopped";
-        _serverMeta = $"Nothing is listening on 127.0.0.1:{_settings.HttpPort}. Your AI assistants cannot reach Unity.";
+        _serverMeta = $"Nothing is listening on 127.0.0.1:{_settings.HttpPort}. Your MCP clients cannot reach Unity.";
         Raise(nameof(ServerMeta));
         Raise(nameof(ServerFootnote));
         Raise(nameof(ToggleServerLabel));
@@ -586,7 +586,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         await RefreshAsync();
     }
 
-    // ---------------------------------------------------------------- AI clients
+    // ---------------------------------------------------------------- MCP clients
 
     void ConnectClient(ClientRow? row)
     {

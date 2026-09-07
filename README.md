@@ -62,7 +62,7 @@ Then, three clicks:
 2. **Projects → Link a project…** → pick a Unity project folder.
 3. **Connections → Connect** → Claude Desktop, Claude Code or Cursor. Restart that app.
 
-Ask your assistant to run `unity_projects`. It lists your editors and their health.
+Ask your client to run `unity_projects`. It lists your editors and their health.
 
 <details>
 <summary><b>No app, just the server</b></summary>
@@ -163,7 +163,7 @@ Loopback by itself is not enough: any local process, and any web page that resol
 ## How it fits together
 
 ```
-AI client ──stdio──▶ umcp-stdio ──http──▶ umcpd ──tcp──▶ UnityAgent (one per Editor)
+MCP client ─stdio──▶ umcp-stdio ──http──▶ umcpd ──tcp──▶ UnityAgent (one per Editor)
                        (shim)            (daemon)              connects out
                                             ▲
                               NAV MCP app ──┘  start · link · permit
@@ -196,9 +196,7 @@ scripts/publish.sh --arch both         # macOS .app and .dmg, both architectures
 Publishing refuses to build a drop whose generated catalog differs from its sources, whose tests
 fail, or whose Unity package will not compile against an installed Editor.
 
-**[CONTRIBUTING.md](CONTRIBUTING.md)** covers the three rules the build enforces. Design rationale
-and every measurement above: **[UNITY_MCP_TOOL_PLAN.md](UNITY_MCP_TOOL_PLAN.md)** and
-**[PROGRESS.md](PROGRESS.md)**.
+**[CONTRIBUTING.md](CONTRIBUTING.md)** covers the three rules the build enforces.
 
 ## Status
 

@@ -7,7 +7,7 @@
   <Border Classes="card">
     <StackPanel Spacing="16">
       <StackPanel Spacing="6">
-        <TextBlock Classes="h2" Text="Connect your AI assistant" />
+        <TextBlock Classes="h2" Text="Connect your MCP client" />
         <TextBlock Classes="muted"
                    Text="Writes the server into that app's settings for you. Nothing secret is stored in the file, and your other servers are left alone." />
       </StackPanel>

@@ -6,7 +6,7 @@ namespace Umcp.Daemon.Security;
 /// <summary>
 /// Per-tool permission, set by a human in the app and enforced here.
 ///
-/// The profile answers "what class of thing may this AI do". This answers "and not that one" —
+/// The profile answers "what class of thing may this client do". This answers "and not that one" —
 /// a user who is happy for an agent to build scenes but never to touch their audio mixer has no
 /// way to say so with three profiles, and saying it by hand in a config file is not something the
 /// audience for this app will do.
@@ -16,7 +16,7 @@ namespace Umcp.Daemon.Security;
 /// tool to everyone who had ever opened this panel.
 ///
 /// Enforced in the dispatcher, next to the profile check. A permission that only exists in the
-/// window is not a permission — it is a suggestion the AI never sees.
+/// window is not a permission — it is a suggestion the client never sees.
 /// </summary>
 public sealed class ToolPolicy
 {

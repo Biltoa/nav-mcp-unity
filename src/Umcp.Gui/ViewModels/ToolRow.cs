@@ -8,7 +8,7 @@ namespace Umcp.Gui.ViewModels;
 /// One Editor tool and whether it is allowed.
 ///
 /// The checkbox writes through to the daemon, which enforces it in the dispatcher — a permission
-/// that lives only in this window is not a permission, it is a suggestion the AI never sees.
+/// that lives only in this window is not a permission, it is a suggestion the client never sees.
 /// </summary>
 public sealed class ToolRow : INotifyPropertyChanged
 {

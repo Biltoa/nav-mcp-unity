@@ -2,7 +2,7 @@ using System.Text.Json.Nodes;
 
 namespace Umcp.Gui.Services;
 
-/// <summary>One AI client this machine might have, and where its MCP config lives.</summary>
+/// <summary>One MCP client this machine might have, and where its config lives.</summary>
 public sealed record McpClient(string Name, string ConfigPath, string Hint)
 {
     public bool ConfigExists => File.Exists(ConfigPath);
@@ -10,7 +10,7 @@ public sealed record McpClient(string Name, string ConfigPath, string Hint)
 }
 
 /// <summary>
-/// Registering this server with the AI clients on the machine — the step a non-technical user
+/// Registering this server with the MCP clients on the machine — the step a non-technical user
 /// cannot be asked to do by hand, because it means editing JSON in a hidden folder.
 ///
 /// The registration points at <c>umcp-stdio</c>, not at the HTTP port, and that is deliberate:

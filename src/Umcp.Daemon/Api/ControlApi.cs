@@ -71,7 +71,7 @@ public static class ControlApi
             });
         });
 
-        // What the AI has actually been doing, from the audit log — the one question a person
+        // What the client has actually been doing, from the audit log — the one question a person
         // asks about a tool that edits their project while they are not looking. Read from the
         // tail of the file rather than kept in memory: it survives a daemon restart, and the
         // daemon already writes it for reasons that have nothing to do with this window.
@@ -277,7 +277,7 @@ public static class ControlApi
 
         // ---------------------------------------------------------------- undo
 
-        // "What did the AI just do, and can I take it back" — one button in the app, because the
+        // "What did the client just do, and can I take it back" — one button in the app, because the
         // daemon already collapses every batch into a single named undo step.
         group.MapGet("/undo/peek", async (string? project, Dispatcher dispatcher, CancellationToken ct) =>
         {

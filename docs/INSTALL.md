@@ -56,16 +56,16 @@ Each project then shows its own state, and the state tells you what to do:
 
 | What it says | What it means |
 |---|---|
-| **Ready** | Connected. Your AI can work in it. |
+| **Ready** | Connected. Your client can work in it. |
 | **Click the Unity window** | Unity is open but has not noticed the new package. Click the Unity window once — that is when Unity re-reads its package list. |
 | **Unity not open** | Linked and waiting. **Open in Unity** starts it. |
 | **Compiling** / **Busy** | Unity is compiling or importing. Work is queued, not lost. |
 | **Waiting on you** | Unity is showing a dialog, and it names it. Answer it in the Editor. |
 | **Not linked** | The project's package list no longer mentions the agent. Link it again. |
 
-### 4. Connect your AI assistant
+### 4. Connect your MCP client
 
-Under **Connect your AI assistant**, click **Connect** next to Claude Desktop, Claude Code or
+Under **Connect your MCP client** in the app, click **Connect** next to Claude Desktop, Claude Code or
 Cursor. Restart that app.
 
 It writes one entry into that app's config and leaves everything else in the file alone, backing
@@ -77,12 +77,12 @@ client's MCP config.
 
 ### 5. Check it
 
-In your AI client, ask it to run `unity_projects`. It should list your editors and their health.
+In your client, ask it to run `unity_projects`. It should list your editors and their health.
 
 ### What the app decides for you
 
 * **Port 8730**, loopback only. Change it under **Settings** if something else has it.
-* **Profile `standard`**: the AI may change your project, but not run arbitrary C# and not delete
+* **Profile `standard`**: the client may change your project, but not run arbitrary C# and not delete
   assets or overwrite scenes. `readonly` is look-but-do-not-touch; `full` allows everything,
   including `unity.script`, `assets.delete`, `scene.save` and `editor.quit`. Use `full` when you
   have version control and mean it.
@@ -223,7 +223,7 @@ unity_skill()                         -> the domain map, about 800 tokens
 ## Troubleshooting
 
 **The app says "A different server is on this port."** An older `umcpd` is holding 8730 — started
-by hand, or by an AI client through the shim. Stop it, or move the app to another port under
+by hand, or by a client through the shim. Stop it, or move the app to another port under
 Settings.
 
 **A project stays on "Click the Unity window".** That is the instruction, not a description: Unity
@@ -253,7 +253,7 @@ minutes.
 
 ## Uninstalling
 
-In the app: **Unlink** each project, **Disconnect** each AI client, then Quit and delete the app.
+In the app: **Unlink** each project, **Disconnect** each client, then Quit and delete the app.
 
 By hand: stop the daemon, remove the `com.umcp.agent` line from each project's manifest (the
 `.umcp-backup` beside it is the original), delete each project's `ProjectSettings/UnityMCP.json`,

@@ -21,7 +21,7 @@
             <TextBlock Classes="faint" Text="Loopback only — 127.0.0.1. The Unity agent uses the next port up." />
           </StackPanel>
 
-          <!-- "Mode" rather than "What the AI may do": it is a named setting people will look
+          <!-- "Mode" rather than "What the client may do": it is a named setting people will look
                for again, and the three values are what explain it. -->
           <TextBlock Grid.Row="1" Classes="h3" Text="Mode" VerticalAlignment="Top" Margin="0,6,16,18" />
           <StackPanel Grid.Row="1" Grid.Column="1" Spacing="8" Margin="0,0,0,18">
@@ -54,7 +54,7 @@
         <StackPanel Spacing="6">
           <TextBlock Classes="h2" Text="Permissions" />
           <TextBlock Classes="muted"
-                     Text="Every Editor tool an AI can reach through this server. Unticking one refuses it at the server, immediately, with no restart." />
+                     Text="Every Editor tool a connected client can reach through this server. Unticking one refuses it at the server, immediately, with no restart." />
         </StackPanel>
 
         <Grid ColumnDefinitions="*,Auto,Auto">

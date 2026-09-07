@@ -5,7 +5,7 @@ using Umcp.Gui.Services;
 namespace Umcp.Gui.ViewModels;
 
 /// <summary>
-/// One AI client on this machine, and whether it has been pointed at this server.
+/// One MCP client on this machine, and whether it has been pointed at this server.
 ///
 /// "Not installed" is reported as a fact, not an error: most people have one of these, not three.
 /// </summary>

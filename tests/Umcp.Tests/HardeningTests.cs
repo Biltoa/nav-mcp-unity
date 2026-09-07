@@ -71,7 +71,7 @@ public class VersionTests
     public void The_daemon_and_the_unity_package_report_the_same_version()
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "UNITY_MCP_TOOL_PLAN.md"))) root = root.Parent;
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "UnityMcpTool.sln"))) root = root.Parent;
         Assert.NotNull(root);
 
         var packageJson = JsonNode.Parse(File.ReadAllText(
