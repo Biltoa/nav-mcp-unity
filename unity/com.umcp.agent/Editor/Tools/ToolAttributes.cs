@@ -44,7 +44,7 @@ namespace Umcp.Agent
         public string NoUndoReason;
     }
 
-    /// <summary>A worked input example. Anthropic measured examples moving complex-parameter
+    /// <summary>A worked input example. Published evaluations put examples as moving complex-parameter
     /// accuracy from 72% to 90%; this is the cheapest accuracy win available.</summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
     public sealed class ExampleAttribute : Attribute

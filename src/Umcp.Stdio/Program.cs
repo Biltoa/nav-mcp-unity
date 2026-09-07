@@ -6,7 +6,7 @@ using System.Text.Json.Nodes;
 
 // umcp-stdio — the shim.
 //
-// Claude Code (or any stdio MCP client) spawns this; it proxies stdio to the daemon's loopback
+// An MCP client spawns this; it proxies stdio to the daemon's loopback
 // HTTP endpoint, starting the daemon if it isn't up. That is what makes the daemon's independence
 // invisible to the client: the client still gets a normal stdio MCP server, but killing that
 // process kills nothing. Unity crashing kills nothing either.

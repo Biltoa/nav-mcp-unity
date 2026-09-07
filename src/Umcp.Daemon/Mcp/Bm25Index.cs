@@ -7,7 +7,7 @@ public sealed record SearchHit(SearchDoc Doc, double Score);
 /// <summary>
 /// BM25 over the tool catalog and the skill tree. Local, no embeddings, no API key, no network —
 /// G3 is a hard requirement, and a bundled embedding model would cost ~90 MB to do no better on a
-/// few hundred short strings. Anthropic ships regex- and BM25-based tool search for the same
+/// few hundred short strings. Published MCP tool-search implementations use regex and BM25 for the same
 /// reason.
 ///
 /// The scorer is the textbook one (k1 = 1.2, b = 0.75) with two additions that matter here:
