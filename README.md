@@ -24,7 +24,7 @@ An MCP server that exposes every Unity operation as its own tool charges the mod
 catalog on every single turn. The best-known Unity MCP server ships 356 tools: their names,
 descriptions and schemas cost **about 56,800 tokens before the model has done anything**.
 
-NAV MCP exposes **six** tools. The 92 Editor operations are reached *through* them, and guidance
+NAV MCP exposes **six** tools. The 99 Editor operations are reached *through* them, and guidance
 loads on demand, per domain.
 
 |  | NAV MCP | A 356-tool server |
@@ -82,7 +82,7 @@ Full guide, including running the server without the app: **[docs/INSTALL.md](do
 | `unity_skill` | A domain's guidance and schemas, on demand |
 | `unity_projects` | Editors, health, and open / close / restart |
 
-The 92 Editor tools behind them are listed in **[docs/TOOLS.md](docs/TOOLS.md)**.
+The 99 Editor tools behind them are listed in **[docs/TOOLS.md](docs/TOOLS.md)**.
 
 ## How it fits together
 
