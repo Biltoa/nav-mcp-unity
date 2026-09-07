@@ -53,3 +53,6 @@ desktop.ini
 
 # ---- release drop ----
 dist/
+dist-installer/
+dist-mac/
+docs/images/*.tmp

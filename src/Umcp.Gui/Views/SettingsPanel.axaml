@@ -34,6 +34,8 @@
 
           <TextBlock Grid.Row="2" Classes="h3" Text="Behaviour" VerticalAlignment="Top" Margin="0,4,16,0" />
           <StackPanel Grid.Row="2" Grid.Column="1" Spacing="12">
+            <CheckBox Content="Start NAV MCP when I sign in" IsChecked="{Binding StartAtLogin}"
+                      IsVisible="{Binding LoginItemSupported}" />
             <CheckBox Content="Start the server when this app opens" IsChecked="{Binding StartServerOnLaunch}" />
             <CheckBox Content="Stop the server when this app quits" IsChecked="{Binding StopServerOnExit}" />
             <TextBlock Classes="faint"

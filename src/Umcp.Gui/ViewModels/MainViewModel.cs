@@ -200,6 +200,26 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set { _settings.StopServerOnExit = value; _settings.Save(); Raise(nameof(StopServerOnExit)); }
     }
 
+    /// <summary>
+    /// Read from the operating system rather than from our own settings file, so the checkbox
+    /// tells the truth after somebody removes the entry in Task Manager or System Settings.
+    /// </summary>
+    public bool StartAtLogin
+    {
+        get => LoginItem.IsEnabled();
+        set
+        {
+            var problem = LoginItem.Set(value);
+            Message = problem
+                      ?? (value
+                          ? "NAV MCP will start when you sign in."
+                          : "NAV MCP will no longer start when you sign in.");
+            Raise(nameof(StartAtLogin));
+        }
+    }
+
+    public bool LoginItemSupported => LoginItem.Supported;
+
     /// <summary>The config snippet for a client this app does not know about.</summary>
     public string Snippet =>
         ClientRegistrations.LocateShim() is { } shim

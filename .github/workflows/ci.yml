@@ -86,6 +86,24 @@ jobs:
       # umcpd in Contents/Resources, and a wrong path there is invisible until someone downloads
       # it. Headless, so it exits rather than showing a window: it is enough that the binary
       # resolves its runtime and its helpers.
+      # The window itself, rendered on macOS. Until this existed the macOS claim rested on "it
+      # compiles": this boots the real App with its real styles through Avalonia's headless
+      # platform with Skia, captures every screen, and fails if any frame is missing. It is not a
+      # human looking at a Mac, and it is a great deal more than nothing.
+      - name: The window composes on macOS
+        run: |
+          dotnet run --project src/Umcp.Gui.Shots -c Release -- macos-shots
+          for shot in overview projects connections settings overview-stopped; do
+            test -s "macos-shots/$shot.png" || { echo "missing frame: $shot"; exit 1; }
+          done
+          echo "rendered:"; ls -la macos-shots
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nav-mcp-macos-screens
+          path: macos-shots/*.png
+          if-no-files-found: error
+
       - name: The bundle is shaped like an app
         run: |
           app="dist-mac/NAV MCP (arm64).app"
@@ -100,7 +118,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: nav-mcp-macos
-          path: dist-mac/*.zip
+          path: |
+            dist-mac/*.zip
+            dist-mac/*.dmg
           if-no-files-found: error
 
   # The Windows drop, built the same way a release is, so the packaging script is exercised on
@@ -120,6 +140,23 @@ jobs:
       - name: Package the app
         shell: pwsh
         run: ./scripts/publish.ps1 -SkipTests
+
+      # The installer is what people actually download, so it is built on every push rather than
+      # on the day somebody needs one. Unsigned, like the app it carries.
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          & $iscc /Qp scripts\installer.iss
+          if (-not (Test-Path 'dist-installer\NAV-MCP-Setup-1.0.0.exe')) { throw 'installer was not produced' }
+          Get-ChildItem dist-installer
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nav-mcp-windows-installer
+          path: dist-installer/*.exe
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
         with:

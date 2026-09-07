@@ -6,7 +6,8 @@
 #     NAV MCP.app/                  the thing a person drags to /Applications
 #       Contents/MacOS/             the GUI binary and its runtime
 #       Contents/Resources/         umcpd, umcp-stdio, com.umcp.agent, the icon
-#     NAV-MCP-<arch>.zip            the same app, zipped for distribution
+#     NAV-MCP-<arch>.zip            the same app, zipped
+#     NAV-MCP-<arch>.dmg            drag-to-Applications disk image, which is what Mac users expect
 #
 # Self-contained by default: the audience has never installed a .NET runtime and should not have
 # to. Pass --framework-dependent for the small build that needs one.
@@ -159,10 +160,27 @@ PLIST
   fi
 
   ( cd "$output" && zip -qry "NAV-MCP-${rid#osx-}.zip" "$(basename "$app")" )
+
+  # A .dmg as well as the zip, because dragging an app to Applications is what a Mac user expects
+  # and a zip that unpacks to the Downloads folder is how apps end up running from Downloads
+  # forever. hdiutil ships with macOS; create-dmg would be prettier and is one more dependency.
+  say "disk image for $rid"
+  dmg_stage="$output/.dmg-$rid"
+  rm -rf "$dmg_stage"
+  mkdir -p "$dmg_stage"
+  cp -R "$app" "$dmg_stage/"
+  ln -s /Applications "$dmg_stage/Applications"
+  cp docs/INSTALL.md "$dmg_stage/Read me first.md"
+
+  dmg="$output/NAV-MCP-${rid#osx-}.dmg"
+  rm -f "$dmg"
+  hdiutil create -volname "NAV MCP" -srcfolder "$dmg_stage" -ov -quiet -format UDZO "$dmg"
+  rm -rf "$dmg_stage"
+
   rm -rf "$stage"
 done
 
 say "done"
 ls -la "$output"
 echo
-echo "Drag 'NAV MCP.app' to /Applications, then right-click it and choose Open the first time."
+echo "Open the .dmg, drag 'NAV MCP.app' to Applications, then right-click it and choose Open the first time."
