@@ -148,8 +148,23 @@ public static class EditorLauncher
             value = (end < 0 ? rest : rest[..end]).Trim();
         }
 
+        // Path.GetFullPath resolves against *this* machine's rules, so a Windows path parsed on
+        // macOS — a daemon reading a command line captured elsewhere, or a test — comes back with
+        // the working directory glued to the front of "E:\Projects\Game". An already-absolute
+        // path needs no resolving, so recognising one first keeps the answer the caller's.
+        if (LooksAbsolute(value)) return EditorInstalls.Normalise(value);
+
         try { return EditorInstalls.Normalise(Path.GetFullPath(value)); }
         catch { return EditorInstalls.Normalise(value); }
+    }
+
+    /// <summary>A drive-letter path, a UNC share, or a unix absolute path — on any host.</summary>
+    static bool LooksAbsolute(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return false;
+        if (path[0] == '/' || path.StartsWith(@"\\", StringComparison.Ordinal)) return true;
+        return path.Length >= 3 && char.IsLetter(path[0]) && path[1] == ':' &&
+               (path[2] == '/' || path[2] == '\\');
     }
 
     public static bool IsAlive(int pid)
