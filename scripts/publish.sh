@@ -94,15 +94,18 @@ for rid in "${arches[@]}"; do
   # The GUI and its runtime go in MacOS/; the tools it launches go in Resources/, which is where
   # DaemonProcess and ClientRegistrations look (BaseDirectory, then ../Resources).
   cp -R "$stage/gui/." "$app/Contents/MacOS/"
-  cp "$stage/daemon/umcpd" "$app/Contents/Resources/"
-  cp "$stage/stdio/umcp-stdio" "$app/Contents/Resources/"
 
-  # The daemon's own dependencies live beside it, not in MacOS/: a framework-dependent build has
-  # managed DLLs that must resolve next to the assembly that needs them.
-  find "$stage/daemon" -maxdepth 1 -name '*.dll' -exec cp {} "$app/Contents/Resources/" \;
-  find "$stage/daemon" -maxdepth 1 -name '*.json' -exec cp {} "$app/Contents/Resources/" \;
-  find "$stage/stdio"  -maxdepth 1 -name '*.dll' -exec cp {} "$app/Contents/Resources/" \;
-  find "$stage/stdio"  -maxdepth 1 -name '*.json' -exec cp {} "$app/Contents/Resources/" \;
+  # The *whole* publish output for each tool, not a selection of it. A self-contained build needs
+  # its native runtime beside it — libhostpolicy.dylib, libcoreclr.dylib and the rest — and copying
+  # only the executable and its managed DLLs produced a umcpd that exits with "the library
+  # libhostpolicy.dylib required to execute the application was not found". The app looked complete
+  # and its server could never start.
+  #
+  # Flat, because DaemonProcess and ClientRegistrations look for the binaries directly in
+  # Contents/Resources. The two tools share runtime files; they are identical copies, so the
+  # overwrite is harmless.
+  cp -R "$stage/daemon/." "$app/Contents/Resources/"
+  cp -R "$stage/stdio/."  "$app/Contents/Resources/"
 
   cp -R unity/com.umcp.agent "$app/Contents/Resources/com.umcp.agent"
   find "$app/Contents/Resources/com.umcp.agent" \
