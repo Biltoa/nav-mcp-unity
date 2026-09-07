@@ -56,3 +56,5 @@ dist/
 dist-installer/
 dist-mac/
 docs/images/*.tmp
+release/
+dist-win-*/

@@ -24,7 +24,7 @@
 [CmdletBinding()]
 param(
     [string] $Configuration = 'Release',
-    [ValidateSet('win-x64', 'win-arm64')]
+    [ValidateSet('win-x64', 'win-x86', 'win-arm64')]
     [string] $Runtime = 'win-x64',
     [switch] $FrameworkDependent,
     [switch] $SkipTests,
@@ -89,7 +89,20 @@ Copy-Item (Join-Path $repo 'docs/TOOLS.md') $dist -Force
 Get-ChildItem (Join-Path $dist 'com.umcp.agent') -Recurse -Include 'Library', 'Temp', 'obj', 'bin' -Directory |
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
-$version = (& (Join-Path $dist 'umcpd.exe') --version)
+# Only ask the binary its version when it can actually run here: a win-arm64 or win-x86 drop
+# built on x64 is not executable on this machine, and "the specified executable is not a valid
+# application" is a confusing way to end a successful build. Otherwise take the number from the
+# one place that defines it.
+$hostArch = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLower()
+$canRun = ($Runtime -eq 'win-x64' -and $hostArch -eq 'x64') -or
+          ($Runtime -eq 'win-arm64' -and $hostArch -eq 'arm64') -or
+          ($Runtime -eq 'win-x86')
+if ($canRun) {
+    $version = (& (Join-Path $dist 'umcpd.exe') --version)
+} else {
+    $props = Get-Content (Join-Path $repo 'Directory.Build.props') -Raw
+    $version = "umcpd " + ([regex]::Match($props, '<Version>([^<]+)</Version>').Groups[1].Value) + " (not run: $Runtime on $hostArch)"
+}
 
 # The app is what a person launches, so its absence is a broken drop, not a warning.
 foreach ($required in @('NAV MCP.exe', 'umcpd.exe', 'umcp-stdio.exe')) {

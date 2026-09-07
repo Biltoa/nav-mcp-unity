@@ -11,6 +11,13 @@
 #ifndef AppVersion
   #define AppVersion "1.0.0"
 #endif
+#ifndef Arch
+  #define Arch "x64compatible"
+#endif
+; Appended to the output filename, so three architectures can sit on one download page.
+#ifndef Suffix
+  #define Suffix ""
+#endif
 
 #define AppName        "NAV MCP"
 #define AppExeName     "NAV MCP.exe"
@@ -28,10 +35,16 @@ DisableProgramGroupPage=yes
 DisableDirPage=auto
 ; No admin prompt, and no chance of installing somewhere the user cannot write.
 PrivilegesRequired=lowest
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+#if Arch == "x86"
+; A 32-bit install must not claim 64-bit mode, and on a 64-bit machine it belongs in the 32-bit
+; program folder like any other x86 app.
+ArchitecturesAllowed=x86compatible
+#else
+ArchitecturesAllowed={#Arch}
+ArchitecturesInstallIn64BitMode={#Arch}
+#endif
 OutputDir=..\dist-installer
-OutputBaseFilename=NAV-MCP-Setup-{#AppVersion}
+OutputBaseFilename=NAV-MCP-Setup-{#AppVersion}{#Suffix}
 SetupIconFile=..\src\Umcp.Gui\Assets\icon.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName}
