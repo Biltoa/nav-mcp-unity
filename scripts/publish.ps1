@@ -48,6 +48,12 @@ if ($LASTEXITCODE -ne 0) { throw "toolgen failed" }
 $drift = git status --porcelain -- unity/com.umcp.agent/Editor/Generated src/Umcp.Daemon/Generated docs/TOOLS.md
 if ($drift) { throw "generated files are out of date; run toolgen and commit before publishing:`n$drift" }
 
+# The Unity half is never compiled by the tests — Unity does that, on somebody else's machine,
+# minutes later. A missing using or a renamed enum member would ship green.
+Write-Host "== the agent compiles against a real Editor" -ForegroundColor Cyan
+& (Join-Path $PSScriptRoot 'check-agent-compile.ps1')
+if ($LASTEXITCODE -ne 0) { throw "the Unity package does not compile" }
+
 Write-Host "== the rule the compiler cannot enforce" -ForegroundColor Cyan
 dotnet run --project src/Umcp.MainThreadCheck -c $Configuration
 if ($LASTEXITCODE -ne 0) { throw "main-thread check failed" }

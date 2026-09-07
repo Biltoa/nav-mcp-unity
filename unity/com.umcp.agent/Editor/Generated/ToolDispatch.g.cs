@@ -13,6 +13,9 @@ namespace Umcp.Agent
     {
         public static readonly string[] Ids =
         {
+            "animation.blendTree",
+            "animation.clip",
+            "animation.layer",
             "animator.controller",
             "assets.addressables",
             "assets.createFolder",
@@ -110,6 +113,9 @@ namespace Umcp.Agent
 
         static readonly Dictionary<string, ToolMeta> _meta = new Dictionary<string, ToolMeta>
         {
+            { "animation.blendTree", new ToolMeta { Id = "animation.blendTree", Skill = "animation", Summary = "Blend trees inside an Animator controller: create one as a state, add motions, read it. action: info | create | addMotion.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Controller edits are asset writes; Unity's Animator window does not register them with Undo." } },
+            { "animation.clip", new ToolMeta { Id = "animation.clip", Skill = "animation", Summary = "Animation clips: read, create, set curves and events, sample a value. action: info | create | setCurve | addEvent | sample.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Clip edits are asset writes; Unity's animation window does not register them with Undo either." } },
+            { "animation.layer", new ToolMeta { Id = "animation.layer", Skill = "animation", Summary = "Animator layers and avatar masks: list, add, set weight and blending. action: list | add | setWeight | setMask.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "Controller edits are asset writes; Unity's Animator window does not register them with Undo." } },
             { "animator.controller", new ToolMeta { Id = "animator.controller", Skill = "animation", Summary = "Animator controllers: read, create, add states, parameters and transitions. action: info | create | addState | addParameter | addTransition | setDefault.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "AnimatorController edits are asset writes; Unity's animation editors do not register them with Undo." } },
             { "assets.addressables", new ToolMeta { Id = "assets.addressables", Skill = "assets", Summary = "Addressables settings, groups and entries. action: status | groups | entries.", Mutating = false, Retry = "Read", Cost = "Moderate", Undo = null, NoUndoReason = null } },
             { "assets.createFolder", new ToolMeta { Id = "assets.createFolder", Skill = "assets", Summary = "Create a folder, creating intermediate folders as needed.", Mutating = true, Retry = "Write", Cost = "Cheap", Undo = null, NoUndoReason = "AssetDatabase folder creation is not undoable." } },
@@ -216,6 +222,12 @@ namespace Umcp.Agent
         {
             switch (id)
             {
+                case "animation.blendTree":
+                    return AnimationTools.BlendTree(Bind.Str(a, "action", true), Bind.Str(a, "path", true), Bind.Str(a, "state", true), Bind.Str(a, "parameter", false), Bind.Str(a, "parameterY", false), Bind.Str(a, "blendType", false, "1D"), Bind.Str(a, "layer", false), Bind.Str(a, "clip", false), Bind.Flt(a, "threshold", false, 0f), Bind.FltArr(a, "position", false));
+                case "animation.clip":
+                    return AnimationTools.Clip(Bind.Str(a, "action", true), Bind.Str(a, "path", true), Bind.Str(a, "target", false, ""), Bind.Str(a, "property", false), Bind.Str(a, "component", false, "Transform"), Bind.FltArr(a, "times", false), Bind.FltArr(a, "values", false), Bind.Bool(a, "loop", false, false), Bind.Flt(a, "frameRate", false, 60f), Bind.Str(a, "function", false), Bind.Flt(a, "time", false, 0f), Bind.Str(a, "stringArgument", false));
+                case "animation.layer":
+                    return AnimationTools.Layer(Bind.Str(a, "action", true), Bind.Str(a, "path", true), Bind.Str(a, "layer", false), Bind.Flt(a, "weight", false, 1f), Bind.Bool(a, "additive", false, false), Bind.Str(a, "mask", false));
                 case "animator.controller":
                     return AnimatorTools.Controller(Bind.Str(a, "action", true), Bind.Str(a, "path", true), Bind.Str(a, "state", false), Bind.Str(a, "clip", false), Bind.Str(a, "layer", false), Bind.Str(a, "parameter", false), Bind.Str(a, "parameterType", false, "Float"), Bind.Str(a, "from", false), Bind.Str(a, "to", false), Bind.FltOpt(a, "greaterThan", false), Bind.FltOpt(a, "lessThan", false), Bind.BoolOpt(a, "equals", false), Bind.Flt(a, "duration", false, 0.25f));
                 case "assets.addressables":
@@ -416,6 +428,46 @@ namespace Umcp.Agent
         {
             switch (id)
             {
+                case "animation.blendTree":
+                {
+                    var __action = Bind.Str(a, "action", true);
+                    var __path = Bind.Str(a, "path", true);
+                    var __state = Bind.Str(a, "state", true);
+                    var __parameter = Bind.Str(a, "parameter", false);
+                    var __parameterY = Bind.Str(a, "parameterY", false);
+                    var __blendType = Bind.Str(a, "blendType", false, "1D");
+                    var __layer = Bind.Str(a, "layer", false);
+                    var __clip = Bind.Str(a, "clip", false);
+                    var __threshold = Bind.Flt(a, "threshold", false, 0f);
+                    var __position = Bind.FltArr(a, "position", false);
+                    return;
+                }
+                case "animation.clip":
+                {
+                    var __action = Bind.Str(a, "action", true);
+                    var __path = Bind.Str(a, "path", true);
+                    var __target = Bind.Str(a, "target", false, "");
+                    var __property = Bind.Str(a, "property", false);
+                    var __component = Bind.Str(a, "component", false, "Transform");
+                    var __times = Bind.FltArr(a, "times", false);
+                    var __values = Bind.FltArr(a, "values", false);
+                    var __loop = Bind.Bool(a, "loop", false, false);
+                    var __frameRate = Bind.Flt(a, "frameRate", false, 60f);
+                    var __function = Bind.Str(a, "function", false);
+                    var __time = Bind.Flt(a, "time", false, 0f);
+                    var __stringArgument = Bind.Str(a, "stringArgument", false);
+                    return;
+                }
+                case "animation.layer":
+                {
+                    var __action = Bind.Str(a, "action", true);
+                    var __path = Bind.Str(a, "path", true);
+                    var __layer = Bind.Str(a, "layer", false);
+                    var __weight = Bind.Flt(a, "weight", false, 1f);
+                    var __additive = Bind.Bool(a, "additive", false, false);
+                    var __mask = Bind.Str(a, "mask", false);
+                    return;
+                }
                 case "animator.controller":
                 {
                     var __action = Bind.Str(a, "action", true);

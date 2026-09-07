@@ -248,7 +248,7 @@ namespace Umcp.Agent
             // a person who was working in the Editor a second ago, and silently reverting that is
             // the worst thing this tool could do.
             if (verb == "undo" && !string.IsNullOrEmpty(expect) &&
-                !string.Equals(expect, next, StringComparison.Ordinal))
+                !string.Equals(expect, next, System.StringComparison.Ordinal))
             {
                 throw new UmcpToolException("E_UNDO_MISMATCH",
                     "The next undo step is '" + next + "', not '" + expect + "'. Nothing was undone.",
@@ -256,7 +256,7 @@ namespace Umcp.Agent
                     "Somebody else changed the scene after this batch. Re-read the state before undoing.");
             }
 
-            int count = Math.Max(1, Math.Min(steps, 20));
+            int count = System.Math.Max(1, System.Math.Min(steps, 20));
             var performed = new System.Collections.Generic.List<string>(count);
 
             for (int i = 0; i < count; i++)

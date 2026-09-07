@@ -2,13 +2,93 @@
 
 # Tool reference
 
-93 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
+96 tools, generated from the `[UnityTool]` attributes in `unity/com.umcp.agent/Editor/`.
 
 ## animation
 
 | Tool | Mutating | Undo | Summary |
 |---|---|---|---|
+| `animation.blendTree` | yes | — *Controller edits are asset writes; Unity's Animator window does not register them with Undo.* | Blend trees inside an Animator controller: create one as a state, add motions, read it. action: info | create | addMotion. |
+| `animation.clip` | yes | — *Clip edits are asset writes; Unity's animation window does not register them with Undo either.* | Animation clips: read, create, set curves and events, sample a value. action: info | create | setCurve | addEvent | sample. |
+| `animation.layer` | yes | — *Controller edits are asset writes; Unity's Animator window does not register them with Undo.* | Animator layers and avatar masks: list, add, set weight and blending. action: list | add | setWeight | setMask. |
 | `animator.controller` | yes | — *AnimatorController edits are asset writes; Unity's animation editors do not register them with Undo.* | Animator controllers: read, create, add states, parameters and transitions. action: info | create | addState | addParameter | addTransition | setDefault. |
+
+### `animation.blendTree`
+
+Blend trees inside an Animator controller: create one as a state, add motions, read it. action: info | create | addMotion.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `action` | `string` | yes | — | info | create | addMotion |
+| `path` | `string` | yes | — | Controller asset path |
+| `state` | `string` | yes | — | State name that holds the blend tree |
+| `parameter` | `string` | no | `null` | Blend parameter name (create). Must already exist on the controller. |
+| `parameterY` | `string` | no | `null` | Second blend parameter, for 2D trees |
+| `blendType` | `string` | no | `"1D"` | 1D | 2DSimpleDirectional | 2DFreeformDirectional | 2DFreeformCartesian |
+| `layer` | `string` | no | `null` | Layer name. Defaults to the first layer. |
+| `clip` | `string` | no | `null` | Clip asset path, for addMotion |
+| `threshold` | `float` | no | `0f` | Threshold for a 1D tree |
+| `position` | `float[]` | no | `null` | Position for a 2D tree, [x, y] |
+
+```json
+{ "action": "create", "path": "Assets/Animation/Player.controller", "state": "Locomotion", "parameter": "Speed" }
+```
+
+```json
+{ "action": "addMotion", "path": "Assets/Animation/Player.controller", "state": "Locomotion", "clip": "Assets/Animation/Run.anim", "threshold": 1 }
+```
+
+### `animation.clip`
+
+Animation clips: read, create, set curves and events, sample a value. action: info | create | setCurve | addEvent | sample.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `action` | `string` | yes | — | info | create | setCurve | addEvent | sample |
+| `path` | `string` | yes | — | Clip asset path, e.g. Assets/Animation/Run.anim |
+| `target` | `string` | no | `""` | Relative transform path inside the animated hierarchy. Empty means the animated object itself. |
+| `property` | `string` | no | `null` | Animated property, e.g. m_LocalPosition.y, m_LocalScale.x, material._Color.r |
+| `component` | `string` | no | `"Transform"` | Component type the property belongs to (default Transform) |
+| `times` | `float[]` | no | `null` | Keyframe times in seconds |
+| `values` | `float[]` | no | `null` | Keyframe values, one per time |
+| `loop` | `bool` | no | `false` | Loop the clip (create) |
+| `frameRate` | `float` | no | `60f` | Frame rate (create, default 60) |
+| `function` | `string` | no | `null` | Function name, for addEvent |
+| `time` | `float` | no | `0f` | Event or sample time in seconds |
+| `stringArgument` | `string` | no | `null` | String argument for the event |
+
+```json
+{ "action": "info", "path": "Assets/Animation/Run.anim" }
+```
+
+```json
+{ "action": "create", "path": "Assets/Animation/Bob.anim", "loop": true }
+```
+
+```json
+{ "action": "setCurve", "path": "Assets/Animation/Bob.anim", "property": "m_LocalPosition.y", "times": [0, 0.5, 1], "values": [0, 0.4, 0] }
+```
+
+### `animation.layer`
+
+Animator layers and avatar masks: list, add, set weight and blending. action: list | add | setWeight | setMask.
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `action` | `string` | yes | — | list | add | setWeight | setMask |
+| `path` | `string` | yes | — | Controller asset path |
+| `layer` | `string` | no | `null` | Layer name |
+| `weight` | `float` | no | `1f` | Layer weight 0..1 |
+| `additive` | `bool` | no | `false` | Additive blending instead of Override |
+| `mask` | `string` | no | `null` | Avatar mask asset path, for setMask |
+
+```json
+{ "action": "list", "path": "Assets/Animation/Player.controller" }
+```
+
+```json
+{ "action": "add", "path": "Assets/Animation/Player.controller", "layer": "UpperBody", "weight": 1, "additive": false }
+```
 
 ### `animator.controller`
 
