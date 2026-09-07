@@ -33,7 +33,7 @@ public sealed class LinkedProjects
 
     public Entry Add(string path, bool autoRestart = false)
     {
-        var normalised = EditorInstalls.Normalise(System.IO.Path.GetFullPath(path));
+        var normalised = EditorInstalls.FullPath(path);
         lock (_gate)
         {
             var list = Read().Where(e => !Same(e.Path, normalised)).ToList();
@@ -46,7 +46,7 @@ public sealed class LinkedProjects
 
     public bool Remove(string path)
     {
-        var normalised = EditorInstalls.Normalise(System.IO.Path.GetFullPath(path));
+        var normalised = EditorInstalls.FullPath(path);
         lock (_gate)
         {
             var list = Read();
@@ -59,7 +59,7 @@ public sealed class LinkedProjects
 
     public bool SetAutoRestart(string path, bool on)
     {
-        var normalised = EditorInstalls.Normalise(System.IO.Path.GetFullPath(path));
+        var normalised = EditorInstalls.FullPath(path);
         lock (_gate)
         {
             var list = Read();

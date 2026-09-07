@@ -141,4 +141,21 @@ public static class EditorInstalls
     }
 
     internal static string Normalise(string p) => p.Replace('\\', '/').TrimEnd('/');
+
+    /// <summary>
+    /// A drive-letter path, a UNC share, or a unix absolute path — judged the same way on every
+    /// host. Path.GetFullPath resolves against the *running* machine's rules, so a Windows path
+    /// seen on macOS gets the working directory glued to the front of it.
+    /// </summary>
+    internal static bool IsAbsolute(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return false;
+        if (path[0] == '/' || path.StartsWith(@"\\", StringComparison.Ordinal)) return true;
+        return path.Length >= 3 && char.IsLetter(path[0]) && path[1] == ':' &&
+               (path[2] == '/' || path[2] == '\\');
+    }
+
+    /// <summary>Absolute and normalised, resolving only what actually needs resolving.</summary>
+    internal static string FullPath(string path) =>
+        Normalise(IsAbsolute(path) ? path : System.IO.Path.GetFullPath(path));
 }
