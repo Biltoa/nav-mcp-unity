@@ -1,245 +1,127 @@
-# NAV MCP
+<div align="center">
 
-An MCP server for the Unity Editor, built around one measured finding: **the Editor drains its
-whole message queue in a single tick**, so 32 operations cost about the wall time of one. Batching
-is the primitive, not a convenience.
+<img src="docs/images/wordmark.png" alt="NAV MCP" width="360">
 
-Three processes, and the important line is that **the durable state lives outside Unity**:
+**Let an AI drive your Unity Editor — without paying 56,800 tokens for the privilege.**
+
+[![ci](https://github.com/Biltoa/nav-mcp-unity/actions/workflows/ci.yml/badge.svg)](https://github.com/Biltoa/nav-mcp-unity/actions/workflows/ci.yml)
+[![licence: MIT](https://img.shields.io/badge/licence-MIT-FF8723)](LICENSE)
+[![Unity 6000.0+](https://img.shields.io/badge/Unity-6000.0%2B-black)](https://unity.com)
+
+</div>
+
+---
+
+NAV MCP is a local [MCP](https://modelcontextprotocol.io) server for the Unity Editor, plus a
+desktop app so you never have to open a terminal to use it. **One server drives every open Unity
+Editor at once.**
+
+<img src="docs/images/overview.png" alt="The NAV MCP window, showing the server running" width="100%">
+
+## Why it exists
+
+An MCP server that exposes every Unity operation as its own tool charges the model for the whole
+catalog on every single turn. The best-known Unity MCP server ships 356 tools: their names,
+descriptions and schemas cost **about 56,800 tokens before the model has done anything**.
+
+NAV MCP exposes **six** tools. The 92 Editor operations are reached *through* them, and guidance
+loads on demand, per domain.
+
+|  | NAV MCP | A 356-tool server |
+|---|---|---|
+| Tool surface, every turn | **~910 tokens** | ~56,800 tokens |
+| A scene query | **~1 ms** (from the daemon's live scene model) | ~95 ms |
+| 32 operations | **≈ the cost of one** (one Editor tick, one undo step) | 32 round trips |
+| Pre-flight a WebGL build | **307 ms** | a ~25-minute build, then the error |
+
+## What you get
+
+- **One server, every project.** Link as many Unity projects as you like; the daemon keeps a
+  connection to each open Editor and routes by project id, never by port number.
+- **It survives recompiles.** The queue, the catalog and the scene model live outside Unity, so a
+  domain reload pauses work instead of losing it. Reads keep answering while Unity is compiling.
+- **Batching as the primitive.** The Editor drains its whole message queue in one tick, so
+  `unity_batch` sends N operations for roughly the price of one — as a single undo step.
+- **You decide what it may touch.** Three modes (`readonly` / `standard` / `full`), plus a tick box
+  per tool. Turn off `assets.delete` and the next call to it is refused by the server, not by a
+  prompt.
+- **Undo.** Every batch is one named undo step, and the app has a button for it.
+- **It tells you when Unity is stuck.** "Blocked" means a modal dialog is open, and the app names
+  the dialog.
+
+## Install
+
+Download the latest [release](https://github.com/Biltoa/nav-mcp-unity/releases) — the app carries
+its own .NET, so there is nothing to install first.
+
+**Windows** — run `NAV-MCP-Setup.exe`. SmartScreen appears once because the build is not
+code-signed: **More info → Run anyway**.
+
+**macOS** — open the `.dmg`, drag **NAV MCP** to Applications, then **right-click → Open** the
+first time. That is how macOS lets you approve an app that has not been notarised.
+
+Then, in the app:
+
+1. **Start server** — it starts by itself on first launch.
+2. **Projects → Link a project…** and pick a Unity project folder. This writes the package
+   reference into that project's `Packages/manifest.json` and keeps a backup.
+3. **Connections → Connect** next to Claude Desktop, Claude Code or Cursor. Restart that app.
+
+Ask your assistant to run `unity_projects`. It should list your editors and their health.
+
+Full guide, including running the server without the app: **[docs/INSTALL.md](docs/INSTALL.md)**.
+
+## The six tools
+
+| Tool | What it does |
+|---|---|
+| `unity_run` | One Editor operation by id |
+| `unity_batch` | N operations, one Editor tick, one undo step. `"$1"` refers to op 1's result |
+| `unity_script` | C# compiled and run in the Editor, returning its conclusion (`full` mode) |
+| `unity_find` | Search tools and guidance |
+| `unity_skill` | A domain's guidance and schemas, on demand |
+| `unity_projects` | Editors, health, and open / close / restart |
+
+The 92 Editor tools behind them are listed in **[docs/TOOLS.md](docs/TOOLS.md)**.
+
+## How it fits together
 
 ```
-AI client ──stdio──▶ umcp-stdio ──http──▶ umcpd ──tcp──▶ UnityAgent (in-editor package)
-                       (shim)            (daemon)         one per project
+AI client ──stdio──▶ umcp-stdio ──http──▶ umcpd ──tcp──▶ UnityAgent (one per Editor)
+                       (shim)            (daemon)              connects out
                                             ▲
-                             NAV MCP app ─┘  (the GUI: start/stop, link projects,
-                                                connect clients — Windows and macOS)
+                              NAV MCP app ──┘
 ```
 
-Everything that must survive a recompile — the request queue, the catalog, the retry logic — lives
-in `umcpd`, not in the Unity AppDomain that dies on every script change.
+Everything that must survive a script recompile lives in the daemon, not in the Unity AppDomain
+that dies on every one. Both listeners bind `127.0.0.1` only, and every request carries a bearer
+token that is readable by your account alone.
 
-Design rationale and the measurements behind it: [UNITY_MCP_TOOL_PLAN.md](UNITY_MCP_TOOL_PLAN.md).
-Current status and per-phase results: [PROGRESS.md](PROGRESS.md).
-Generated tool reference: [docs/TOOLS.md](docs/TOOLS.md).
+<img src="docs/images/projects.png" alt="Four Unity projects linked to one server" width="100%">
 
-## Layout
-
-| Path | What |
-|---|---|
-| `src/Umcp.Daemon` | `umcpd` — MCP over stdio and HTTP, editor registry, dispatcher, health, control API |
-| `src/Umcp.Gui` | **NAV MCP**, the desktop app — Avalonia, one codebase for the Windows .exe and the macOS .app |
-| `src/Umcp.Stdio` | `umcp-stdio` — the shim a client spawns; starts the daemon if it isn't up |
-| `src/Umcp.ToolGen` | `umcp-toolgen` — reads the `[UnityTool]` methods and generates dispatch, catalog and docs |
-| `src/Umcp.Bench` | `umcp-bench` — the measurement harness; every claim in PROGRESS.md comes from it |
-| `unity/com.umcp.agent` | the Unity package: connect out, pump the main thread, execute, stream scene deltas |
-| `tests/Umcp.Tests` | the quality bar as tests |
-
-## Install it as an app
-
-[docs/INSTALL.md](docs/INSTALL.md) leads with the double-click route: run the app, click **Start
-server**, **Link a project…** for each Unity project, **Connect** next to your AI client. One
-server drives every linked project at once, and linking writes the package reference into that
-project's manifest so nobody has to edit JSON.
-
-Neither build is code-signed, so the first launch needs one extra click — **More info → Run
-anyway** on Windows, **right-click → Open** on macOS. INSTALL.md says so with the exact wording
-each OS uses.
-
-```powershell
-pwsh scripts/publish.ps1        # Windows drop into dist/ (NAV MCP.exe)
-```
-```bash
-scripts/publish.sh              # macOS .app into dist-mac/
-```
-
-Both refuse to build a drop whose generated catalog differs from its sources, or whose tests or
-main-thread check fail. CI builds both on every push.
-
-## Build
+## Building it yourself
 
 ```bash
-dotnet run --project src/Umcp.ToolGen   # regenerate dispatch + catalog + docs from the tools
 dotnet build UnityMcpTool.sln
-dotnet test tests/Umcp.Tests/Umcp.Tests.csproj
+dotnet test  UnityMcpTool.sln          # 156 tests, no Unity licence needed
+dotnet run --project src/Umcp.Gui      # the app
 ```
 
-`umcp-toolgen` must be re-run after adding or changing a tool. It fails the build if a tool has no
-input example, or if a mutating tool declares neither an undo group nor a reason it cannot have one.
+Packaging: `pwsh scripts/publish.ps1` (Windows) or `scripts/publish.sh --arch both` (macOS). Both
+refuse to build a drop whose generated catalog differs from its sources, or whose tests fail.
 
-## Run
+Contributions welcome — **[CONTRIBUTING.md](CONTRIBUTING.md)** covers the three rules the build
+enforces. Design rationale and every measurement quoted above:
+**[UNITY_MCP_TOOL_PLAN.md](UNITY_MCP_TOOL_PLAN.md)** and **[PROGRESS.md](PROGRESS.md)**.
 
-```bash
-dotnet run --project src/Umcp.Gui                                       # NAV MCP, the app
-dotnet run --project src/Umcp.Daemon -- --port 8730 --agent-port 8731   # the server alone
-```
+## Status
 
-Add `--profile full` to enable code mode. The app exposes the same three profiles under Settings.
+Version 1.0.0. The Windows build is used daily against real projects. The macOS build is produced
+and render-checked by CI on every push, but has not yet been opened by a human on a Mac — if you
+run one, that feedback is the most useful thing you could send.
 
-Both ports bind `127.0.0.1` explicitly. A bearer token is minted at start and written to
-`%LOCALAPPDATA%\UnityMCP\token` with an ACL granting the current user only; `/health` is the one
-unauthenticated endpoint.
+Neither build is code-signed yet, hence the one-time warning on each platform.
 
-## Install the Unity package
+## Licence
 
-Add a `file:` dependency to the project's `Packages/manifest.json`:
-
-```json
-"com.umcp.agent": "file:D:/Unity MCP Tool/unity/com.umcp.agent"
-```
-
-Nothing is copied into `Assets/`, and the daemon never writes there — Unity will try to import a log
-file mid-write if you do. The only file the package adds to a project is
-`ProjectSettings/UnityMCP.json`, holding the project's GUID.
-
-Unity resolves a manifest change when the Editor regains focus. The agent connects out on load and
-retries with jittered backoff forever, so daemon and Editor can start in either order.
-
-## Register with a client
-
-Direct HTTP (no shim):
-
-```json
-{ "mcpServers": { "unity": {
-    "type": "http",
-    "url": "http://127.0.0.1:8730/mcp",
-    "headers": { "Authorization": "Bearer <token from %LOCALAPPDATA%\\UnityMCP\\token>" }
-} } }
-```
-
-Or via the shim, which starts the daemon on demand:
-
-```json
-{ "mcpServers": { "unity": {
-    "command": "umcp-stdio.exe",
-    "args": ["--port", "8730"]
-} } }
-```
-
-## The MCP surface
-
-Six tools, ~910 tokens at baseline. The 92 Editor tools are reached through them rather than
-exposed individually — the surface being replaced costs ~56,800 tokens before the model does
-anything.
-
-| Tool | What |
-|---|---|
-| `unity_run` | run one Editor tool by id |
-| `unity_batch` | N operations, one Editor tick, one undo group; `"$1"` refers to op 1's result |
-| `unity_script` | C# executed in the Editor, returning only its conclusion (`full` profile only) |
-| `unity_find` | BM25 search across tools and skills |
-| `unity_skill` | a domain's guidance plus its tools' schemas; also one tool's schema |
-| `unity_projects` | editors, their health, the default target, and the fleet: open, close, restart |
-
-### The mirror
-
-The daemon keeps a live model of each project's scene hierarchy, updated by push from Unity's own
-`ObjectChangeEvents` stream. `scene.query` and `scene.count` are answered from it — about **1 ms**
-instead of ~95 ms — and keep working while the Editor is recompiling, so a domain reload stops
-mutations rather than everything.
-
-Every response says where its answer came from:
-
-```jsonc
-"meta": { "source": "mirror", "staleMs": 42, "epoch": 19, "revision": 118 }
-```
-
-The model holds identity, parentage and sibling order, active state, tag, layer, and component
-*type* names. It does not hold component property values, so a query asking for `Rigidbody.mass`
-goes live automatically rather than being answered approximately. `verify: true` on `unity_run`
-forces a live round trip. `unity_projects(reconcile: true)` compares the model against per-subtree
-hashes from the Editor and repairs any drift, reporting exactly which node and which field differed.
-
-Both sides compute selectors and hashes from the same two source files
-(`SceneSelector.cs`, `MirrorHash.cs`), compiled into the Unity package and linked into the daemon —
-a second copy would drift, and a drifting hash makes reconcile meaningless.
-
-### Before you build
-
-`build.validateTarget` checks the platform failures that are statically detectable and that no
-build error ever reports: WebGL clips that will be resampled (AAC padding makes loops jitter),
-`#pragma target 4.5` shaders on a GLES3 target (they become the error shader on device), small
-TextMeshPro text on a mobile SDF shader (grey boxes), emission above ~1.8 under ACES (clips and
-yellows), and build-scene problems. On this project, WebGL: 8 errors and 25 warnings in 307 ms
-against a ~25-minute build.
-
-`scene.mark` / `scene.diff` make an agent's edits reviewable, `scene.validate` finds what is broken
-(missing scripts, dead references, empty material slots), and `ui.layoutReport` finds the UI
-problems that are geometric rather than aesthetic.
-
-### Dry run, cancellation, progress
-
-`dryRun: true` runs the real argument binders, resolves every named target, and states the effect -
-"Deletes 'Crate' and 4 descendant(s)", "Would fail: 'Player' has no Rigidbody" - without applying
-anything. Cancelling a call cancels the *mutation*, not just the wait: the daemon tells the Editor
-to drop the operation, and an operation that has not started does not start. Long calls - one held
-across a domain reload or an auto-restart - report progress.
-
-### The fleet
-
-One daemon, one port, many editors, each identified by a GUID in `ProjectSettings/UnityMCP.json` —
-never by a port number. `unity_projects` opens a project (installing the agent package into its
-manifest first, because Unity resolves the manifest at startup but a running Editor only re-resolves
-on window focus), closes one from inside the Editor, and restarts one — including one that has
-already died.
-
-`unity_projects(open:)` reads the launched process's own command line back out of the OS to prove
-`-projectPath` arrived intact: passed unquoted, a path with spaces reaches Unity as several
-arguments and Unity exits with code 0 without opening anything.
-
-Auto-restart is opt-in per project and bounded to two restarts in ten minutes. Killing an Editor
-does not touch the daemon: there is no parent-PID watchdog anywhere, and an operation issued while
-the Editor is dead is held and replayed when it comes back.
-
-### The skill tree
-
-`unity_skill()` returns a ~400-token map of domains. `unity_skill("material")` returns that domain's
-guidance and schemas — around 1,200 tokens — including caveats for the render pipeline the connected
-project *actually* uses, read from the Editor rather than assumed. A typical task that loads three
-domains costs about 5,000 tokens against a 56,800-token baseline.
-
-Content lives in `src/Umcp.Daemon/Skills/*.md` and is embedded in the binary.
-
-## Running it in earnest
-
-[docs/INSTALL.md](docs/INSTALL.md) is the install guide: the daemon, the Unity package, MCP client
-registration for both transports, a health table, troubleshooting, and how to remove it again.
-
-`scripts/publish.ps1` and `scripts/publish.sh` build the Windows and macOS drops — and refuse to
-build one whose generated catalog differs from its sources, or whose tests or main-thread check
-fail. The app is self-contained by default: its audience has never installed a .NET runtime and
-should not have to.
-
-The daemon itself is `net8.0` and platform-neutral. What used to make it Windows-only — a WinForms
-tray, one WMI call, a token ACL — is either gone (the tray lives in the app) or guarded: the token
-is ACL'd on Windows and 0600 elsewhere, and the command-line readback that proves `-projectPath`
-arrived intact uses WMI on Windows and `ps` on macOS.
-
-Operationally: the daemon binds loopback only and mints a token with an owner-only ACL; the audit
-log rotates; one Editor accepts at most 512 queued operations and then answers `E_BUSY`; every tool
-that takes an asset path refuses one that escapes the project, and a benchmark case probes all of
-them; the Roslyn metadata that makes code mode fast is released after ten idle minutes, taking the
-working set from 223 MB back to 110 MB; and `/health` reports working set, managed heap and
-collections, because a number nobody can see is a leak nobody finds.
-
-## Profiles
-
-`--profile readonly | standard | full`, default `standard`.
-
-| Profile | Allows |
-|---|---|
-| `readonly` | non-mutating tools only |
-| `standard` | mutations, but not arbitrary code or irreversible writes |
-| `full` | everything |
-
-`unity.script`, `assets.delete`, `scene.save`, `scene.create`, `editor.stall` and `editor.quit`
-require `full`.
-This is a second lock: the first is that both listeners bind `127.0.0.1` and every request carries a
-bearer token.
-
-## Benchmarks
-
-```bash
-dotnet run --project src/Umcp.Bench -- --port 8730 --json bench-results/run.json
-```
-
-Every result records the Editor's focus state, because focus alone is worth 3.3× and mixing focused
-and unfocused numbers invalidates the comparison.
+[MIT](LICENSE).
