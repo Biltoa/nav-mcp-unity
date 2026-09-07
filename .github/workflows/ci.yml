@@ -113,7 +113,18 @@ jobs:
           test -f "$app/Contents/Resources/com.umcp.agent/package.json"
           test -f "$app/Contents/Info.plist"
           codesign --verify --verbose "$app"
-          "dist-mac/NAV MCP (x64).app/Contents/Resources/umcpd" --version
+          test -x "dist-mac/NAV MCP (x64).app/Contents/MacOS/NAV MCP"
+          codesign --verify --verbose "dist-mac/NAV MCP (x64).app"
+
+          # Run the binary that matches this runner. macos-latest is Apple Silicon, so executing
+          # the x64 drop here fails on the .NET host's architecture rather than on anything about
+          # this project — the same trap publish.ps1 hit when it asked a cross-built binary for
+          # its version.
+          case "$(uname -m)" in
+            arm64) native="arm64" ;;
+            *)     native="x64" ;;
+          esac
+          "dist-mac/NAV MCP ($native).app/Contents/Resources/umcpd" --version
 
       - uses: actions/upload-artifact@v4
         with:
