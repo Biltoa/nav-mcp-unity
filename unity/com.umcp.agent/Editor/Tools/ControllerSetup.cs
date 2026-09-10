@@ -56,6 +56,7 @@ namespace Umcp.Agent
                     wrote = true;
                 }
 
+                UmcpAgent.NotifyCompileRequested();
                 UnityEditor.Compilation.CompilationPipeline.RequestScriptCompilation();
 
                 return new

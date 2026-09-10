@@ -108,6 +108,7 @@ namespace Umcp.Agent
         {
             // The daemon holds subsequent ops across the reload and replays them, so this is
             // safe to call mid-sequence.
+            UmcpAgent.NotifyCompileRequested();
             CompilationPipeline.RequestScriptCompilation();
             return new { requested = true, epoch = UmcpAgent.Epoch };
         }

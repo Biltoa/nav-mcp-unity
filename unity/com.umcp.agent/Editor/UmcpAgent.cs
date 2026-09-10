@@ -559,6 +559,14 @@ namespace Umcp.Agent
             Send("{\"t\":\"event\",\"kind\":\"compile.begin\",\"epoch\":" + Epoch + "}");
         }
 
+        internal static void NotifyCompileRequested()
+        {
+            // Unity may wait more than a second before compilationStarted fires. The explicit
+            // request is already authoritative, and placing this frame ahead of the tool result
+            // makes status show busy before the caller can poll it.
+            OnCompileStart(null);
+        }
+
         static void OnCompileFinish(object _)
         {
             Send("{\"t\":\"event\",\"kind\":\"compile.end\",\"epoch\":" + Epoch + "}");
