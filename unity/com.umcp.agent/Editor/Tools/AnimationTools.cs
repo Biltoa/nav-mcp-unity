@@ -217,7 +217,8 @@ namespace Umcp.Agent
                 {
                     name = state,
                     blendParameter = parameter,
-                    blendType = ParseBlendType(blendType)
+                    blendType = ParseBlendType(blendType),
+                    useAutomaticThresholds = false
                 };
                 if (!string.IsNullOrEmpty(parameterY)) tree.blendParameterY = parameterY;
 
@@ -269,6 +270,10 @@ namespace Umcp.Agent
                 children.Add(child);
                 // Ordered by threshold: Unity blends between *adjacent* children, so an unsorted
                 // 1D tree blends between the wrong pair and looks like the clips are wrong.
+                // Automatic thresholds silently replace every caller-supplied value with a
+                // normalised 0..1 sequence when the children array is assigned.
+                if (blend.blendType == BlendTreeType.Simple1D)
+                    blend.useAutomaticThresholds = false;
                 blend.children = blend.blendType == BlendTreeType.Simple1D
                     ? children.OrderBy(c => c.threshold).ToArray()
                     : children.ToArray();
