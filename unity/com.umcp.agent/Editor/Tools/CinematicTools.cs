@@ -160,6 +160,11 @@ namespace Umcp.Agent
             [Doc("The virtual camera GameObject")] string target,
             [Doc("New priority; higher wins")] int priority)
         {
+            if (BrainType() == null)
+                throw new UmcpToolException("E_PACKAGE_MISSING",
+                    "Cinemachine is not installed in this project.", null, null, null,
+                    "Install com.unity.cinemachine, or use the Camera component directly.");
+
             var go = Resolve.GameObject(target, "target");
             var camera = go.GetComponents<Component>()
                 .FirstOrDefault(c => c != null && IsVirtualCamera(c.GetType()));
