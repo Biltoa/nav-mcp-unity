@@ -125,10 +125,25 @@ public sealed class Dispatcher
         var timeout = _options.WriteTimeout;
         if (batch["ops"] is JsonArray ops)
         {
-            foreach (var op in ops)
+            for (var index = 0; index < ops.Count; index++)
             {
-                var id = (string?)op?["op"];
-                if (id is null) continue;
+                if (ops[index] is not JsonObject op)
+                    return Task.FromResult(Envelope.Error("E_ARG_TYPE",
+                        $"Batch op {index} must be an object with 'op' and optional 'args'.",
+                        param: $"ops[{index}]", value: ops[index]?.ToJsonString(),
+                        hint: "For example: {\"op\":\"gameobject.create\",\"args\":{\"name\":\"A\"}}"));
+
+                var id = (string?)op["op"];
+                if (string.IsNullOrWhiteSpace(id))
+                    return Task.FromResult(Envelope.Error("E_ARG_REQUIRED",
+                        $"Batch op {index} requires 'op'.", param: $"ops[{index}].op",
+                        hint: "Use the Editor tool id, for example 'gameobject.create'."));
+
+                if (op["args"] is not null and not JsonObject)
+                    return Task.FromResult(Envelope.Error("E_ARG_TYPE",
+                        $"Batch op {index} 'args' must be an object.", param: $"ops[{index}].args",
+                        value: op["args"]?.ToJsonString()));
+
                 if (!ToolCatalog.ById.TryGetValue(id, out var e))
                     return Task.FromResult(Envelope.Error("E_TOOL_NOT_FOUND", $"No tool named '{id}'.",
                         param: "ops", value: id,
