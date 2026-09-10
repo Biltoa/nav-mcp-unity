@@ -205,6 +205,7 @@ namespace Umcp.Agent
         [Example("{ }")]
         public static object ProjectInfo()
         {
+            var packages = UnityEditor.PackageManager.PackageInfo.GetAllRegisteredPackages();
             return new
             {
                 projectId = UmcpSettings.ProjectId,
@@ -213,7 +214,17 @@ namespace Umcp.Agent
                 unityVersion = Application.unityVersion,
                 renderPipeline = AssetTools.PipelineName(),
                 platform = EditorUserBuildSettings.activeBuildTarget.ToString(),
-                scenesInBuild = EditorBuildSettings.scenes.Length
+                scenesInBuild = EditorBuildSettings.scenes.Length,
+                packageCount = packages == null ? 0 : packages.Length,
+                tags = UnityEditorInternal.InternalEditorUtility.tags,
+                layers = UnityEditorInternal.InternalEditorUtility.layers,
+                sortingLayers = SortingLayer.layers.Select(layer => new
+                {
+                    id = layer.id,
+                    name = layer.name,
+                    value = layer.value
+                }).ToArray(),
+                qualityLevels = QualitySettings.names
             };
         }
         // ---------------------------------------------------------------- undo

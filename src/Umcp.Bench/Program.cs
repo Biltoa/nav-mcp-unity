@@ -49,6 +49,7 @@ Console.WriteLine(new string('-', 78));
 var all = new (string name, Func<Task<JsonObject>> run)[]
 {
     ("toolsurface", bench.ToolSurfaceAsync),
+    ("project-metadata", bench.ProjectMetadataAsync),
     ("ping-sequential", () => bench.SequentialAsync(16)),
     ("ping-concurrent-32", () => bench.ConcurrentAsync(32)),
     ("batch-32", () => bench.Batch32Async()),
@@ -204,6 +205,36 @@ sealed partial class Bench(McpClient client)
             ["approxTokens"] = bytes / 4,
             ["target"] = "<1000 tokens",
             ["pass"] = bytes / 4 < 1000
+        };
+    }
+
+    /// <summary>The values required to use tag, layer and project-aware tools without guessing.</summary>
+    public async Task<JsonObject> ProjectMetadataAsync()
+    {
+        var result = await CallAsync("unity_run", new() { ["tool"] = "project.info" });
+        var data = result["data"];
+        var tags = data?["tags"] as JsonArray ?? new JsonArray();
+        var layers = data?["layers"] as JsonArray ?? new JsonArray();
+        var sortingLayers = data?["sortingLayers"] as JsonArray ?? new JsonArray();
+        var qualityLevels = data?["qualityLevels"] as JsonArray ?? new JsonArray();
+        var packageCount = (int?)data?["packageCount"] ?? -1;
+
+        var hasUntagged = tags.Any(value => (string?)value == "Untagged");
+        var hasDefaultLayer = layers.Any(value => (string?)value == "Default");
+        var hasDefaultSortingLayer = sortingLayers.Any(value => (string?)value?["name"] == "Default");
+
+        return new JsonObject
+        {
+            ["packageCount"] = packageCount,
+            ["tags"] = tags.Count,
+            ["layers"] = layers.Count,
+            ["sortingLayers"] = sortingLayers.Count,
+            ["qualityLevels"] = qualityLevels.Count,
+            ["hasUntagged"] = hasUntagged,
+            ["hasDefaultLayer"] = hasDefaultLayer,
+            ["hasDefaultSortingLayer"] = hasDefaultSortingLayer,
+            ["pass"] = (bool?)result["ok"] == true && packageCount > 0 && hasUntagged &&
+                       hasDefaultLayer && hasDefaultSortingLayer && qualityLevels.Count > 0
         };
     }
 
