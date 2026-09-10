@@ -72,7 +72,8 @@ sealed partial class Bench
                     // an object, an asset, an optional package, a prefab instance, a marker from a
                     // previous call. That is a documentation mismatch, not a broken tool, and
                     // conflating the two would make the harness cry wolf on every project.
-                    ["kind"] = code is "E_TARGET_NOT_FOUND" or "E_ASSET_NOT_FOUND" or "E_PACKAGE_MISSING"
+                    ["kind"] = code == "E_PROFILE_DENIED" ? "profile denied"
+                        : code is "E_TARGET_NOT_FOUND" or "E_ASSET_NOT_FOUND" or "E_PACKAGE_MISSING"
                                     or "E_NOT_A_PREFAB_INSTANCE" or "E_MARKER_NOT_FOUND"
                         ? "example does not fit this project"
                         : "tool defect"
@@ -81,6 +82,7 @@ sealed partial class Bench
         }
 
         var defects = failures.Count(f => (string?)f?["kind"] == "tool defect");
+        var profileDenied = failures.Count(f => (string?)f?["kind"] == "profile denied");
         // Coverage is part of the result, not an assumption. The first run of this harness
         // reached 60 of 63 tools, because three of them had been added to the catalog but not to
         // any skill node's tool list — a gap invisible to every other check in the project.
@@ -95,6 +97,7 @@ sealed partial class Bench
             ["skipped"] = skipped,
             ["failures"] = failures,
             ["toolDefects"] = defects,
+            ["profileDenied"] = profileDenied,
             ["seconds"] = Math.Round(sw.Elapsed.TotalSeconds, 1),
             ["slowest"] = new JsonObject { ["tool"] = slowest.Item1, ["ms"] = slowest.Item2 },
             ["pass"] = defects == 0 && ran > 0 && tools.Count == catalogTotal
@@ -314,6 +317,7 @@ sealed partial class Bench
     {
         var probed = new JsonArray();
         var accepted = new JsonArray();
+        var profileDenied = new JsonArray();
         var pathParams = new[] { "path", "folder", "scriptFolder", "to", "source" };
         var escapes = new[] { "../escape/evil.cs", "C:/Windows/System32/evil.cs", "Library/evil.cs" };
 
@@ -357,6 +361,24 @@ sealed partial class Bench
                     var result = await CallAsync("unity_run", call);
                     var code = (string?)result["code"] ?? "";
 
+                    if (code == "E_PROFILE_DENIED")
+                    {
+                        profileDenied.Add(new JsonObject
+                        {
+                            ["tool"] = id,
+                            ["param"] = name,
+                            ["value"] = escape
+                        });
+                        probed.Add(new JsonObject
+                        {
+                            ["tool"] = id,
+                            ["param"] = name,
+                            ["value"] = escape,
+                            ["code"] = code
+                        });
+                        continue;
+                    }
+
                     // A mutating tool is probed through dryRun, which returns ok:true and puts its
                     // verdict in the payload. Reading only `ok` there would call every refusal an
                     // acceptance — which is how the first run of this probe reported 42 false
@@ -392,6 +414,7 @@ sealed partial class Bench
         {
             ["probes"] = probed.Count,
             ["confined"] = confinedCount,
+            ["profileDenied"] = profileDenied,
             ["notConfined"] = accepted,
             ["pass"] = accepted.Count == 0 && probed.Count > 0
         };
