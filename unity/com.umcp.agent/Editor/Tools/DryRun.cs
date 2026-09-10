@@ -178,27 +178,6 @@ namespace Umcp.Agent
                         break;
                     }
 
-                case "scene.session":
-                    {
-                        var action = Actions.Require(Str(args, "action"), "close", "reload");
-                        var sceneName = Str(args, "scene");
-                        var scene = UnityEngine.SceneManagement.SceneManager.GetSceneByName(sceneName);
-                        var discard = args["discard"] != null && args["discard"].Type == JTokenType.Boolean &&
-                                      (bool)args["discard"];
-                        effect = !scene.IsValid()
-                            ? "Would fail: no open scene named '" + sceneName + "'."
-                            : scene.isDirty && !discard
-                                ? "Would refuse: scene '" + scene.name + "' has unsaved changes."
-                                : action == "close" && UnityEngine.SceneManagement.SceneManager.sceneCount <= 1
-                                    ? "Would refuse: '" + scene.name + "' is the only open scene."
-                                    : action == "reload" && string.IsNullOrEmpty(scene.path)
-                                        ? "Would refuse: unsaved scene '" + scene.name + "' has no path to reload."
-                                        : action == "close"
-                                            ? "Closes scene '" + scene.name + "'."
-                                            : "Reloads scene '" + scene.name + "' from '" + scene.path + "'.";
-                        break;
-                    }
-
                 case "material.create":
                     {
                         var path = Str(args, "path");
