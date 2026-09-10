@@ -55,6 +55,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("batch-dependent", bench.BatchDependentAsync),
     ("payload-scene-info", bench.PayloadAsync),
     ("reload-hold-replay", bench.ReloadAsync),
+    ("compile-responsiveness", bench.CompileResponsivenessAsync),
     ("skill-tree", bench.SkillTreeAsync),
     ("scene-query-vs-dump", bench.SceneQueryAsync),
     ("physics-sync", bench.PhysicsSyncAsync),
@@ -376,6 +377,118 @@ sealed partial class Bench(McpClient client)
             ["sequenceMs"] = sw.ElapsedMilliseconds,
             ["errors"] = errors,
             ["pass"] = errors.Count == 0
+        };
+    }
+
+    /// <summary>
+    /// A compile must be visible promptly without making the MCP endpoint wait for the Editor.
+    /// Unity is deliberately left unfocused by the harness: requiring a click to begin or finish
+    /// compilation is a failure, as is dropping the Editor from unity_projects during reload.
+    /// </summary>
+    public async Task<JsonObject> CompileResponsivenessAsync()
+    {
+        var initial = await CallAsync("unity_projects", new());
+        var firstEditor = initial["data"]?["editors"]?[0];
+        var projectId = (string?)firstEditor?["projectId"];
+        var initialEpoch = (int?)firstEditor?["epoch"] ?? -1;
+        if (projectId is null)
+            return new JsonObject { ["error"] = "no connected Editor", ["pass"] = false };
+
+        var compileClock = Stopwatch.StartNew();
+        var compile = await CallAsync("unity_run", new()
+        {
+            ["tool"] = "editor.compile",
+            ["project"] = projectId
+        });
+        var compileRequestMs = compileClock.ElapsedMilliseconds;
+
+        var statusFailures = new JsonArray();
+        var readFailures = new JsonArray();
+        var statusTimes = new List<long>();
+        var readTimes = new List<long>();
+        var missingEditorSamples = 0;
+        var busySamples = 0;
+        long? busyDetectedMs = null;
+        var finalEpoch = initialEpoch;
+        var postReloadSamples = 0;
+        var pollClock = Stopwatch.StartNew();
+
+        while (pollClock.Elapsed < TimeSpan.FromSeconds(30))
+        {
+            var statusClock = Stopwatch.StartNew();
+            var status = await CallAsync("unity_projects", new());
+            statusTimes.Add(statusClock.ElapsedMilliseconds);
+
+            if ((bool?)status["ok"] != true)
+            {
+                statusFailures.Add($"{(string?)status["code"]}: {(string?)status["message"]}");
+            }
+            else
+            {
+                var editors = status["data"]?["editors"] as JsonArray;
+                var editor = editors?.FirstOrDefault(e => (string?)e?["projectId"] == projectId);
+                if (editor is null)
+                {
+                    missingEditorSamples++;
+                }
+                else
+                {
+                    var compiling = (bool?)editor["compiling"] == true;
+                    var reloading = (bool?)editor["reloading"] == true ||
+                                    (string?)editor["health"] == "reloading";
+                    if (compiling || reloading)
+                    {
+                        busySamples++;
+                        busyDetectedMs ??= compileClock.ElapsedMilliseconds;
+                    }
+
+                    finalEpoch = (int?)editor["epoch"] ?? finalEpoch;
+                    if (finalEpoch > initialEpoch && !compiling && !reloading)
+                        postReloadSamples++;
+                }
+            }
+
+            var readClock = Stopwatch.StartNew();
+            var read = await CallAsync("unity_run", new()
+            {
+                ["tool"] = "scene.count",
+                ["project"] = projectId,
+                ["args"] = new JsonObject { ["select"] = "//*" }
+            });
+            readTimes.Add(readClock.ElapsedMilliseconds);
+            if ((bool?)read["ok"] != true)
+                readFailures.Add($"{(string?)read["code"]}: {(string?)read["message"]}");
+
+            if (postReloadSamples >= 3) break;
+            await Task.Delay(75);
+        }
+
+        var reloaded = finalEpoch > initialEpoch;
+        return new JsonObject
+        {
+            ["compileRequestMs"] = compileRequestMs,
+            ["busyDetectedMs"] = busyDetectedMs,
+            ["busySamples"] = busySamples,
+            ["missingEditorSamples"] = missingEditorSamples,
+            ["statusCalls"] = statusTimes.Count,
+            ["statusFailures"] = statusFailures.Count,
+            ["statusMaxMs"] = statusTimes.Count == 0 ? -1 : statusTimes.Max(),
+            ["readCalls"] = readTimes.Count,
+            ["readFailures"] = readFailures.Count,
+            ["readMaxMs"] = readTimes.Count == 0 ? -1 : readTimes.Max(),
+            ["initialEpoch"] = initialEpoch,
+            ["finalEpoch"] = finalEpoch,
+            ["focusRequired"] = !reloaded,
+            ["failures"] = new JsonObject
+            {
+                ["status"] = statusFailures,
+                ["reads"] = readFailures
+            },
+            ["target"] = "busy visible within 1000ms; no missing row or failed/stalled reads; reload without focus",
+            ["pass"] = (bool?)compile["ok"] == true && busyDetectedMs <= 1000 &&
+                       missingEditorSamples == 0 && statusFailures.Count == 0 &&
+                       readFailures.Count == 0 && statusTimes.Max() < 1000 &&
+                       readTimes.Max() < 1000 && reloaded
         };
     }
 

@@ -13,6 +13,7 @@ namespace Umcp.Daemon.Agent;
 public sealed class EditorRegistry
 {
     readonly ConcurrentDictionary<string, AgentSession> _byProject = new(StringComparer.OrdinalIgnoreCase);
+    readonly ConcurrentDictionary<string, AgentSession> _recentReloads = new(StringComparer.OrdinalIgnoreCase);
     readonly ConcurrentDictionary<AgentSession, byte> _pending = new();
     readonly ConcurrentDictionary<string, List<TaskCompletionSource<AgentSession>>> _waiters = new(StringComparer.OrdinalIgnoreCase);
     readonly object _waiterLock = new();
@@ -32,6 +33,28 @@ public sealed class EditorRegistry
 
     public IReadOnlyCollection<AgentSession> Sessions => _byProject.Values.ToArray();
 
+    /// <summary>
+    /// Live sessions plus the short-lived disconnected session left by a domain reload. Keeping
+    /// that last snapshot makes status continuous while dispatch independently waits for the new
+    /// AppDomain to connect. It is bounded to one entry per project and expires automatically.
+    /// </summary>
+    public IReadOnlyCollection<AgentSession> StatusSessions
+    {
+        get
+        {
+            // Match the default compile timeout: status must not disappear while dispatch is
+            // still legitimately holding work for an unusually long Unity compile.
+            const long maxReloadAgeMs = 300_000;
+            foreach (var (id, session) in _recentReloads)
+                if (session.MsSinceLastResponse >= maxReloadAgeMs)
+                    _recentReloads.TryRemove(new KeyValuePair<string, AgentSession>(id, session));
+
+            var live = _byProject.Values.ToArray();
+            var liveIds = live.Select(s => s.ProjectId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return live.Concat(_recentReloads.Values.Where(s => !liveIds.Contains(s.ProjectId))).ToArray();
+        }
+    }
+
     public void Add(AgentSession session)
     {
         _pending[session] = 0;
@@ -45,6 +68,7 @@ public sealed class EditorRegistry
     {
         if (string.IsNullOrEmpty(s.ProjectId)) return;
         _pending.TryRemove(s, out _);
+        _recentReloads.TryRemove(s.ProjectId, out _);
 
         if (_byProject.TryGetValue(s.ProjectId, out var existing) && existing != s)
         {
@@ -74,6 +98,7 @@ public sealed class EditorRegistry
         if (!string.IsNullOrEmpty(s.ProjectId) && _byProject.TryGetValue(s.ProjectId, out var cur) && cur == s)
         {
             _byProject.TryRemove(s.ProjectId, out _);
+            if (s.Reloading) _recentReloads[s.ProjectId] = s;
             _log.LogInformation("editor disconnected: {Project} ({ProjectId}){Reloading}",
                 s.ProjectName, s.ProjectId, s.Reloading ? " — domain reload, holding ops" : "");
         }

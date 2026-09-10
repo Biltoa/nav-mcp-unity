@@ -234,7 +234,7 @@ public sealed class UnityMcpTools
     // ------------------------------------------------------------------ editors and health
 
     [McpServerTool(Name = "unity_projects")]
-    [Description("Editors, their health, and the fleet: open, close, restart, set the default. Health is the last completed round trip: \"blocked\" means a modal has wedged the Editor and a human must dismiss it.")]
+    [Description("Editors, compile/reload state, health, and the fleet: open, close, restart, set the default. Reads remain available during reload; writes wait. Health is the last completed round trip: \"blocked\" means a modal has wedged the Editor and a human must dismiss it.")]
     public async Task<string> ProjectsAsync(
         [Description("Make this project the default target")] string? use = null,
         [Description("Check the mirror against the live hierarchy and repair drift")] bool reconcile = false,
@@ -287,7 +287,7 @@ public sealed class UnityMcpTools
         }
 
         var editors = new JsonArray();
-        foreach (var s in _registry.Sessions)
+        foreach (var s in _registry.StatusSessions)
         {
             var probe = await s.ProbeControlAsync(ct: ct).ConfigureAwait(false);
             var tickAge = (long?)probe?["msSinceTick"];
@@ -302,6 +302,10 @@ public sealed class UnityMcpTools
                 ["epoch"] = s.Epoch,
                 ["isDefault"] = s.ProjectId == _registry.DefaultProjectId,
                 ["health"] = Health(s, tickAge),
+                ["connected"] = s.Alive,
+                ["compiling"] = s.Compiling,
+                ["reloading"] = s.Reloading,
+                ["inFlight"] = s.InFlight,
                 ["msSinceTick"] = tickAge,
                 ["lastRoundTripMs"] = s.LastRoundTripMs,
                 ["opsCompleted"] = s.OpsCompleted,
@@ -342,8 +346,8 @@ public sealed class UnityMcpTools
 
     string Health(AgentSession s, long? tickAge)
     {
-        if (!s.Alive) return "gone";
         if (s.Reloading) return "reloading";
+        if (!s.Alive) return "gone";
         if (tickAge is null) return s.MsSinceLastResponse < 5000 ? "ok" : "unknown";
         if (tickAge >= _options.BlockedTickAge.TotalMilliseconds) return "blocked";
         if (tickAge >= 5000) return "degraded";

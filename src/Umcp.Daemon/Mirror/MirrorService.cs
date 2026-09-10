@@ -49,9 +49,10 @@ public sealed class MirrorService
 
     public void OnHandshake(AgentSession session)
     {
-        // A reload gives every object a new instance id, so the old model is not stale, it is
-        // wrong. Throw it away and re-seed.
-        For(session.ProjectId).Invalidate("handshake");
+        // A reload gives every object a new instance id, but clearing the old snapshot here makes
+        // reads fall through to the just-reconnected Editor while the replacement is built. Keep
+        // serving the old epoch as explicitly stale, then replace it atomically in Seed().
+        For(session.ProjectId);
         _ = SeedAsync(session, CancellationToken.None);
     }
 
@@ -68,7 +69,9 @@ public sealed class MirrorService
             return;
         }
 
-        if (!mirror.Seeded) return;    // deltas before the seed would build a partial model
+        // Deltas from a new AppDomain cannot be applied to instance ids from the old one. Keep
+        // serving the old snapshot until the new epoch's full seed is ready.
+        if (!mirror.Seeded || mirror.Epoch != session.Epoch) return;
         mirror.Apply(message);
     }
 
@@ -324,6 +327,11 @@ public sealed class MirrorService
         {
             meta["stale"] = true;
             meta["reason"] = "editor is reloading; answered from the last known state";
+        }
+        else if (session.Epoch != mirror.Epoch)
+        {
+            meta["stale"] = true;
+            meta["reason"] = "mirror is re-seeding after reload; answered from the last known state";
         }
 
         return meta;

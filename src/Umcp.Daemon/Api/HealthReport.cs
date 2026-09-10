@@ -20,14 +20,15 @@ public static class HealthReport
     public static async Task<JsonObject> BuildAsync(EditorRegistry registry, DaemonOptions opts)
     {
         var editors = new JsonArray();
-        foreach (var s in registry.Sessions)
+        foreach (var s in registry.StatusSessions)
         {
             var o = s.StatusJson();
             var probe = await s.ProbeControlAsync();
             var tickAge = (long?)probe?["msSinceTick"];
             o["msSinceTick"] = tickAge;
-            o["health"] = tickAge is null
-                ? (s.MsSinceLastResponse < 5000 ? "ok" : "unknown")
+            o["health"] = s.Reloading ? "reloading"
+                : !s.Alive ? "gone"
+                : tickAge is null ? (s.MsSinceLastResponse < 5000 ? "ok" : "unknown")
                 : tickAge >= opts.BlockedTickAge.TotalMilliseconds ? "blocked"
                 : tickAge >= 5000 ? "degraded" : "ok";
 
