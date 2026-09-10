@@ -39,7 +39,8 @@ namespace Umcp.Agent
             [Doc("Condition: Bool parameter equals this, or Trigger when true")] bool? equals = null,
             [Doc("Transition duration in seconds (default 0.25)")] float duration = 0.25f)
         {
-            var verb = (action ?? "").ToLowerInvariant();
+            var verb = Actions.Require(action,
+                "info", "create", "addState", "addParameter", "addTransition", "setDefault");
             var assetPath = Resolve.AssetPath(path, "path");
 
             if (verb == "create")

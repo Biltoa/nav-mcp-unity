@@ -41,7 +41,7 @@ namespace Umcp.Agent
             [Doc("Event or sample time in seconds")] float time = 0f,
             [Doc("String argument for the event")] string stringArgument = null)
         {
-            var verb = (action ?? "").ToLowerInvariant();
+            var verb = Actions.Require(action, "info", "create", "setCurve", "addEvent", "sample");
             var assetPath = Resolve.AssetPath(path, "path");
 
             if (verb == "create")
@@ -185,7 +185,7 @@ namespace Umcp.Agent
             [Doc("Threshold for a 1D tree")] float threshold = 0f,
             [Doc("Position for a 2D tree, [x, y]")] float[] position = null)
         {
-            var verb = (action ?? "").ToLowerInvariant();
+            var verb = Actions.Require(action, "info", "create", "addMotion");
             var assetPath = Resolve.AssetPath(path, "path");
             var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(assetPath);
             if (controller == null)
@@ -298,7 +298,7 @@ namespace Umcp.Agent
             [Doc("Additive blending instead of Override")] bool additive = false,
             [Doc("Avatar mask asset path, for setMask")] string mask = null)
         {
-            var verb = (action ?? "").ToLowerInvariant();
+            var verb = Actions.Require(action, "list", "add", "setWeight", "setMask");
             var assetPath = Resolve.AssetPath(path, "path");
             var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(assetPath);
             if (controller == null)

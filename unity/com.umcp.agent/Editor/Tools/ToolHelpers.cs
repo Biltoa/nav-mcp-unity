@@ -2,6 +2,21 @@ using UnityEngine;
 
 namespace Umcp.Agent
 {
+    /// <summary>Action discriminators fail before any target lookup or mutation.</summary>
+    internal static class Actions
+    {
+        public static string Require(string action, params string[] allowed)
+        {
+            var value = action ?? "";
+            foreach (var candidate in allowed)
+                if (string.Equals(value, candidate, System.StringComparison.OrdinalIgnoreCase))
+                    return candidate.ToLowerInvariant();
+
+            throw new UmcpToolException("E_ARG_VALUE", "Unknown action '" + action + "'.",
+                "action", action, allowed, null);
+        }
+    }
+
     /// <summary>Vector marshalling. Arrays in, arrays out — never "1,2,3" strings.</summary>
     internal static class Vec
     {
