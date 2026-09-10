@@ -289,7 +289,12 @@ public sealed class UnityMcpTools
         var editors = new JsonArray();
         foreach (var s in _registry.StatusSessions)
         {
-            var probe = await s.ProbeControlAsync(ct: ct).ConfigureAwait(false);
+            // A retained reload snapshot is deliberately disconnected and its old control
+            // listener is already gone. Probing it can spend the full two-second connect timeout
+            // to rediscover what Reloading/Alive already tell us.
+            var probe = s.Alive && !s.Reloading
+                ? await s.ProbeControlAsync(ct: ct).ConfigureAwait(false)
+                : null;
             var tickAge = (long?)probe?["msSinceTick"];
 
             var o = new JsonObject

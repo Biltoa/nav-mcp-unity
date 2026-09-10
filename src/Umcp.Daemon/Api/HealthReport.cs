@@ -23,7 +23,7 @@ public static class HealthReport
         foreach (var s in registry.StatusSessions)
         {
             var o = s.StatusJson();
-            var probe = await s.ProbeControlAsync();
+            var probe = s.Alive && !s.Reloading ? await s.ProbeControlAsync() : null;
             var tickAge = (long?)probe?["msSinceTick"];
             o["msSinceTick"] = tickAge;
             o["health"] = s.Reloading ? "reloading"
