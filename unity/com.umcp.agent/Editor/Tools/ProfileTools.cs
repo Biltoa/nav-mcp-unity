@@ -149,6 +149,7 @@ namespace Umcp.Agent
             [Doc("Group name, for action:entries")] string group = null,
             [Doc("Maximum entries (default 100)")] int limit = 100)
         {
+            var verb = Actions.Require(action, "status", "groups", "entries");
             var settingsType = FindType("UnityEditor.AddressableAssets.AddressableAssetSettingsDefaultObject");
             if (settingsType == null)
                 throw new UmcpToolException("E_PACKAGE_MISSING",
@@ -167,8 +168,6 @@ namespace Umcp.Agent
             var groupList = groups == null ? new List<object>() : groups.Cast<object>().Where(g => g != null).ToList();
 
             int cap = Bounds.Limit(limit);
-            var verb = (action ?? "status").ToLowerInvariant();
-
             if (verb == "status")
                 return new
                 {

@@ -30,8 +30,8 @@ namespace Umcp.Agent
             [Doc("Property paths to act on. Omit for all of them.")] string[] properties = null,
             [Doc("Maximum entries returned (default 100)")] int limit = 100)
         {
+            var verb = Actions.Require(action, "list", "apply", "revert");
             var go = Resolve.GameObject(target, "target");
-            var verb = (action ?? "list").ToLowerInvariant();
             int cap = Bounds.Limit(limit);
 
             if (!PrefabUtility.IsPartOfPrefabInstance(go))
