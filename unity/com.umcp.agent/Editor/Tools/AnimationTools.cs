@@ -75,7 +75,7 @@ namespace Umcp.Agent
                     "path", assetPath,
                     AssetDatabase.FindAssets("t:AnimationClip").Take(5)
                         .Select(AssetDatabase.GUIDToAssetPath).ToArray(),
-                    "assets.list with type AnimationClip lists what exists.");
+                    "assets.find with filter \"t:AnimationClip\" lists what exists.");
 
             switch (verb)
             {
