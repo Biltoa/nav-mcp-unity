@@ -41,9 +41,13 @@ public static class WindowInspector
             if (string.IsNullOrWhiteSpace(text)) return true;
 
             var className = cls.ToString();
-            // Unity's own top-level editor window is "UnityContainerWndClass"; modal dialogs are
-            // either the Win32 "#32770" dialog class or an owned Unity popup.
-            var isDialog = className == "#32770" || GetWindow(hWnd, GW_OWNER) != IntPtr.Zero;
+            // Unity uses owned top-level windows for ordinary tools too (Package Manager, TMP
+            // Importer, etc.). Ownership alone therefore does not imply modality. A native
+            // Win32 dialog is explicit; a Unity-owned window is blocking only when Windows says
+            // its owner has been disabled by the modal loop.
+            var ownerWindow = GetWindow(hWnd, GW_OWNER);
+            var isDialog = LooksBlocking(className, ownerWindow != IntPtr.Zero,
+                ownerWindow == IntPtr.Zero || IsWindowEnabled(ownerWindow));
             // Only dialog-like windows are reported. Naming Unity's own main window as the
             // blocking dialog would be a confident wrong answer, which is worse than none.
             if (isDialog) titles.Add((text, true));
@@ -53,6 +57,10 @@ public static class WindowInspector
         return titles.OrderByDescending(t => t.likelyDialog).Select(t => t.title).ToArray();
     }
 
+    /// <summary>Pure classifier kept public so the no-false-dialog contract is unit tested.</summary>
+    public static bool LooksBlocking(string className, bool hasOwner, bool ownerEnabled) =>
+        className == "#32770" || hasOwner && !ownerEnabled;
+
     const uint GW_OWNER = 4;
 
     delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
@@ -60,6 +68,7 @@ public static class WindowInspector
     [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll")] static extern bool IsWindowEnabled(IntPtr hWnd);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
     [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
