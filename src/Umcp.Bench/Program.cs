@@ -57,6 +57,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("reload-hold-replay", bench.ReloadAsync),
     ("skill-tree", bench.SkillTreeAsync),
     ("scene-query-vs-dump", bench.SceneQueryAsync),
+    ("physics-sync", bench.PhysicsSyncAsync),
     ("code-mode", bench.CodeModeAsync),
     ("mirror-latency", bench.MirrorLatencyAsync),
     ("mirror-reconcile", bench.MirrorReconcileAsync),

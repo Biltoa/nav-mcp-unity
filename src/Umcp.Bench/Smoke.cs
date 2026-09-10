@@ -156,6 +156,71 @@ sealed partial class Bench
         };
     }
 
+    /// <summary>Edit-mode physics queries must observe transform changes made by earlier tools.</summary>
+    public async Task<JsonObject> PhysicsSyncAsync()
+    {
+        Task<JsonObject> RunTool(string tool, JsonObject args) => CallAsync("unity_run", new()
+        {
+            ["tool"] = tool,
+            ["args"] = args
+        });
+
+        var name = Prefix + "physics_sync_" + DateTime.Now.ToString("HHmmssfff");
+        const float oldX = 12345f;
+        const float newX = 12349f;
+
+        await RunTool("gameobject.create", new()
+        {
+            ["name"] = name,
+            ["primitive"] = "Cube",
+            ["position"] = new JsonArray(oldX, 0, 0)
+        });
+
+        try
+        {
+            await RunTool("transform.set", new()
+            {
+                ["target"] = name,
+                ["position"] = new JsonArray(newX, 0, 0),
+                ["space"] = "world"
+            });
+
+            var oldRay = await RunTool("physics.raycast", new()
+            {
+                ["origin"] = new JsonArray(oldX, 10, 0),
+                ["direction"] = new JsonArray(0, -1, 0),
+                ["maxDistance"] = 20,
+                ["all"] = true
+            });
+            var newRay = await RunTool("physics.raycast", new()
+            {
+                ["origin"] = new JsonArray(newX, 10, 0),
+                ["direction"] = new JsonArray(0, -1, 0),
+                ["maxDistance"] = 20,
+                ["all"] = true
+            });
+
+            var oldPaths = (oldRay["data"]?["hits"] as JsonArray ?? new JsonArray())
+                .Select(h => (string?)h?["path"]).Where(p => p is not null).ToArray();
+            var newPaths = (newRay["data"]?["hits"] as JsonArray ?? new JsonArray())
+                .Select(h => (string?)h?["path"]).Where(p => p is not null).ToArray();
+            var stale = oldPaths.Contains(name);
+            var current = newPaths.Contains(name);
+
+            return new JsonObject
+            {
+                ["object"] = name,
+                ["reportedAtOldPose"] = stale,
+                ["reportedAtNewPose"] = current,
+                ["pass"] = !stale && current
+            };
+        }
+        finally
+        {
+            await RunTool("gameobject.delete", new() { ["target"] = name });
+        }
+    }
+
     /// <summary>Every tool id, whether it mutates, and its first documented example.</summary>
     async Task<(List<(string Id, bool Mutating, JsonObject? Example)> Tools, int CatalogTotal)> CatalogAsync()
     {

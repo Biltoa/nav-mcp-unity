@@ -85,6 +85,7 @@ namespace Umcp.Agent
             // Physics queries read the *scene's* colliders, which exist in edit mode. Nothing here
             // simulates, and nothing enters Play mode: an Editor that has to be running to answer a
             // question is not answering a question, it is changing the state you asked about.
+            Physics.SyncTransforms();
             if (!all)
             {
                 RaycastHit hit;
@@ -115,6 +116,7 @@ namespace Umcp.Agent
             var c = Vec.V3(center, "center");
             Collider[] found;
 
+            Physics.SyncTransforms();
             if (halfExtents != null) found = Physics.OverlapBox(c, Vec.V3(halfExtents, "halfExtents"));
             else if (radius > 0f) found = Physics.OverlapSphere(c, radius);
             else throw new UmcpToolException("E_ARG_REQUIRED",
