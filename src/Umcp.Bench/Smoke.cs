@@ -101,6 +101,61 @@ sealed partial class Bench
         };
     }
 
+    /// <summary>
+    /// Every documented action discriminator must reject an unknown action with a caller-facing
+    /// error. Calling the real tool matters here: dry-run intentionally predicts mutations
+    /// without entering the action switch, which would hide exactly the contract this probes.
+    /// </summary>
+    public async Task<JsonObject> ActionContractsAsync()
+    {
+        var (tools, _) = await CatalogAsync();
+        var failures = new JsonArray();
+        var results = new JsonArray();
+
+        var before = await CountAsync(null, "//*");
+        foreach (var (id, _, example) in tools)
+        {
+            if (example?["action"] is null) continue;
+
+            var args = (JsonObject)example.DeepClone();
+            args["action"] = "__invalid_action__";
+            var result = await CallAsync("unity_run", new JsonObject
+            {
+                ["tool"] = id,
+                ["args"] = args
+            });
+
+            var suggestions = result["didYouMean"] as JsonArray;
+            var row = new JsonObject
+            {
+                ["tool"] = id,
+                ["ok"] = result["ok"]?.DeepClone(),
+                ["code"] = result["code"]?.DeepClone(),
+                ["param"] = result["param"]?.DeepClone(),
+                ["message"] = result["message"]?.DeepClone(),
+                ["suggestions"] = suggestions?.Count ?? 0
+            };
+            results.Add(row);
+
+            var code = (string?)result["code"];
+            if ((bool?)result["ok"] != false || code is not ("E_ARG_VALUE" or "E_BAD_ARG") ||
+                (string?)result["param"] != "action" || suggestions is not { Count: > 0 })
+                failures.Add(row.DeepClone());
+        }
+
+        var after = await CountAsync(null, "//*");
+        return new JsonObject
+        {
+            ["probed"] = results.Count,
+            ["failures"] = failures,
+            ["sceneObjectsBefore"] = before,
+            ["sceneObjectsAfter"] = after,
+            ["changedNothing"] = before == after,
+            ["results"] = results,
+            ["pass"] = results.Count > 0 && failures.Count == 0 && before == after
+        };
+    }
+
     /// <summary>Every tool id, whether it mutates, and its first documented example.</summary>
     async Task<(List<(string Id, bool Mutating, JsonObject? Example)> Tools, int CatalogTotal)> CatalogAsync()
     {

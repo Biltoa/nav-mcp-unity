@@ -80,6 +80,7 @@ if (smoke)
     all = new (string name, Func<Task<JsonObject>> run)[]
     {
         ("smoke-catalog", bench.SmokeAsync),
+        ("action-contracts", bench.ActionContractsAsync),
         ("cleanup", bench.CleanupAsync)
     };
 }
