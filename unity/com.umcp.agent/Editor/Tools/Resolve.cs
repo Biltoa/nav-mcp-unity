@@ -32,7 +32,7 @@ namespace Umcp.Agent
                 "No GameObject matched '" + target + "'.",
                 paramName, target,
                 Suggest.Closest(target, names, 3),
-                "Names are case-sensitive. Use scene.find to enumerate, or pass '#<instanceId>'.");
+                "Names are case-sensitive. Use gameobject.find to enumerate, or pass '#<instanceId>'.");
         }
 
         public static GameObject TryGameObject(string target)
