@@ -36,14 +36,13 @@ namespace Umcp.Agent
             [Doc("Pivot [x, y], 0..1")] float[] pivot = null,
             [Doc("Stretch margins [left, top, right, bottom]")] float[] margin = null)
         {
+            var verb = Actions.Require(action, "info", "set", "anchor", "stretch");
             var go = Resolve.GameObject(target, "target");
             var rect = go.GetComponent<RectTransform>();
             if (rect == null)
                 throw new UmcpToolException("E_NOT_A_RECT", "'" + go.name + "' has no RectTransform, so it is not a UI element.",
                     "target", target, null,
                     "UI objects live under a Canvas. gameobject.create with a parent under one, or setup.uiScreen for a whole screen.");
-
-            var verb = (action ?? "").ToLowerInvariant();
 
             if (verb == "info")
                 return Describe(rect);
@@ -119,8 +118,9 @@ namespace Umcp.Agent
             [Doc("LayoutElement preferred size [width, height]; -1 leaves an axis alone")] float[] preferred = null,
             [Doc("LayoutElement flexible weight [horizontal, vertical]")] float[] flexible = null)
         {
+            var verb = Actions.Require(action,
+                "info", "horizontal", "vertical", "grid", "fit", "element", "remove");
             var go = Resolve.GameObject(target, "target");
-            var verb = (action ?? "").ToLowerInvariant();
 
             if (verb == "info") return LayoutInfo(go);
 
@@ -225,6 +225,7 @@ namespace Umcp.Agent
             [Doc("Wrap long lines")] bool? wrap = null,
             [Doc("Shrink text to fit its rect")] bool? autoSize = null)
         {
+            var verb = Actions.Require(action, "info", "set");
             var go = Resolve.GameObject(target, "target");
             var component = FindText(go);
             if (component == null)
@@ -236,7 +237,7 @@ namespace Umcp.Agent
 
             var tmp = component.GetType().FullName.StartsWith("TMPro.");
 
-            if ((action ?? "").ToLowerInvariant() == "info") return TextInfo(component, tmp);
+            if (verb == "info") return TextInfo(component, tmp);
 
             Undo.RecordObject(component, "Set UI text");
 
