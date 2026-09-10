@@ -105,6 +105,7 @@ namespace Umcp.Agent
             [Doc("Scene asset path")] string path,
             [Doc("\"single\" replaces open scenes, \"additive\" adds")] string mode = "single")
         {
+            mode = Values.Require("mode", mode, "single", "additive");
             var p = Resolve.AssetPath(path);
             if (AssetDatabase.LoadAssetAtPath<SceneAsset>(p) == null)
                 throw new UmcpToolException("E_ASSET_NOT_FOUND", "No scene asset at '" + p + "'.", "path", path);
@@ -151,6 +152,8 @@ namespace Umcp.Agent
             [Doc("\"empty\" or \"defaultGameObjects\"")] string setup = "defaultGameObjects",
             [Doc("\"single\" replaces open scenes, \"additive\" adds")] string mode = "additive")
         {
+            setup = Values.Require("setup", setup, "empty", "defaultGameObjects");
+            mode = Values.Require("mode", mode, "single", "additive");
             var p = Resolve.AssetPath(path);
             var s = EditorSceneManager.NewScene(
                 setup == "empty" ? NewSceneSetup.EmptyScene : NewSceneSetup.DefaultGameObjects,

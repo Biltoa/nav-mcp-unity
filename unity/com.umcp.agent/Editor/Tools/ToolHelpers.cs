@@ -17,6 +17,21 @@ namespace Umcp.Agent
         }
     }
 
+    /// <summary>Closed string values fail before lookup or mutation, just like actions.</summary>
+    internal static class Values
+    {
+        public static string Require(string param, string value, params string[] allowed)
+        {
+            var actual = value ?? "";
+            foreach (var candidate in allowed)
+                if (string.Equals(actual, candidate, System.StringComparison.OrdinalIgnoreCase))
+                    return candidate;
+
+            throw new UmcpToolException("E_ARG_VALUE", "Unknown " + param + " '" + value + "'.",
+                param, value, allowed, null);
+        }
+    }
+
     /// <summary>Vector marshalling. Arrays in, arrays out — never "1,2,3" strings.</summary>
     internal static class Vec
     {
