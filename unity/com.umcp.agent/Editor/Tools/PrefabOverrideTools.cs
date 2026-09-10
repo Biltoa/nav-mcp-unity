@@ -106,9 +106,15 @@ namespace Umcp.Agent
         static string[] PropertyNames(UnityEngine.Object instanceObject, int cap)
         {
             if (instanceObject == null) return new string[0];
-            var mods = PrefabUtility.GetPropertyModifications(instanceObject);
-            if (mods == null) return new string[0];
-            return mods.Select(m => m.propertyPath).Distinct().Take(cap).ToArray();
+            var names = new List<string>();
+            using (var so = new SerializedObject(instanceObject))
+            {
+                var property = so.GetIterator();
+                while (property.Next(true))
+                    if (property.prefabOverride && !names.Contains(property.propertyPath))
+                        names.Add(property.propertyPath);
+            }
+            return names.Take(cap).ToArray();
         }
 
         static object Apply(GameObject root, string assetPath, string[] properties, int cap)
@@ -123,16 +129,7 @@ namespace Umcp.Agent
                 return new { applied = "all", instance = Resolve.Path(root.transform), asset = assetPath };
             }
 
-            var applied = new List<string>();
-            var so = new SerializedObject(root);
-            foreach (var path in properties.Take(cap))
-            {
-                var property = so.FindProperty(path);
-                if (property == null) continue;
-                PrefabUtility.ApplyPropertyOverride(property, assetPath, InteractionMode.AutomatedAction);
-                applied.Add(path);
-            }
-            so.Dispose();
+            var applied = ActOnProperties(root, assetPath, properties, cap, true);
 
             if (applied.Count == 0)
                 throw new UmcpToolException("E_PROPERTY_NOT_FOUND",
@@ -151,16 +148,7 @@ namespace Umcp.Agent
                 return new { reverted = "all", instance = Resolve.Path(root.transform), asset = assetPath };
             }
 
-            var reverted = new List<string>();
-            var so = new SerializedObject(root);
-            foreach (var path in properties.Take(cap))
-            {
-                var property = so.FindProperty(path);
-                if (property == null) continue;
-                PrefabUtility.RevertPropertyOverride(property, InteractionMode.AutomatedAction);
-                reverted.Add(path);
-            }
-            so.Dispose();
+            var reverted = ActOnProperties(root, assetPath, properties, cap, false);
 
             if (reverted.Count == 0)
                 throw new UmcpToolException("E_PROPERTY_NOT_FOUND",
@@ -169,6 +157,39 @@ namespace Umcp.Agent
                     "Call this tool with action:\"list\" to see the override paths verbatim.");
 
             return new { reverted = reverted.ToArray(), instance = Resolve.Path(root.transform), asset = assetPath };
+        }
+
+        static List<string> ActOnProperties(
+            GameObject root, string assetPath, string[] properties, int cap, bool apply)
+        {
+            var requested = properties.Take(cap).ToArray();
+            var changed = new List<string>();
+            var targets = PrefabUtility.GetObjectOverrides(root, true)
+                .Select(o => o.instanceObject)
+                .Where(o => o != null)
+                .ToArray();
+
+            foreach (var target in targets)
+            {
+                using (var so = new SerializedObject(target))
+                {
+                    foreach (var path in requested)
+                    {
+                        var property = so.FindProperty(path);
+                        if (property == null || !property.prefabOverride) continue;
+
+                        if (apply)
+                            PrefabUtility.ApplyPropertyOverride(
+                                property, assetPath, InteractionMode.AutomatedAction);
+                        else
+                            PrefabUtility.RevertPropertyOverride(
+                                property, InteractionMode.AutomatedAction);
+
+                        if (!changed.Contains(path)) changed.Add(path);
+                    }
+                }
+            }
+            return changed;
         }
 
         static object Describe(UnityEngine.Object o)
