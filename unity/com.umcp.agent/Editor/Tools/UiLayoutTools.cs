@@ -154,12 +154,15 @@ namespace Umcp.Agent
                     Set(group, "spacing", spacing);
                     Set(group, "childAlignment", ParseEnum(group, "childAlignment", alignment));
                     Set(group, "padding", MakePadding(padding));
-                    // Control *and* expand: a layout group that controls size but does not expand
-                    // leaves children at zero width, which reads as "the buttons vanished".
-                    Set(group, "childControlWidth", true);
-                    Set(group, "childControlHeight", true);
-                    Set(group, "childForceExpandWidth", verb == "horizontal" && expand);
-                    Set(group, "childForceExpandHeight", verb == "vertical" && expand);
+                    // Fill the cross axis, as a row/column normally does. On the main axis,
+                    // expand means share the available space; otherwise preserve each rect's
+                    // authored size. Controlling a zero-preferred Image on both axes makes the
+                    // button or panel vanish even though setup.uiScreen created it as 400x80.
+                    var horizontalGroup = verb == "horizontal";
+                    Set(group, "childControlWidth", horizontalGroup ? expand : true);
+                    Set(group, "childControlHeight", horizontalGroup ? true : expand);
+                    Set(group, "childForceExpandWidth", horizontalGroup ? expand : true);
+                    Set(group, "childForceExpandHeight", horizontalGroup ? true : expand);
                     break;
                 }
 
