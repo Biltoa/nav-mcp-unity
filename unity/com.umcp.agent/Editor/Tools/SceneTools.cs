@@ -155,10 +155,21 @@ namespace Umcp.Agent
             setup = Values.Require("setup", setup, "empty", "defaultGameObjects");
             mode = Values.Require("mode", mode, "single", "additive");
             var p = Resolve.AssetPath(path);
+            var slash = p.LastIndexOf('/');
+            if (slash > 0)
+            {
+                var folder = p.Substring(0, slash);
+                if (!AssetDatabase.IsValidFolder(folder)) AssetTools.CreateFolder(folder);
+            }
             var s = EditorSceneManager.NewScene(
                 setup == "empty" ? NewSceneSetup.EmptyScene : NewSceneSetup.DefaultGameObjects,
                 mode == "single" ? NewSceneMode.Single : NewSceneMode.Additive);
-            EditorSceneManager.SaveScene(s, p);
+            if (!EditorSceneManager.SaveScene(s, p))
+            {
+                EditorSceneManager.CloseScene(s, true);
+                throw new UmcpToolException("E_SCENE_SAVE_FAILED",
+                    "Unity could not save the new scene to '" + p + "'.", "path", path);
+            }
             return new { name = s.name, path = s.path };
         }
 
