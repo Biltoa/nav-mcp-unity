@@ -21,15 +21,16 @@ namespace Umcp.Agent
         public static object Settings([Doc("Include the full 32x32 layer collision matrix")] bool layerMatrix = false)
         {
             var ignored = new System.Collections.Generic.List<object>();
+            var ignored2D = new System.Collections.Generic.List<object>();
             if (layerMatrix)
                 for (int a = 0; a < 32; a++)
                     for (int b = a; b < 32; b++)
                     {
-                        if (!Physics.GetIgnoreLayerCollision(a, b)) continue;
                         var na = LayerMask.LayerToName(a);
                         var nb = LayerMask.LayerToName(b);
                         if (string.IsNullOrEmpty(na) || string.IsNullOrEmpty(nb)) continue;
-                        ignored.Add(new { a = na, b = nb });
+                        if (Physics.GetIgnoreLayerCollision(a, b)) ignored.Add(new { a = na, b = nb });
+                        if (Physics2D.GetIgnoreLayerCollision(a, b)) ignored2D.Add(new { a = na, b = nb });
                     }
 
             return new
@@ -44,6 +45,16 @@ namespace Umcp.Agent
                 simulationMode = Physics.simulationMode.ToString(),
                 fixedTimestep = Time.fixedDeltaTime,
                 ignoredLayerPairs = layerMatrix ? ignored.ToArray() : null,
+                physics2D = new
+                {
+                    gravity = new[] { Physics2D.gravity.x, Physics2D.gravity.y },
+                    velocityIterations = Physics2D.velocityIterations,
+                    positionIterations = Physics2D.positionIterations,
+                    queriesHitTriggers = Physics2D.queriesHitTriggers,
+                    queriesStartInColliders = Physics2D.queriesStartInColliders,
+                    simulationMode = Physics2D.simulationMode.ToString(),
+                    ignoredLayerPairs = layerMatrix ? ignored2D.ToArray() : null
+                },
                 _hint = layerMatrix ? null : "pass layerMatrix:true for the pairs that are set to ignore each other"
             };
         }

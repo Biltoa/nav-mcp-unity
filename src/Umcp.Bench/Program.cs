@@ -59,6 +59,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("compile-responsiveness", bench.CompileResponsivenessAsync),
     ("skill-tree", bench.SkillTreeAsync),
     ("scene-query-vs-dump", bench.SceneQueryAsync),
+    ("physics-settings-2d", bench.PhysicsSettings2DAsync),
     ("physics-sync", bench.PhysicsSyncAsync),
     ("code-mode", bench.CodeModeAsync),
     ("mirror-latency", bench.MirrorLatencyAsync),
@@ -265,6 +266,33 @@ sealed partial class Bench(McpClient client)
             ["p50"] = times[n / 2],
             ["min"] = times[0],
             ["max"] = times[^1]
+        };
+    }
+
+    /// <summary>2D projects need their own solver and collision settings; they are not Physics aliases.</summary>
+    public async Task<JsonObject> PhysicsSettings2DAsync()
+    {
+        var result = await CallAsync("unity_run", new()
+        {
+            ["tool"] = "physics.settings",
+            ["args"] = new JsonObject { ["layerMatrix"] = true }
+        });
+        var settings = result["data"]?["physics2D"];
+        var gravity = settings?["gravity"] as JsonArray ?? new JsonArray();
+        var ignored = settings?["ignoredLayerPairs"] as JsonArray;
+        var simulationMode = (string?)settings?["simulationMode"];
+
+        return new JsonObject
+        {
+            ["gravity"] = gravity.DeepClone(),
+            ["velocityIterations"] = settings?["velocityIterations"]?.DeepClone(),
+            ["positionIterations"] = settings?["positionIterations"]?.DeepClone(),
+            ["simulationMode"] = simulationMode,
+            ["ignoredLayerPairs"] = ignored?.Count ?? -1,
+            ["pass"] = (bool?)result["ok"] == true && gravity.Count == 2 &&
+                       (int?)settings?["velocityIterations"] > 0 &&
+                       (int?)settings?["positionIterations"] > 0 &&
+                       !string.IsNullOrEmpty(simulationMode) && ignored is not null
         };
     }
 
