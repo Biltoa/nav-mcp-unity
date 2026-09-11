@@ -17,9 +17,9 @@ jobs:
   build-and-test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -61,9 +61,9 @@ jobs:
   macos-app:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -98,7 +98,7 @@ jobs:
           done
           echo "rendered:"; ls -la macos-shots
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: nav-mcp-macos-screens
           path: macos-shots/*.png
@@ -126,7 +126,7 @@ jobs:
           esac
           "dist-mac/NAV MCP ($native).app/Contents/Resources/umcpd" --version
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: nav-mcp-macos
           path: |
@@ -140,9 +140,9 @@ jobs:
     runs-on: windows-latest
     needs: build-and-test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -163,13 +163,13 @@ jobs:
           if (-not (Test-Path 'dist-installer\NAV-MCP-Setup-1.0.0.exe')) { throw 'installer was not produced' }
           Get-ChildItem dist-installer
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: nav-mcp-windows-installer
           path: dist-installer/*.exe
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: nav-mcp-windows
           path: dist/
