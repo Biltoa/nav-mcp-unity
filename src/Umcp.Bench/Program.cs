@@ -217,15 +217,21 @@ sealed partial class Bench(McpClient client)
         var layers = data?["layers"] as JsonArray ?? new JsonArray();
         var sortingLayers = data?["sortingLayers"] as JsonArray ?? new JsonArray();
         var qualityLevels = data?["qualityLevels"] as JsonArray ?? new JsonArray();
+        var packages = data?["packages"] as JsonArray ?? new JsonArray();
         var packageCount = (int?)data?["packageCount"] ?? -1;
 
         var hasUntagged = tags.Any(value => (string?)value == "Untagged");
         var hasDefaultLayer = layers.Any(value => (string?)value == "Default");
         var hasDefaultSortingLayer = sortingLayers.Any(value => (string?)value?["name"] == "Default");
+        var hasUrp = packages.Any(value => (string?)value?["name"] == "com.unity.render-pipelines.universal");
+        var packageInventoryComplete = packages.Count == Math.Min(packageCount, 200);
 
         return new JsonObject
         {
             ["packageCount"] = packageCount,
+            ["packagesReturned"] = packages.Count,
+            ["packageInventoryComplete"] = packageInventoryComplete,
+            ["hasUrp"] = hasUrp,
             ["tags"] = tags.Count,
             ["layers"] = layers.Count,
             ["sortingLayers"] = sortingLayers.Count,
@@ -233,8 +239,9 @@ sealed partial class Bench(McpClient client)
             ["hasUntagged"] = hasUntagged,
             ["hasDefaultLayer"] = hasDefaultLayer,
             ["hasDefaultSortingLayer"] = hasDefaultSortingLayer,
-            ["pass"] = (bool?)result["ok"] == true && packageCount > 0 && hasUntagged &&
-                       hasDefaultLayer && hasDefaultSortingLayer && qualityLevels.Count > 0
+            ["pass"] = (bool?)result["ok"] == true && packageCount > 0 && packageInventoryComplete &&
+                       hasUrp && hasUntagged && hasDefaultLayer && hasDefaultSortingLayer &&
+                       qualityLevels.Count > 0
         };
     }
 

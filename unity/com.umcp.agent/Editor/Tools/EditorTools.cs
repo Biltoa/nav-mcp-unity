@@ -207,6 +207,19 @@ namespace Umcp.Agent
         public static object ProjectInfo()
         {
             var packages = UnityEditor.PackageManager.PackageInfo.GetAllRegisteredPackages();
+            const int packageLimit = 200;
+            var packageRows = (packages ?? new UnityEditor.PackageManager.PackageInfo[0])
+                .OrderByDescending(package => package.isDirectDependency)
+                .ThenBy(package => package.name, System.StringComparer.Ordinal)
+                .Take(packageLimit)
+                .Select(package => new
+                {
+                    name = package.name,
+                    displayName = package.displayName,
+                    version = package.version,
+                    source = package.source.ToString(),
+                    directDependency = package.isDirectDependency
+                }).ToArray();
             return new
             {
                 projectId = UmcpSettings.ProjectId,
@@ -217,6 +230,8 @@ namespace Umcp.Agent
                 platform = EditorUserBuildSettings.activeBuildTarget.ToString(),
                 scenesInBuild = EditorBuildSettings.scenes.Length,
                 packageCount = packages == null ? 0 : packages.Length,
+                packages = packageRows,
+                packagesTruncated = packages != null && packages.Length > packageRows.Length,
                 tags = UnityEditorInternal.InternalEditorUtility.tags,
                 layers = UnityEditorInternal.InternalEditorUtility.layers,
                 sortingLayers = SortingLayer.layers.Select(layer => new
