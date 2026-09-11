@@ -14,12 +14,14 @@ namespace Umcp.Daemon.Agent;
 /// </summary>
 public sealed class AuditLog : IAsyncDisposable
 {
+    sealed record Item(string? Line, TaskCompletionSource? Barrier = null);
+
     /// <summary>Roll at 8 MB, which is roughly 40,000 operations.</summary>
     public const long MaxBytes = 8 * 1024 * 1024;
     /// <summary>Keep this many rolled generations.</summary>
     public const int Generations = 3;
 
-    readonly Channel<string> _lines = Channel.CreateUnbounded<string>();
+    readonly Channel<Item> _lines = Channel.CreateUnbounded<Item>();
     readonly Task _writer;
     readonly string _path;
 
@@ -44,17 +46,23 @@ public sealed class AuditLog : IAsyncDisposable
             ["args"] = request["args"]?.DeepClone() ?? request["ops"]?.DeepClone(),
             ["code"] = response["code"]?.DeepClone()
         };
-        _lines.Writer.TryWrite(entry.ToJsonString());
+        _lines.Writer.TryWrite(new Item(entry.ToJsonString()));
     }
 
     async Task WriteLoopAsync()
     {
-        await foreach (var line in _lines.Reader.ReadAllAsync())
+        await foreach (var item in _lines.Reader.ReadAllAsync())
         {
+            if (item.Barrier is not null)
+            {
+                item.Barrier.TrySetResult();
+                continue;
+            }
+
             try
             {
                 RollIfNeeded();
-                await File.AppendAllTextAsync(_path, line + Environment.NewLine).ConfigureAwait(false);
+                await File.AppendAllTextAsync(_path, item.Line + Environment.NewLine).ConfigureAwait(false);
             }
             catch { /* auditing must never take the daemon down */ }
         }
@@ -83,13 +91,9 @@ public sealed class AuditLog : IAsyncDisposable
     /// <summary>Flush everything queued. Tests need it; nothing in the daemon's hot path does.</summary>
     public async Task DrainAsync()
     {
-        var idle = 0;
-        while (idle < 20)
-        {
-            if (_lines.Reader.Count == 0) idle++;
-            else idle = 0;
-            await Task.Delay(10).ConfigureAwait(false);
-        }
+        var barrier = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_lines.Writer.TryWrite(new Item(null, barrier))) return;
+        await barrier.Task.ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
