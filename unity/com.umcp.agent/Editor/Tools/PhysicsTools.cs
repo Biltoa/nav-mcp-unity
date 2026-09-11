@@ -106,12 +106,21 @@ namespace Umcp.Agent
                 return new { hit = true, first = Describe(hit), origin, direction, maxDistance };
             }
 
-            var hits = Physics.RaycastAll(o, d.normalized, maxDistance, mask)
-                              .OrderBy(h => h.distance)
-                              .Take(Bounds.Limit(limit))
-                              .Select(Describe)
-                              .ToArray();
-            return new { hit = hits.Length > 0, count = hits.Length, hits };
+            var allHits = Physics.RaycastAll(o, d.normalized, maxDistance, mask)
+                                 .OrderBy(h => h.distance)
+                                 .ToArray();
+            var hits = allHits.Take(Bounds.Limit(limit)).Select(Describe).ToArray();
+            var truncated = allHits.Length > hits.Length;
+            return new
+            {
+                hit = hits.Length > 0,
+                count = hits.Length,
+                total = allHits.Length,
+                returned = hits.Length,
+                hits,
+                _truncated = truncated,
+                _hint = truncated ? "raise limit to return more hits" : null
+            };
         }
 
         [UnityTool(Skill = "physics", Id = "physics.overlap",

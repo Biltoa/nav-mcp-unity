@@ -61,6 +61,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("skill-tree", bench.SkillTreeAsync),
     ("scene-query-vs-dump", bench.SceneQueryAsync),
     ("physics-settings-2d", bench.PhysicsSettings2DAsync),
+    ("physics-bounded-results", bench.PhysicsBoundedResultsAsync),
     ("physics-sync", bench.PhysicsSyncAsync),
     ("code-mode", bench.CodeModeAsync),
     ("mirror-latency", bench.MirrorLatencyAsync),
@@ -294,6 +295,70 @@ sealed partial class Bench(McpClient client)
                        (int?)settings?["velocityIterations"] > 0 &&
                        (int?)settings?["positionIterations"] > 0 &&
                        !string.IsNullOrEmpty(simulationMode) && ignored is not null
+        };
+    }
+
+    /// <summary>A limited all-hit raycast must disclose the real total and truncation.</summary>
+    public async Task<JsonObject> PhysicsBoundedResultsAsync()
+    {
+        var ops = new JsonArray();
+        for (var i = 0; i < 8; i++)
+            ops.Add(new JsonObject
+            {
+                ["op"] = "gameobject.create",
+                ["args"] = new JsonObject
+                {
+                    ["name"] = Prefix + "ray_" + i,
+                    ["primitive"] = "Cube",
+                    ["position"] = new JsonArray(0, 1000, i * 2)
+                }
+            });
+
+        JsonObject ray = new();
+        JsonObject cleanup = new();
+        try
+        {
+            var created = await CallAsync("unity_batch", new()
+            {
+                ["ops"] = ops,
+                ["returns"] = "summary",
+                ["undoName"] = "umcp-bench bounded physics"
+            });
+            if ((bool?)created["ok"] != true)
+                return new JsonObject { ["error"] = "failed to create raycast fixtures", ["pass"] = false };
+
+            ray = await CallAsync("unity_run", new()
+            {
+                ["tool"] = "physics.raycast",
+                ["args"] = new JsonObject
+                {
+                    ["origin"] = new JsonArray(0, 1000, -5),
+                    ["direction"] = new JsonArray(0, 0, 1),
+                    ["maxDistance"] = 100,
+                    ["all"] = true,
+                    ["limit"] = 3
+                }
+            });
+        }
+        finally
+        {
+            cleanup = await CleanupAsync();
+        }
+
+        var data = ray["data"];
+        var hits = data?["hits"] as JsonArray;
+        var total = (int?)data?["total"] ?? -1;
+        var returned = (int?)data?["returned"] ?? hits?.Count ?? -1;
+        var truncated = (bool?)data?["_truncated"] ?? false;
+
+        return new JsonObject
+        {
+            ["total"] = total,
+            ["returned"] = returned,
+            ["truncated"] = truncated,
+            ["cleanup"] = (bool?)cleanup["pass"] ?? false,
+            ["pass"] = (bool?)ray["ok"] == true && total >= 8 && returned == 3 &&
+                       truncated && (bool?)cleanup["pass"] == true
         };
     }
 
