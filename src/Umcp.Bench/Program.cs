@@ -49,6 +49,7 @@ Console.WriteLine(new string('-', 78));
 var all = new (string name, Func<Task<JsonObject>> run)[]
 {
     ("toolsurface", bench.ToolSurfaceAsync),
+    ("status-selection-bounds", bench.StatusSelectionBoundsAsync),
     ("project-metadata", bench.ProjectMetadataAsync),
     ("ping-sequential", () => bench.SequentialAsync(16)),
     ("ping-concurrent-32", () => bench.ConcurrentAsync(32)),
@@ -215,6 +216,59 @@ sealed partial class Bench(McpClient client)
             ["approxTokens"] = bytes / 4,
             ["target"] = "<1000 tokens",
             ["pass"] = bytes / 4 < 1000
+        };
+    }
+
+    /// <summary>The compact status selection sample must disclose the full selection size.</summary>
+    public async Task<JsonObject> StatusSelectionBoundsAsync()
+    {
+        await CleanupAsync();
+        JsonObject status = new();
+        JsonObject cleanup = new();
+        try
+        {
+            var ops = new JsonArray();
+            var targets = new JsonArray();
+            for (var i = 0; i < 25; i++)
+            {
+                var name = Prefix + "selection_" + i;
+                targets.Add(name);
+                ops.Add(new JsonObject
+                {
+                    ["op"] = "gameobject.create",
+                    ["args"] = new JsonObject { ["name"] = name }
+                });
+            }
+
+            var created = await CallAsync("unity_batch", new() { ["ops"] = ops, ["returns"] = "summary" });
+            var selected = await CallAsync("unity_run", new()
+            {
+                ["tool"] = "editor.selection.set",
+                ["args"] = new JsonObject { ["targets"] = targets }
+            });
+            if ((bool?)created["ok"] != true || (bool?)selected["ok"] != true)
+                return new JsonObject { ["error"] = "failed to create or select status fixtures", ["pass"] = false };
+
+            status = await CallAsync("unity_run", new() { ["tool"] = "editor.status" });
+        }
+        finally
+        {
+            cleanup = await CleanupAsync();
+        }
+
+        var data = status["data"];
+        var sample = data?["selection"] as JsonArray;
+        var count = (int?)data?["selectionCount"] ?? -1;
+        var returned = sample?.Count ?? -1;
+        var truncated = (bool?)data?["selectionTruncated"] ?? false;
+        return new JsonObject
+        {
+            ["selectionCount"] = count,
+            ["returned"] = returned,
+            ["truncated"] = truncated,
+            ["cleanup"] = (bool?)cleanup["pass"] ?? false,
+            ["pass"] = (bool?)status["ok"] == true && count == 25 && returned == 20 && truncated &&
+                       (bool?)cleanup["pass"] == true
         };
     }
 

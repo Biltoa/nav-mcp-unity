@@ -23,6 +23,7 @@ namespace Umcp.Agent
         [Example("{ }")]
         public static object Status()
         {
+            var selected = Selection.gameObjects;
             return new
             {
                 unityVersion = Application.unityVersion,
@@ -35,7 +36,9 @@ namespace Umcp.Agent
                 isPaused = EditorApplication.isPaused,
                 epoch = UmcpAgent.Epoch,
                 tickAgeMs = UmcpAgent.MsSinceLastTick,
-                selection = Selection.gameObjects.Take(20).Select(g => g.name).ToArray()
+                selectionCount = selected.Length,
+                selection = selected.Take(20).Select(g => g.name).ToArray(),
+                selectionTruncated = selected.Length > 20
             };
         }
 
