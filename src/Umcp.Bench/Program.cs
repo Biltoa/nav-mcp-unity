@@ -56,6 +56,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("batch-dependent", bench.BatchDependentAsync),
     ("payload-scene-info", bench.PayloadAsync),
     ("asset-info-metadata", bench.AssetInfoMetadataAsync),
+    ("prefab-override-bounds", bench.PrefabOverrideBoundsAsync),
     ("build-metadata", bench.BuildMetadataAsync),
     ("reload-hold-replay", bench.ReloadAsync),
     ("compile-responsiveness", bench.CompileResponsivenessAsync),
@@ -620,6 +621,78 @@ sealed partial class Bench(McpClient client)
                        labels is not null && subAssets is not null && dependencies is not null &&
                        data?["importer"] is not null && subAssetCount >= subAssets.Count &&
                        dependencyCount >= dependencies.Count
+        };
+    }
+
+    /// <summary>Prefab override totals must be computed before category samples are capped.</summary>
+    public async Task<JsonObject> PrefabOverrideBoundsAsync()
+    {
+        await CleanupAsync();
+        var name = Prefix + "prefab_override";
+        var path = "Assets/__UMCP_BENCH_Prefab.prefab";
+        JsonObject listed = new();
+        JsonObject cleanup = new();
+        JsonObject assetCleanup = new();
+        try
+        {
+            var created = await CallAsync("unity_run", new()
+            {
+                ["tool"] = "gameobject.create",
+                ["args"] = new JsonObject { ["name"] = name }
+            });
+            if ((bool?)created["ok"] != true)
+                return new JsonObject { ["error"] = "failed to create prefab fixture", ["pass"] = false };
+
+            var prefab = await CallAsync("unity_run", new()
+            {
+                ["tool"] = "prefab.create",
+                ["args"] = new JsonObject { ["target"] = name, ["path"] = path }
+            });
+            if ((bool?)prefab["ok"] != true)
+                return new JsonObject { ["error"] = "failed to create prefab asset", ["pass"] = false };
+
+            var ops = new JsonArray();
+            foreach (var type in new[] { "BoxCollider", "SphereCollider", "CapsuleCollider", "Rigidbody", "Light" })
+                ops.Add(new JsonObject
+                {
+                    ["op"] = "component.add",
+                    ["args"] = new JsonObject { ["target"] = name, ["type"] = type }
+                });
+            var changed = await CallAsync("unity_batch", new() { ["ops"] = ops, ["returns"] = "summary" });
+            if ((bool?)changed["ok"] != true)
+                return new JsonObject { ["error"] = "failed to create prefab overrides", ["pass"] = false };
+
+            listed = await CallAsync("unity_run", new()
+            {
+                ["tool"] = "prefab.overrides",
+                ["args"] = new JsonObject { ["target"] = name, ["action"] = "list", ["limit"] = 3 }
+            });
+        }
+        finally
+        {
+            cleanup = await CleanupAsync();
+            assetCleanup = await CallAsync("unity_run", new()
+            {
+                ["tool"] = "assets.delete",
+                ["args"] = new JsonObject { ["path"] = path, ["confirm"] = true }
+            });
+        }
+
+        var data = listed["data"];
+        var added = data?["addedComponents"] as JsonArray;
+        var total = (int?)data?["total"] ?? -1;
+        var returned = (int?)data?["returned"] ?? added?.Count ?? -1;
+        var truncated = (bool?)data?["_truncated"] ?? false;
+        return new JsonObject
+        {
+            ["total"] = total,
+            ["returned"] = returned,
+            ["addedComponents"] = added?.Count ?? -1,
+            ["truncated"] = truncated,
+            ["cleanup"] = (bool?)cleanup["pass"] ?? false,
+            ["assetCleanup"] = (bool?)assetCleanup["ok"] == true,
+            ["pass"] = (bool?)listed["ok"] == true && total >= 5 && returned >= 3 && truncated &&
+                       (bool?)cleanup["pass"] == true && (bool?)assetCleanup["ok"] == true
         };
     }
 

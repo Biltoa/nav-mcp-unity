@@ -60,7 +60,8 @@ namespace Umcp.Agent
 
         static object List(GameObject root, string assetPath, int cap)
         {
-            var modifications = PrefabUtility.GetObjectOverrides(root, true)
+            var allModifications = PrefabUtility.GetObjectOverrides(root, true).ToArray();
+            var modifications = allModifications
                 .Select(o => new
                 {
                     kind = "property",
@@ -68,7 +69,8 @@ namespace Umcp.Agent
                     properties = PropertyNames(o.instanceObject, cap)
                 }).Take(cap).ToArray();
 
-            var added = PrefabUtility.GetAddedComponents(root)
+            var allAdded = PrefabUtility.GetAddedComponents(root).ToArray();
+            var added = allAdded
                 .Select(a => new
                 {
                     kind = "addedComponent",
@@ -76,19 +78,24 @@ namespace Umcp.Agent
                     on = a.instanceComponent == null ? null : Resolve.Path(a.instanceComponent.transform)
                 }).Take(cap).ToArray();
 
-            var removed = PrefabUtility.GetRemovedComponents(root)
+            var allRemoved = PrefabUtility.GetRemovedComponents(root).ToArray();
+            var removed = allRemoved
                 .Select(r => new
                 {
                     kind = "removedComponent",
                     component = r.assetComponent == null ? null : r.assetComponent.GetType().Name
                 }).Take(cap).ToArray();
 
-            var addedObjects = PrefabUtility.GetAddedGameObjects(root)
+            var allAddedObjects = PrefabUtility.GetAddedGameObjects(root).ToArray();
+            var addedObjects = allAddedObjects
                 .Select(a => new
                 {
                     kind = "addedGameObject",
                     path = a.instanceGameObject == null ? null : Resolve.Path(a.instanceGameObject.transform)
                 }).Take(cap).ToArray();
+
+            var total = allModifications.Length + allAdded.Length + allRemoved.Length + allAddedObjects.Length;
+            var returned = modifications.Length + added.Length + removed.Length + addedObjects.Length;
 
             return new
             {
@@ -98,7 +105,9 @@ namespace Umcp.Agent
                 addedComponents = added,
                 removedComponents = removed,
                 addedGameObjects = addedObjects,
-                total = modifications.Length + added.Length + removed.Length + addedObjects.Length,
+                total,
+                returned,
+                _truncated = total > returned,
                 _hint = "apply writes these into the prefab asset for every instance; revert discards them on this one."
             };
         }
