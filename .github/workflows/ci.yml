@@ -160,7 +160,8 @@ jobs:
           choco install innosetup --no-progress -y
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
           & $iscc /Qp scripts\installer.iss
-          if (-not (Test-Path 'dist-installer\NAV-MCP-Setup-1.0.0.exe')) { throw 'installer was not produced' }
+          $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version
+          if (-not (Test-Path "dist-installer\NAV-MCP-Setup-$version.exe")) { throw 'installer was not produced' }
           Get-ChildItem dist-installer
 
       - uses: actions/upload-artifact@v7

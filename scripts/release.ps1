@@ -18,7 +18,7 @@
 [CmdletBinding()]
 param(
     [string[]] $Runtimes = @('win-x64', 'win-arm64', 'win-x86'),
-    [string]   $Version  = '1.0.0',
+    [string]   $Version  = '1.0.1',
     [string]   $Output   = 'release'
 )
 

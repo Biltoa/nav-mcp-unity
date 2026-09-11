@@ -9,7 +9,7 @@
 ;   iscc /DAppVersion=1.1.0 scripts\installer.iss
 
 #ifndef AppVersion
-  #define AppVersion "1.0.0"
+  #define AppVersion "1.0.1"
 #endif
 #ifndef Arch
   #define Arch "x64compatible"
