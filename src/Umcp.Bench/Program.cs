@@ -66,6 +66,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("physics-sync", bench.PhysicsSyncAsync),
     ("navmesh-agent-bounds", bench.NavMeshAgentBoundsAsync),
     ("terrain-bounds", bench.TerrainBoundsAsync),
+    ("timeline-director-bounds", bench.TimelineDirectorBoundsAsync),
     ("code-mode", bench.CodeModeAsync),
     ("mirror-latency", bench.MirrorLatencyAsync),
     ("mirror-reconcile", bench.MirrorReconcileAsync),
@@ -531,6 +532,51 @@ sealed partial class Bench(McpClient client)
             ["truncated"] = truncated,
             ["cleanup"] = (bool?)cleanup["pass"] ?? false,
             ["pass"] = (bool?)info["ok"] == true && count >= 11 && returned == 10 && truncated &&
+                       (bool?)cleanup["pass"] == true
+        };
+    }
+
+    /// <summary>Timeline director inventory must distinguish its total from its 20-row sample.</summary>
+    public async Task<JsonObject> TimelineDirectorBoundsAsync()
+    {
+        await CleanupAsync();
+        JsonObject info = new();
+        JsonObject cleanup = new();
+        try
+        {
+            var created = await CallAsync("unity_script", new()
+            {
+                ["code"] = $$"""
+                    for (var i = 0; i < 21; i++) {
+                        var go = new GameObject("{{Prefix}}director_" + i);
+                        go.AddComponent<UnityEngine.Playables.PlayableDirector>();
+                        Undo.RegisterCreatedObjectUndo(go, "umcp-bench timeline bounds");
+                    }
+                    return 21;
+                    """
+            });
+            if ((bool?)created["ok"] != true)
+                return new JsonObject { ["error"] = "failed to create PlayableDirector fixtures", ["pass"] = false };
+
+            info = await CallAsync("unity_run", new() { ["tool"] = "timeline.info" });
+        }
+        finally
+        {
+            cleanup = await CleanupAsync();
+        }
+
+        var data = info["data"];
+        var rows = data?["directors"] as JsonArray;
+        var count = (int?)data?["count"] ?? -1;
+        var returned = (int?)data?["returned"] ?? rows?.Count ?? -1;
+        var truncated = (bool?)data?["_truncated"] ?? false;
+        return new JsonObject
+        {
+            ["count"] = count,
+            ["returned"] = returned,
+            ["truncated"] = truncated,
+            ["cleanup"] = (bool?)cleanup["pass"] ?? false,
+            ["pass"] = (bool?)info["ok"] == true && count >= 21 && returned == 20 && truncated &&
                        (bool?)cleanup["pass"] == true
         };
     }

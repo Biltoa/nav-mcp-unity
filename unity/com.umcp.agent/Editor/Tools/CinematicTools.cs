@@ -48,7 +48,9 @@ namespace Umcp.Agent
                 return new
                 {
                     count = 0,
+                    returned = 0,
                     directors = new object[0],
+                    _truncated = false,
                     _hint = string.IsNullOrEmpty(target)
                         ? "No PlayableDirector in the open scenes."
                         : "'" + target + "' has no PlayableDirector."
@@ -69,7 +71,13 @@ namespace Umcp.Agent
                 };
             }).ToArray();
 
-            return new { count = rows.Length, directors = rows };
+            return new
+            {
+                count = directors.Length,
+                returned = rows.Length,
+                directors = rows,
+                _truncated = directors.Length > rows.Length
+            };
         }
 
         static object[] Tracks(UnityEngine.Object asset, int cap)
