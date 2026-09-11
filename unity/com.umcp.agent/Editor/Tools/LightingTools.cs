@@ -109,6 +109,11 @@ namespace Umcp.Agent
         [Example("{ }")]
         public static object BuildSettings()
         {
+            var namedTarget = UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(
+                EditorUserBuildSettings.selectedBuildTargetGroup);
+            var defineSymbols = PlayerSettings.GetScriptingDefineSymbols(namedTarget)
+                .Split(new[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries);
+
             return new
             {
                 activeTarget = EditorUserBuildSettings.activeBuildTarget.ToString(),
@@ -118,8 +123,12 @@ namespace Umcp.Agent
                 productName = PlayerSettings.productName,
                 version = PlayerSettings.bundleVersion,
                 colorSpace = PlayerSettings.colorSpace.ToString(),
-                scriptingBackend = PlayerSettings.GetScriptingBackend(
-                    UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(EditorUserBuildSettings.selectedBuildTargetGroup)).ToString(),
+                applicationIdentifier = PlayerSettings.GetApplicationIdentifier(namedTarget),
+                apiCompatibilityLevel = PlayerSettings.GetApiCompatibilityLevel(namedTarget).ToString(),
+                scriptingBackend = PlayerSettings.GetScriptingBackend(namedTarget).ToString(),
+                scriptingDefineSymbols = defineSymbols,
+                managedStrippingLevel = PlayerSettings.GetManagedStrippingLevel(namedTarget).ToString(),
+                allowUnsafeCode = PlayerSettings.allowUnsafeCode,
                 scenes = EditorBuildSettings.scenes.Select(s => new
                 {
                     path = s.path,

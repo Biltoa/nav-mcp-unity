@@ -56,6 +56,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("batch-dependent", bench.BatchDependentAsync),
     ("payload-scene-info", bench.PayloadAsync),
     ("asset-info-metadata", bench.AssetInfoMetadataAsync),
+    ("build-metadata", bench.BuildMetadataAsync),
     ("reload-hold-replay", bench.ReloadAsync),
     ("compile-responsiveness", bench.CompileResponsivenessAsync),
     ("skill-tree", bench.SkillTreeAsync),
@@ -619,6 +620,29 @@ sealed partial class Bench(McpClient client)
                        labels is not null && subAssets is not null && dependencies is not null &&
                        data?["importer"] is not null && subAssetCount >= subAssets.Count &&
                        dependencyCount >= dependencies.Count
+        };
+    }
+
+    /// <summary>Build automation needs target identity and compiler/linker configuration.</summary>
+    public async Task<JsonObject> BuildMetadataAsync()
+    {
+        var result = await CallAsync("unity_run", new() { ["tool"] = "build.settings" });
+        var data = result["data"];
+        var defines = data?["scriptingDefineSymbols"] as JsonArray;
+        var identifier = (string?)data?["applicationIdentifier"];
+        var api = (string?)data?["apiCompatibilityLevel"];
+        var stripping = (string?)data?["managedStrippingLevel"];
+
+        return new JsonObject
+        {
+            ["applicationIdentifier"] = identifier,
+            ["apiCompatibilityLevel"] = api,
+            ["defines"] = defines?.Count ?? -1,
+            ["managedStrippingLevel"] = stripping,
+            ["allowUnsafeCode"] = data?["allowUnsafeCode"]?.DeepClone(),
+            ["pass"] = (bool?)result["ok"] == true && !string.IsNullOrEmpty(identifier) &&
+                       !string.IsNullOrEmpty(api) && defines is not null &&
+                       !string.IsNullOrEmpty(stripping) && data?["allowUnsafeCode"] is JsonValue
         };
     }
 
