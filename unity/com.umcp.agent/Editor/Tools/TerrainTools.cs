@@ -32,7 +32,9 @@ namespace Umcp.Agent
                 return new
                 {
                     count = 0,
+                    returned = 0,
                     terrains = new object[0],
+                    _truncated = false,
                     _hint = string.IsNullOrEmpty(target) ? "No Terrain components in the open scenes."
                                                          : "'" + target + "' has no Terrain component."
                 };
@@ -81,7 +83,9 @@ namespace Umcp.Agent
             return new
             {
                 count = terrains.Length,
+                returned = rows.Length,
                 terrains = rows,
+                _truncated = terrains.Length > rows.Length,
                 _hint = "heightmapPixelError is the cheapest performance dial: raising it from 1 to 5 " +
                         "roughly halves terrain triangles with little visible change at distance."
             };

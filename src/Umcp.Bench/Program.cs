@@ -65,6 +65,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("physics-bounded-results", bench.PhysicsBoundedResultsAsync),
     ("physics-sync", bench.PhysicsSyncAsync),
     ("navmesh-agent-bounds", bench.NavMeshAgentBoundsAsync),
+    ("terrain-bounds", bench.TerrainBoundsAsync),
     ("code-mode", bench.CodeModeAsync),
     ("mirror-latency", bench.MirrorLatencyAsync),
     ("mirror-reconcile", bench.MirrorReconcileAsync),
@@ -485,6 +486,51 @@ sealed partial class Bench(McpClient client)
             ["truncated"] = truncated,
             ["cleanup"] = (bool?)cleanup["pass"] ?? false,
             ["pass"] = (bool?)info["ok"] == true && count >= 55 && returned == 50 && truncated &&
+                       (bool?)cleanup["pass"] == true
+        };
+    }
+
+    /// <summary>Terrain inventory must identify when its ten-row payload is a sample.</summary>
+    public async Task<JsonObject> TerrainBoundsAsync()
+    {
+        await CleanupAsync();
+        JsonObject info = new();
+        JsonObject cleanup = new();
+        try
+        {
+            var created = await CallAsync("unity_script", new()
+            {
+                ["code"] = $$"""
+                    for (var i = 0; i < 11; i++) {
+                        var go = new GameObject("{{Prefix}}terrain_" + i);
+                        go.AddComponent<Terrain>();
+                        Undo.RegisterCreatedObjectUndo(go, "umcp-bench terrain bounds");
+                    }
+                    return 11;
+                    """
+            });
+            if ((bool?)created["ok"] != true)
+                return new JsonObject { ["error"] = "failed to create terrain fixtures", ["pass"] = false };
+
+            info = await CallAsync("unity_run", new() { ["tool"] = "terrain.info" });
+        }
+        finally
+        {
+            cleanup = await CleanupAsync();
+        }
+
+        var data = info["data"];
+        var rows = data?["terrains"] as JsonArray;
+        var count = (int?)data?["count"] ?? -1;
+        var returned = (int?)data?["returned"] ?? rows?.Count ?? -1;
+        var truncated = (bool?)data?["_truncated"] ?? false;
+        return new JsonObject
+        {
+            ["count"] = count,
+            ["returned"] = returned,
+            ["truncated"] = truncated,
+            ["cleanup"] = (bool?)cleanup["pass"] ?? false,
+            ["pass"] = (bool?)info["ok"] == true && count >= 11 && returned == 10 && truncated &&
                        (bool?)cleanup["pass"] == true
         };
     }
