@@ -21,6 +21,7 @@
     <PackageReference Include="Avalonia.Desktop" Version="11.3.20" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.20" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.20" />
+    <PackageReference Include="Tomlyn" Version="2.10.1" />
     <!-- HKCU\...\Run, for "start at login". The assembly stays net8.0 rather than net8.0-windows;
          every call is guarded by OperatingSystem.IsWindows(). -->
     <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />

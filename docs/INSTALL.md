@@ -65,8 +65,9 @@ Each project then shows its own state, and the state tells you what to do:
 
 ### 4. Connect your MCP client
 
-Under **Connect your MCP client** in the app, click **Connect** next to Claude Desktop, Claude Code or
-Cursor. Restart that app.
+Under **Connect your MCP client** in the app, click **Connect** next to the client you use. NAV MCP
+supports Claude Desktop, Claude Code CLI, the ChatGPT desktop app and Codex CLI through their shared
+configuration, Gemini CLI, and Cursor. Restart that app or start a new CLI session.
 
 It writes one entry into that app's config and leaves everything else in the file alone, backing
 the original up first. Nothing secret is written: the entry points at the `umcp-stdio` helper,

@@ -14,7 +14,7 @@ dotnet run --project src/Umcp.Gui         # the app
 You need the **.NET 8 SDK** (or newer — the repo builds fine with the 9.x SDK against the 8.0
 runtime) and, to exercise anything that touches an Editor, **Unity 6000.0+**.
 
-The 156 tests need no Unity licence. The parts that do — the batch-mode run over the whole catalog
+The 168 tests need no Unity licence. The parts that do — the batch-mode run over the whole catalog
 and the fleet measurements — live in `src/Umcp.Bench` and are run by hand against a real Editor,
 because a licensed Unity in CI is a cost this project does not carry.
 

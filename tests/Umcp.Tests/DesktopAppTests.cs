@@ -85,6 +85,11 @@ public class ClientRegistrationTests : IDisposable
     readonly string _dir = Path.Combine(Path.GetTempPath(), "umcp-tests-" + Guid.NewGuid().ToString("N"));
 
     McpClient Client => new("Test Client", Path.Combine(_dir, "mcp.json"), "Restart it.");
+    McpClient CodexClient => new(
+        "ChatGPT desktop app / Codex CLI",
+        Path.Combine(_dir, "config.toml"),
+        "Restart it.",
+        McpConfigFormat.Toml);
     const string Shim = @"C:\Program Files\UnityMCP\umcp-stdio.exe";
 
     public void Dispose()
@@ -171,6 +176,144 @@ public class ClientRegistrationTests : IDisposable
         // pasted into bug reports.
         ClientRegistrations.Register(Client, Shim, 8730);
         Assert.DoesNotContain("token", File.ReadAllText(Client.ConfigPath), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void The_known_clients_use_their_official_names()
+    {
+        var clients = ClientRegistrations.Known();
+
+        Assert.Contains(clients, client => client.Name == "Claude Code CLI");
+        Assert.Contains(clients, client => client.Name == "ChatGPT desktop app / Codex CLI" &&
+                                           client.Format == McpConfigFormat.Toml);
+        Assert.Contains(clients, client => client.Name == "Gemini CLI" &&
+                                           client.ConfigPath.EndsWith(Path.Combine(".gemini", "settings.json")));
+        Assert.DoesNotContain(clients, client => client.Name == "Claude Code");
+    }
+
+    [Fact]
+    public void Connecting_codex_writes_toml_that_reads_back_as_connected()
+    {
+        var (ok, message) = ClientRegistrations.Register(CodexClient, Shim, 8730);
+
+        Assert.True(ok, message);
+        Assert.True(ClientRegistrations.IsRegistered(CodexClient, Shim, 8730));
+        var text = File.ReadAllText(CodexClient.ConfigPath);
+        Assert.Contains("[mcp_servers.unity]", text);
+        Assert.Contains("args = [\"--port\", \"8730\"]", text);
+    }
+
+    [Fact]
+    public void Connecting_codex_preserves_other_settings_and_servers()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(CodexClient.ConfigPath, """
+            model = "gpt-test"
+            # keep this comment
+
+            [mcp_servers.github]
+            command = "gh-mcp"
+            """);
+
+        ClientRegistrations.Register(CodexClient, Shim, 8730);
+
+        var text = File.ReadAllText(CodexClient.ConfigPath);
+        Assert.Contains("model = \"gpt-test\"", text);
+        Assert.Contains("# keep this comment", text);
+        Assert.Contains("[mcp_servers.github]", text);
+        Assert.Contains("command = \"gh-mcp\"", text);
+    }
+
+    [Fact]
+    public void Reconnecting_codex_replaces_only_the_unity_table()
+    {
+        ClientRegistrations.Register(CodexClient, Shim, 8730);
+        ClientRegistrations.Register(CodexClient, Shim, 8999);
+
+        var text = File.ReadAllText(CodexClient.ConfigPath);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(text, @"\[mcp_servers\.unity\]").Cast<System.Text.RegularExpressions.Match>());
+        Assert.DoesNotContain("8730", text);
+        Assert.Contains("8999", text);
+        Assert.True(ClientRegistrations.IsRegistered(CodexClient, Shim, 8999));
+    }
+
+    [Fact]
+    public void A_broken_codex_config_is_refused_rather_than_rewritten()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(CodexClient.ConfigPath, "[mcp_servers.unity\nnot toml");
+
+        var (ok, message) = ClientRegistrations.Register(CodexClient, Shim, 8730);
+
+        Assert.False(ok);
+        Assert.Contains("left alone", message);
+        Assert.Equal("[mcp_servers.unity\nnot toml", File.ReadAllText(CodexClient.ConfigPath));
+    }
+
+    [Fact]
+    public void Disconnecting_codex_removes_only_the_unity_table()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(CodexClient.ConfigPath, """
+            [mcp_servers.github]
+            command = "gh-mcp"
+            """);
+        ClientRegistrations.Register(CodexClient, Shim, 8730);
+
+        var (ok, _) = ClientRegistrations.Unregister(CodexClient);
+
+        Assert.True(ok);
+        var text = File.ReadAllText(CodexClient.ConfigPath);
+        Assert.DoesNotContain("mcp_servers.unity", text);
+        Assert.Contains("mcp_servers.github", text);
+        Assert.Contains("gh-mcp", text);
+    }
+
+    [Fact]
+    public void Codex_config_is_backed_up_before_the_first_edit()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(CodexClient.ConfigPath, "model = \"gpt-test\"\n");
+
+        ClientRegistrations.Register(CodexClient, Shim, 8730);
+
+        Assert.Equal("model = \"gpt-test\"\n", File.ReadAllText(CodexClient.ConfigPath + ".umcp-backup"));
+    }
+
+    [Fact]
+    public void An_inline_codex_unity_entry_is_refused_instead_of_reformatting_the_file()
+    {
+        Directory.CreateDirectory(_dir);
+        var original = "mcp_servers = { unity = { command = \"old\" } }\n";
+        File.WriteAllText(CodexClient.ConfigPath, original);
+
+        var (ok, message) = ClientRegistrations.Register(CodexClient, Shim, 8730);
+
+        Assert.False(ok);
+        Assert.Contains("cannot safely update", message);
+        Assert.Equal(original, File.ReadAllText(CodexClient.ConfigPath));
+    }
+
+    [Fact]
+    public void Toml_table_text_inside_a_multiline_string_is_never_treated_as_configuration()
+    {
+        Directory.CreateDirectory(_dir);
+        var original = """
+            developer_instructions = '''
+            Example text, not a real table:
+            [mcp_servers.unity]
+            command = "do-not-touch"
+            '''
+            """;
+        File.WriteAllText(CodexClient.ConfigPath, original);
+
+        var (ok, message) = ClientRegistrations.Register(CodexClient, Shim, 8730);
+
+        Assert.True(ok, message);
+        var updated = File.ReadAllText(CodexClient.ConfigPath);
+        Assert.Contains("command = \"do-not-touch\"", updated);
+        Assert.Contains("developer_instructions", updated);
+        Assert.True(ClientRegistrations.IsRegistered(CodexClient, Shim, 8730));
     }
 }
 

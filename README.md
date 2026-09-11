@@ -13,7 +13,7 @@ edit objects, manage assets, run diagnostics, and automate common Editor work.
 <br>
 
 ![editor tools](https://img.shields.io/badge/editor_tools-99-1B2027)
-![tests](https://img.shields.io/badge/tests-159-1B2027)
+![tests](https://img.shields.io/badge/tests-168-1B2027)
 ![unity](https://img.shields.io/badge/Unity-6000.0%2B-black)
 [![licence](https://img.shields.io/badge/licence-MIT-3FB950)](LICENSE)
 [![ci](https://github.com/Biltoa/nav-mcp-unity/actions/workflows/ci.yml/badge.svg)](https://github.com/Biltoa/nav-mcp-unity/actions/workflows/ci.yml)
@@ -27,7 +27,8 @@ edit objects, manage assets, run diagnostics, and automate common Editor work.
 ## What NAV MCP does
 
 MCP, or Model Context Protocol, is a standard that lets applications such as Claude Desktop,
-Claude Code, and Cursor call external tools. NAV MCP provides those tools for Unity Editor.
+Claude Code CLI, the ChatGPT desktop app, Codex CLI, Gemini CLI, and Cursor call external tools.
+NAV MCP provides those tools for Unity Editor.
 
 Once a Unity project is linked, your MCP client can:
 
@@ -235,7 +236,7 @@ dotnet test UnityMcpTool.sln
 dotnet run --project src/Umcp.Gui
 ```
 
-There are currently 159 tests that run without a Unity licence. Live Editor benchmarks and the
+There are currently 168 tests that run without a Unity licence. Live Editor benchmarks and the
 full catalog smoke test use `src/Umcp.Bench`.
 
 Create Windows packages:
