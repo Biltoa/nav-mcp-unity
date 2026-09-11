@@ -42,6 +42,19 @@ namespace Umcp.Agent
                     "Use assets.find to locate it.");
 
             var abs = Path.GetFullPath(p);
+            var importer = AssetImporter.GetAtPath(p);
+            var allAssets = AssetDatabase.LoadAllAssetsAtPath(p);
+            var subAssets = allAssets.Where(asset => asset != null && asset != main)
+                .Take(50)
+                .Select(asset => new
+                {
+                    name = asset.name,
+                    type = asset.GetType().Name,
+                    id = asset.GetInstanceID()
+                }).ToArray();
+            var directDependencies = dependencies
+                ? AssetDatabase.GetDependencies(p, false).Where(dependency => dependency != p).ToArray()
+                : new string[0];
             return new
             {
                 path = p,
@@ -50,9 +63,21 @@ namespace Umcp.Agent
                 name = main.name,
                 bytes = File.Exists(abs) ? new FileInfo(abs).Length : (long?)null,
                 isFolder = AssetDatabase.IsValidFolder(p),
+                labels = AssetDatabase.GetLabels(main),
+                importer = importer == null ? null : new
+                {
+                    type = importer.GetType().Name,
+                    assetBundleName = importer.assetBundleName,
+                    assetBundleVariant = importer.assetBundleVariant
+                },
+                subAssetCount = allAssets.Length > 0 ? allAssets.Length - 1 : 0,
+                subAssets,
+                subAssetsTruncated = allAssets.Length - 1 > subAssets.Length,
+                dependencyCount = dependencies ? directDependencies.Length : (int?)null,
                 dependencies = dependencies
-                    ? AssetDatabase.GetDependencies(p, false).Where(d => d != p).Take(50).ToArray()
-                    : null
+                    ? directDependencies.Take(50).ToArray()
+                    : null,
+                dependenciesTruncated = dependencies && directDependencies.Length > 50
             };
         }
 

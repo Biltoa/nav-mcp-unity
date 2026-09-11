@@ -55,6 +55,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("batch-32", () => bench.Batch32Async()),
     ("batch-dependent", bench.BatchDependentAsync),
     ("payload-scene-info", bench.PayloadAsync),
+    ("asset-info-metadata", bench.AssetInfoMetadataAsync),
     ("reload-hold-replay", bench.ReloadAsync),
     ("compile-responsiveness", bench.CompileResponsivenessAsync),
     ("skill-tree", bench.SkillTreeAsync),
@@ -293,6 +294,47 @@ sealed partial class Bench(McpClient client)
                        (int?)settings?["velocityIterations"] > 0 &&
                        (int?)settings?["positionIterations"] > 0 &&
                        !string.IsNullOrEmpty(simulationMode) && ignored is not null
+        };
+    }
+
+    /// <summary>Asset metadata is bounded and says exactly when dependencies or sub-assets were cut.</summary>
+    public async Task<JsonObject> AssetInfoMetadataAsync()
+    {
+        var find = await CallAsync("unity_run", new()
+        {
+            ["tool"] = "assets.find",
+            ["args"] = new JsonObject { ["filter"] = "t:Scene", ["limit"] = 1 }
+        });
+        var path = (string?)find["data"]?["items"]?[0]?["path"];
+        if (path is null)
+            return new JsonObject { ["error"] = "no scene asset found", ["pass"] = false };
+
+        var result = await CallAsync("unity_run", new()
+        {
+            ["tool"] = "assets.info",
+            ["args"] = new JsonObject { ["path"] = path, ["dependencies"] = true }
+        });
+        var data = result["data"];
+        var labels = data?["labels"] as JsonArray;
+        var subAssets = data?["subAssets"] as JsonArray;
+        var dependencies = data?["dependencies"] as JsonArray;
+        var subAssetCount = (int?)data?["subAssetCount"] ?? -1;
+        var dependencyCount = (int?)data?["dependencyCount"] ?? -1;
+
+        return new JsonObject
+        {
+            ["path"] = path,
+            ["type"] = data?["type"]?.DeepClone(),
+            ["importer"] = data?["importer"]?["type"]?.DeepClone(),
+            ["labels"] = labels?.Count ?? -1,
+            ["subAssetCount"] = subAssetCount,
+            ["subAssetsReturned"] = subAssets?.Count ?? -1,
+            ["dependencyCount"] = dependencyCount,
+            ["dependenciesReturned"] = dependencies?.Count ?? -1,
+            ["pass"] = (bool?)result["ok"] == true && !string.IsNullOrEmpty((string?)data?["guid"]) &&
+                       labels is not null && subAssets is not null && dependencies is not null &&
+                       data?["importer"] is not null && subAssetCount >= subAssets.Count &&
+                       dependencyCount >= dependencies.Count
         };
     }
 
