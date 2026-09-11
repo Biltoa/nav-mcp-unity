@@ -116,7 +116,7 @@ umcpd.exe --profile standard
 One line names the ports, the tool count and the token file:
 
 ```
-[umcpd] 1.0.1 · http 127.0.0.1:8730/mcp · agents 127.0.0.1:8731 · 99 tools · profile standard · token in C:\Users\you\AppData\Local\UnityMCP\token
+[umcpd] 1.0.2 · http 127.0.0.1:8730/mcp · agents 127.0.0.1:8731 · 99 tools · profile standard · token in C:\Users\you\AppData\Local\UnityMCP\token
 ```
 
 Check it: `curl http://127.0.0.1:8730/health` — that endpoint needs no token, everything else does.

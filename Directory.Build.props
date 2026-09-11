@@ -3,7 +3,7 @@
        MCP server info, and the Unity package's package.json carries the same number; a version
        that lives in three places is a version that disagrees with itself. -->
   <PropertyGroup>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Product>Unity MCP Tool</Product>
     <Company>Unity MCP Tool</Company>
     <Deterministic>true</Deterministic>

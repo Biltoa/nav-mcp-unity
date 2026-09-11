@@ -256,7 +256,7 @@ passes the main-thread safety check. See [CONTRIBUTING.md](CONTRIBUTING.md) for 
 
 ## Project status
 
-Current release: **1.0.1**
+Current release: **1.0.2**
 
 The Windows build is exercised regularly against real Unity projects. CI builds and render-checks
 the macOS app on every push, but it has not yet been manually tested on a physical Mac.
