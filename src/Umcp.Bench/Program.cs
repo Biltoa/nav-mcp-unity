@@ -64,6 +64,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("physics-settings-2d", bench.PhysicsSettings2DAsync),
     ("physics-bounded-results", bench.PhysicsBoundedResultsAsync),
     ("physics-sync", bench.PhysicsSyncAsync),
+    ("navmesh-agent-bounds", bench.NavMeshAgentBoundsAsync),
     ("code-mode", bench.CodeModeAsync),
     ("mirror-latency", bench.MirrorLatencyAsync),
     ("mirror-reconcile", bench.MirrorReconcileAsync),
@@ -440,6 +441,51 @@ sealed partial class Bench(McpClient client)
             ["cleanup"] = (bool?)cleanup["pass"] ?? false,
             ["pass"] = (bool?)ray["ok"] == true && total >= 8 && returned == 3 &&
                        truncated && (bool?)cleanup["pass"] == true
+        };
+    }
+
+    /// <summary>NavMesh agent inventory must distinguish its total from its bounded sample.</summary>
+    public async Task<JsonObject> NavMeshAgentBoundsAsync()
+    {
+        await CleanupAsync();
+        JsonObject info = new();
+        JsonObject cleanup = new();
+        try
+        {
+            var created = await CallAsync("unity_script", new()
+            {
+                ["code"] = $$"""
+                    for (var i = 0; i < 55; i++) {
+                        var go = new GameObject("{{Prefix}}nav_agent_" + i);
+                        go.AddComponent<UnityEngine.AI.NavMeshAgent>();
+                        Undo.RegisterCreatedObjectUndo(go, "umcp-bench navmesh bounds");
+                    }
+                    return 55;
+                    """
+            });
+            if ((bool?)created["ok"] != true)
+                return new JsonObject { ["error"] = "failed to create NavMeshAgent fixtures", ["pass"] = false };
+
+            info = await CallAsync("unity_run", new() { ["tool"] = "navmesh.info" });
+        }
+        finally
+        {
+            cleanup = await CleanupAsync();
+        }
+
+        var agents = info["data"]?["agents"];
+        var sample = agents?["sample"] as JsonArray;
+        var count = (int?)agents?["count"] ?? -1;
+        var returned = (int?)agents?["returned"] ?? sample?.Count ?? -1;
+        var truncated = (bool?)agents?["_truncated"] ?? false;
+        return new JsonObject
+        {
+            ["count"] = count,
+            ["returned"] = returned,
+            ["truncated"] = truncated,
+            ["cleanup"] = (bool?)cleanup["pass"] ?? false,
+            ["pass"] = (bool?)info["ok"] == true && count >= 55 && returned == 50 && truncated &&
+                       (bool?)cleanup["pass"] == true
         };
     }
 

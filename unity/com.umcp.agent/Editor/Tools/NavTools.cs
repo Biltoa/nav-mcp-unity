@@ -38,12 +38,12 @@ namespace Umcp.Agent
                 })
                 .ToArray();
 
-            var agents = Resolve.AllGameObjects()
+            var allAgents = Resolve.AllGameObjects()
                 .Select(go => go.GetComponent<NavMeshAgent>())
                 .Where(a => a != null)
                 .Select(a => new { path = Resolve.Path(a.transform), radius = a.radius, speed = a.speed, onNavMesh = a.isOnNavMesh })
-                .Take(50)
                 .ToArray();
+            var agents = allAgents.Take(50).ToArray();
 
             return new
             {
@@ -52,7 +52,13 @@ namespace Umcp.Agent
                 triangles = triangulation.indices == null ? 0 : triangulation.indices.Length / 3,
                 areasUsed = areas.Distinct().OrderBy(a => a).Select(a => new { area = a, name = NavMesh.GetAreaNames().ElementAtOrDefault(a) }).ToArray(),
                 surfaces,
-                agents = new { count = agents.Length, sample = agents },
+                agents = new
+                {
+                    count = allAgents.Length,
+                    returned = agents.Length,
+                    sample = agents,
+                    _truncated = allAgents.Length > agents.Length
+                },
                 packageInstalled = SurfaceType() != null,
                 _hint = triangulation.vertices == null || triangulation.vertices.Length == 0
                     ? "Nothing is baked. navmesh.bake bakes the NavMeshSurface components in the scene."
