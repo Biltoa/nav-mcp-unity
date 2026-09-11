@@ -57,6 +57,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("payload-scene-info", bench.PayloadAsync),
     ("asset-info-metadata", bench.AssetInfoMetadataAsync),
     ("prefab-override-bounds", bench.PrefabOverrideBoundsAsync),
+    ("animation-curve-bounds", bench.AnimationCurveBoundsAsync),
     ("build-metadata", bench.BuildMetadataAsync),
     ("reload-hold-replay", bench.ReloadAsync),
     ("compile-responsiveness", bench.CompileResponsivenessAsync),
@@ -693,6 +694,60 @@ sealed partial class Bench(McpClient client)
             ["assetCleanup"] = (bool?)assetCleanup["ok"] == true,
             ["pass"] = (bool?)listed["ok"] == true && total >= 5 && returned >= 3 && truncated &&
                        (bool?)cleanup["pass"] == true && (bool?)assetCleanup["ok"] == true
+        };
+    }
+
+    /// <summary>Animation clip info must mark its bounded curve inventory as truncated.</summary>
+    public async Task<JsonObject> AnimationCurveBoundsAsync()
+    {
+        var path = "Assets/__UMCP_BENCH_Curves.anim";
+        JsonObject info = new();
+        JsonObject cleanup = new();
+        try
+        {
+            var created = await CallAsync("unity_script", new()
+            {
+                ["code"] = $$"""
+                    var clip = new AnimationClip();
+                    for (var i = 0; i < 41; i++)
+                        clip.SetCurve("Child" + i, typeof(Transform), "m_LocalPosition.x",
+                            AnimationCurve.Linear(0, 0, 1, i));
+                    AssetDatabase.CreateAsset(clip, "{{path}}");
+                    AssetDatabase.SaveAssets();
+                    return 41;
+                    """
+            });
+            if ((bool?)created["ok"] != true)
+                return new JsonObject { ["error"] = "failed to create animation fixture", ["pass"] = false };
+
+            info = await CallAsync("unity_run", new()
+            {
+                ["tool"] = "animation.clip",
+                ["args"] = new JsonObject { ["action"] = "info", ["path"] = path }
+            });
+        }
+        finally
+        {
+            cleanup = await CallAsync("unity_run", new()
+            {
+                ["tool"] = "assets.delete",
+                ["args"] = new JsonObject { ["path"] = path, ["confirm"] = true }
+            });
+        }
+
+        var data = info["data"];
+        var curves = data?["curves"] as JsonArray;
+        var count = (int?)data?["curveCount"] ?? -1;
+        var returned = (int?)data?["curvesReturned"] ?? curves?.Count ?? -1;
+        var truncated = (bool?)data?["_truncated"] ?? false;
+        return new JsonObject
+        {
+            ["curveCount"] = count,
+            ["curvesReturned"] = returned,
+            ["truncated"] = truncated,
+            ["assetCleanup"] = (bool?)cleanup["ok"] == true,
+            ["pass"] = (bool?)info["ok"] == true && count > 40 && returned == 40 && truncated &&
+                       (bool?)cleanup["ok"] == true
         };
     }
 

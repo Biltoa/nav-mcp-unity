@@ -83,6 +83,13 @@ namespace Umcp.Agent
                 {
                     var bindings = AnimationUtility.GetCurveBindings(clip);
                     var settings = AnimationUtility.GetAnimationClipSettings(clip);
+                    var curves = bindings.Take(Bounds.Limit(40)).Select(b => new
+                    {
+                        target = b.path,
+                        type = b.type != null ? b.type.Name : null,
+                        property = b.propertyName,
+                        keys = AnimationUtility.GetEditorCurve(clip, b) is AnimationCurve c ? c.length : 0
+                    }).ToArray();
                     return new
                     {
                         path = assetPath,
@@ -91,14 +98,10 @@ namespace Umcp.Agent
                         loop = settings.loopTime,
                         legacy = clip.legacy,
                         empty = clip.empty,
-                        curves = bindings.Take(Bounds.Limit(40)).Select(b => new
-                        {
-                            target = b.path,
-                            type = b.type != null ? b.type.Name : null,
-                            property = b.propertyName,
-                            keys = AnimationUtility.GetEditorCurve(clip, b) is AnimationCurve c ? c.length : 0
-                        }).ToArray(),
+                        curves,
                         curveCount = bindings.Length,
+                        curvesReturned = curves.Length,
+                        _truncated = bindings.Length > curves.Length,
                         events = clip.events.Select(e => new { e.functionName, e.time, e.stringParameter }).ToArray()
                     };
                 }
