@@ -122,6 +122,8 @@ internal static class Emit
         var sb = new StringBuilder(Header);
         sb.Append("""
 
+            #nullable enable
+
             namespace Umcp.Daemon.Generated;
 
             /// <summary>One catalog entry per Unity-side tool, generated from the same [UnityTool]

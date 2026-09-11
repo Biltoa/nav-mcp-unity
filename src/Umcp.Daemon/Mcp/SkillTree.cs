@@ -85,7 +85,9 @@ public sealed class SkillTree
             Title = header.GetValueOrDefault("title", id),
             // A dotted id nests by construction (scene.query under scene); anything else says so
             // in its own header. Grouping is what keeps the map affordable as domains are added.
-            Parent = Blank(header.GetValueOrDefault("parent", id.Contains('.') ? id[..id.LastIndexOf('.')] : null)),
+            Parent = Blank(header.TryGetValue("parent", out var parent)
+                ? parent
+                : id.Contains('.') ? id[..id.LastIndexOf('.')] : null),
             Covers = header.GetValueOrDefault("covers", ""),
             Excludes = header.GetValueOrDefault("excludes", ""),
             Tools = header.GetValueOrDefault("tools", "")

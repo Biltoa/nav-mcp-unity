@@ -4,6 +4,8 @@
 //     re-run `dotnet run --project src/Umcp.ToolGen`.
 // </auto-generated>
 
+#nullable enable
+
 namespace Umcp.Daemon.Generated;
 
 /// <summary>One catalog entry per Unity-side tool, generated from the same [UnityTool]
