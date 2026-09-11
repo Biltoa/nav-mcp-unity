@@ -60,6 +60,7 @@ var all = new (string name, Func<Task<JsonObject>> run)[]
     ("compile-responsiveness", bench.CompileResponsivenessAsync),
     ("skill-tree", bench.SkillTreeAsync),
     ("scene-query-vs-dump", bench.SceneQueryAsync),
+    ("validation-exact-limit", bench.ValidationExactLimitAsync),
     ("physics-settings-2d", bench.PhysicsSettings2DAsync),
     ("physics-bounded-results", bench.PhysicsBoundedResultsAsync),
     ("physics-sync", bench.PhysicsSyncAsync),
@@ -295,6 +296,86 @@ sealed partial class Bench(McpClient client)
                        (int?)settings?["velocityIterations"] > 0 &&
                        (int?)settings?["positionIterations"] > 0 &&
                        !string.IsNullOrEmpty(simulationMode) && ignored is not null
+        };
+    }
+
+    /// <summary>Exactly N findings at limit N is complete, not truncated.</summary>
+    public async Task<JsonObject> ValidationExactLimitAsync()
+    {
+        await CleanupAsync();
+        var name = Prefix + "validation_exact";
+        JsonObject validation = new();
+        JsonObject overflow = new();
+        JsonObject cleanup = new();
+        try
+        {
+            var created = await CallAsync("unity_script", new()
+            {
+                ["code"] = $$"""
+                    var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    go.name = "{{name}}";
+                    go.GetComponent<Renderer>().sharedMaterials = new Material[3];
+                    Undo.RegisterCreatedObjectUndo(go, "umcp-bench validation boundary");
+                    return go.GetInstanceID();
+                    """
+            });
+            if ((bool?)created["ok"] != true)
+                return new JsonObject { ["error"] = "failed to create validation fixture", ["pass"] = false };
+
+            validation = await CallAsync("unity_run", new()
+            {
+                ["tool"] = "scene.validate",
+                ["args"] = new JsonObject
+                {
+                    ["root"] = name,
+                    ["checks"] = new JsonArray("materials"),
+                    ["limit"] = 3
+                }
+            });
+
+            var changed = await CallAsync("unity_script", new()
+            {
+                ["code"] = $$"""
+                    var go = GameObject.Find("{{name}}");
+                    go.GetComponent<Renderer>().sharedMaterials = new Material[4];
+                    return 4;
+                    """
+            });
+            if ((bool?)changed["ok"] != true)
+                return new JsonObject { ["error"] = "failed to update validation fixture", ["pass"] = false };
+
+            overflow = await CallAsync("unity_run", new()
+            {
+                ["tool"] = "scene.validate",
+                ["args"] = new JsonObject
+                {
+                    ["root"] = name,
+                    ["checks"] = new JsonArray("materials"),
+                    ["limit"] = 3
+                }
+            });
+        }
+        finally
+        {
+            cleanup = await CleanupAsync();
+        }
+
+        var data = validation["data"];
+        var count = (int?)data?["count"] ?? -1;
+        var truncated = (bool?)data?["_truncated"] ?? false;
+        var overflowData = overflow["data"];
+        var overflowCount = (int?)overflowData?["count"] ?? -1;
+        var overflowTruncated = (bool?)overflowData?["_truncated"] ?? false;
+        return new JsonObject
+        {
+            ["exactCount"] = count,
+            ["exactTruncated"] = truncated,
+            ["overflowCount"] = overflowCount,
+            ["overflowTruncated"] = overflowTruncated,
+            ["cleanup"] = (bool?)cleanup["pass"] ?? false,
+            ["pass"] = (bool?)validation["ok"] == true && count == 3 && !truncated &&
+                       (bool?)overflow["ok"] == true && overflowCount == 3 && overflowTruncated &&
+                       (bool?)cleanup["pass"] == true
         };
     }
 

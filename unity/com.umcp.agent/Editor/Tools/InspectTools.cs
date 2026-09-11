@@ -48,7 +48,7 @@ namespace Umcp.Agent
             foreach (var go in scope)
             {
                 scanned++;
-                if (findings.Count >= cap) break;
+                if (findings.Count > cap) break;
                 var path = Resolve.Path(go.transform);
 
                 if (wanted.Contains("scripts"))
@@ -69,6 +69,7 @@ namespace Umcp.Agent
                         });
                     }
                 }
+                if (findings.Count > cap) break;
 
                 if (wanted.Contains("prefabs") && PrefabUtility.IsPartOfPrefabInstance(go))
                 {
@@ -82,9 +83,11 @@ namespace Umcp.Agent
                             fix = "Restore the prefab asset, or unpack the instance."
                         });
                 }
+                if (findings.Count > cap) break;
 
                 if (wanted.Contains("references"))
-                    foreach (var f in DanglingReferences(go, path, cap - findings.Count)) findings.Add(f);
+                    foreach (var f in DanglingReferences(go, path, cap + 1 - findings.Count)) findings.Add(f);
+                if (findings.Count > cap) break;
 
                 if (wanted.Contains("materials"))
                 {
@@ -124,7 +127,7 @@ namespace Umcp.Agent
                 checksRun = wanted.ToArray(),
                 count = list.Length,
                 findings = list,
-                _truncated = findings.Count >= cap,
+                _truncated = findings.Count > cap,
                 _hint = list.Length == 0 ? "Nothing broken in the checks that were run." : null
             };
         }
